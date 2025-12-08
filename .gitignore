@@ -1,0 +1,12 @@
+# Ignorer le dossier des dépendances de Node.js
+# Celles-ci sont téléchargées via npm install
+node_modules/
+
+# Fichiers de configuration sensibles
+.env
+
+# Dossiers spécifiques du frontend
+client/dist/
+
+# Dossiers spécifiques du backend
+server/node_modules/
