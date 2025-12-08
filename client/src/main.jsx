@@ -1,14 +1,19 @@
+// client/src/main.jsx
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import './index.css';
+import { AuthProvider } from './AuthContext'; // <--- NOUVEL IMPORT
 
-// S'assure de cibler l'ID 'root' du fichier index.html
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      {/* 🌟 ENVELOPPEMENT DE L'APPLICATION AVEC LE CONTEXTE 🌟 */}
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,
 )
