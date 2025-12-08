@@ -17,12 +17,18 @@ export default defineConfig({
       }
     }
   },
-  // 🌟 NOUVELLE CONFIGURATION POUR ÉVITER L'ERREUR DE RÉSOLUTION ROLLUP 🌟
   build: {
     rollupOptions: {
-      // Déclare expressément ces dépendances comme externes
-      // afin que Rollup n'essaie pas de les bundler, évitant ainsi l'erreur de résolution.
+      // Pour une meilleure compatibilité avec le déploiement Netlify
+      // On maintient l'externalisation.
       external: ['lucide-react'], 
     },
+    // Le dossier 'dist' est nécessaire car 'base' est 'client'
+    outDir: 'dist',
   },
+  // L'ajout de l'option de résolution peut parfois aider
+  resolve: {
+    // Permet à Vite de trouver correctement les dépendances
+    extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json'],
+  }
 })
