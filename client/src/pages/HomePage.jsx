@@ -1,7 +1,9 @@
 // client/src/pages/HomePage.jsx
 
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../AuthContext'; // <--- NOUVEL IMPORT
+import React, { useState, useEffect, useCallback } from 'react'; // <--- Ajout de useCallback
+import { useAuth } from '../AuthContext';
+import ContractForm from '../components/ContractForm'; // <--- NOUVEL IMPORT
+import ContractList from '../components/ContractList';
 
 const API_URL = 'http://localhost:5000/api/contracts';
 
@@ -9,47 +11,55 @@ const HomePage = () => {
     const [contracts, setContracts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const { token, isAuthenticated } = useAuth(); // <--- Utilisation du contexte d'auth
+    const [isModalOpen, setIsModalOpen] = useState(false); // <--- État de la modal
+    const { token, isAuthenticated } = useAuth();
 
-    useEffect(() => {
-        if (!isAuthenticated) {
-            // Si pas connecté, on n'essaie pas de charger les données
+    // Fonction pour récupérer les contrats
+    const fetchContracts = useCallback(async () => {
+        if (!isAuthenticated || !token) {
             setLoading(false);
             return;
         }
 
-        const fetchContracts = async () => {
-            setError(null);
-            setLoading(true);
-            try {
-                const response = await fetch(API_URL, {
-                    // 🌟 AJOUT DU JETON JWT DANS L'EN-TÊTE 🌟
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                });
+        setError(null);
+        setLoading(true);
+        try {
+            const response = await fetch(API_URL, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
 
-                if (!response.ok) {
-                    // Le serveur répondra 401 si le token est invalide
-                    if (response.status === 401) {
-                         throw new Error("Session expirée ou non autorisée. Veuillez vous reconnecter.");
-                    }
-                    throw new Error("Erreur de connexion à l'API.");
+            if (!response.ok) {
+                if (response.status === 401) {
+                     throw new Error("Session expirée ou non autorisée. Veuillez vous reconnecter.");
                 }
-
-                const data = await response.json();
-                setContracts(data);
-            } catch (err) {
-                console.error(err);
-                setError(`⚠️ Erreur: ${err.message || "Impossible de récupérer les contrats."}`);
-            } finally {
-                setLoading(false);
+                throw new Error("Erreur de connexion à l'API.");
             }
-        };
 
+            const data = await response.json();
+            setContracts(data);
+        } catch (err) {
+            console.error(err);
+            setError(`⚠️ Erreur: ${err.message || "Impossible de récupérer les contrats."}`);
+        } finally {
+            setLoading(false);
+        }
+    }, [isAuthenticated, token]);
+
+    // Chargement initial des contrats
+    useEffect(() => {
         fetchContracts();
-    }, [isAuthenticated, token]); // Re-charger si l'état d'auth ou le token change
+    }, [fetchContracts]); // Déclenchement au chargement et si les dépendances changent
+
+    // Fonction de rappel après l'ajout d'un contrat réussi
+    const handleContractAdded = (newContract) => {
+        // Ajoute le nouveau contrat à la liste sans recharger toute la page
+        setContracts((prevContracts) => [...prevContracts, newContract]);
+    };
+    
+    // --- Logique d'affichage (reste inchangée sauf l'ajout du bouton) ---
 
     if (!isAuthenticated) {
         return (
@@ -60,51 +70,44 @@ const HomePage = () => {
         );
     }
     
-    // ... (Reste de la logique de chargement et d'affichage)
-    
-    if (loading) {
-        return <div className="text-center p-8">Chargement des contrats...</div>;
-    }
-
-    if (error) {
-        return <div className="text-center p-8 text-red-600 bg-red-100 rounded-lg">{error}</div>;
-    }
-
     return (
-        <div className="mt-8">
-            <h1 className="text-3xl font-extrabold text-gray-900 mb-6">Tableau de Bord des Contrats</h1>
-            {contracts.length === 0 ? (
-                <div className="p-10 text-center border-2 border-dashed border-gray-300 rounded-lg">
-                    <p className="text-lg text-gray-500">Aucun contrat trouvé. Commencez par en ajouter un !</p>
+        <div className="space-y-6">
+            <div className="flex justify-between items-center border-b pb-4">
+                <h1 className="text-3xl font-extrabold text-gray-900">
+                    Aperçu des Contrats SaaS
+                </h1>
+                {/* 🌟 BOUTON D'AJOUT DE CONTRAT 🌟 */}
+                <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition shadow-md"
+                >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                    Ajouter un Contrat
+                </button>
+            </div>
+
+            {loading && (
+                <div className="p-4 bg-indigo-100 text-indigo-800 rounded-lg">
+                    Chargement des données...
                 </div>
-            ) : (
-                <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-300">
-                        {/* ... Le reste du tableau (Tête et Corps) ... */}
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Nom</th>
-                                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Fournisseur</th>
-                                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Coût Mensuel</th>
-                                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Renouvellement</th>
-                                <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 bg-white">
-                            {contracts.map((contract) => (
-                                <tr key={contract.id}>
-                                    <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{contract.name}</td>
-                                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{contract.provider || 'N/A'}</td>
-                                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{contract.monthly_cost} €</td>
-                                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{new Date(contract.renewal_date).toLocaleDateString()}</td>
-                                    <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                        <a href="#" className="text-indigo-600 hover:text-indigo-900">Éditer</a>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+            )}
+
+            {error && (
+                <div className="p-4 bg-red-100 text-red-800 rounded-lg border border-red-300">
+                    ⚠️ Erreur: {error}
                 </div>
+            )}
+
+            {/* ... (Affichage des cartes de stats si vous les avez développées) ... */}
+
+            {!loading && !error && <ContractList contracts={contracts} />}
+
+            {/* 🌟 AFFICHAGE CONDITIONNEL DE LA MODALE 🌟 */}
+            {isModalOpen && (
+                <ContractForm 
+                    onClose={() => setIsModalOpen(false)} 
+                    onContractAdded={handleContractAdded} 
+                />
             )}
         </div>
     );
