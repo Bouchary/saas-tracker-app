@@ -1,15 +1,12 @@
 # Configuration globale de construction
 [build]
-  # Dossier de base (Netlify exécutera les commandes à partir de ce chemin)
   base = "client" 
-  
-  # Commande de construction (exécutée dans le dossier "client")
   command = "npm install && npm run build" 
   
-  # Dossier de publication (relatif à la base, donc client/dist)
-  publish = "client/dist" 
+  # CORRECTION : Le dossier 'dist' est DANS le dossier 'client'
+  publish = "dist" 
 
-# Définition des redirections (utile pour le routing React)
+# Définition des redirections 
 [[redirects]]
   from = "/*"
   to = "/index.html"
