@@ -1,21 +1,46 @@
 // client/src/components/ContractForm.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 
 const API_URL = 'http://localhost:5000/api/contracts';
 
-const ContractForm = ({ onClose, onContractAdded }) => {
+// La prop 'contractToEdit' est maintenant acceptée
+const ContractForm = ({ onClose, onContractAdded, contractToEdit }) => {
   const { token } = useAuth();
-  const [formData, setFormData] = useState({
+  const isEditing = !!contractToEdit; // Vrai si un contrat est passé pour édition
+
+  const initialFormState = {
     name: '',
     provider: '',
     monthly_cost: '',
     renewal_date: '',
     notice_period_days: 0,
-  });
+    // Note: Le format de date YYYY-MM-DD est requis par l'input type="date"
+  };
+
+  const [formData, setFormData] = useState(initialFormState);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // 🌟 EFFET POUR PRÉ-REMPLIR EN CAS D'ÉDITION 🌟
+  useEffect(() => {
+    if (isEditing) {
+      // Formate la date pour l'input type="date"
+      const formattedDate = contractToEdit.renewal_date 
+        ? new Date(contractToEdit.renewal_date).toISOString().split('T')[0]
+        : '';
+        
+      setFormData({
+        name: contractToEdit.name || '',
+        provider: contractToEdit.provider || '',
+        // Assurez-vous que monthly_cost est une chaîne
+        monthly_cost: String(contractToEdit.monthly_cost) || '',
+        renewal_date: formattedDate,
+        notice_period_days: contractToEdit.notice_period_days || 0,
+      });
+    }
+  }, [contractToEdit, isEditing]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -30,47 +55,52 @@ const ContractForm = ({ onClose, onContractAdded }) => {
     setError(null);
     setLoading(true);
 
-    // Préparation des données pour l'API (assurez-vous que le coût est un nombre)
     const dataToSend = {
       ...formData,
       monthly_cost: parseFloat(formData.monthly_cost) || 0,
       notice_period_days: parseInt(formData.notice_period_days) || 0,
     };
 
+    // 🌟 LOGIQUE DE L'API : PATCH pour l'édition, POST pour la création 🌟
+    const method = isEditing ? 'PATCH' : 'POST';
+    const url = isEditing ? `${API_URL}/${contractToEdit.id}` : API_URL;
+
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`, // Jeton JWT requis
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(dataToSend),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Erreur lors de la création du contrat.');
+        throw new Error(errorData.error || `Erreur lors de l'${isEditing ? 'édition' : 'création'} du contrat.`);
       }
 
-      const newContract = await response.json();
+      const updatedContract = await response.json();
       
-      // Appel de la fonction de rafraîchissement du parent
-      onContractAdded(newContract); 
-      onClose(); // Fermer la modal après succès
+      // Appel de la fonction de rafraîchissement/mise à jour du parent
+      onContractAdded(updatedContract); 
+      onClose(); 
 
     } catch (err) {
-      console.error("Échec de la création:", err);
+      console.error("Échec de l'opération:", err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const title = isEditing ? 'Éditer le Contrat' : 'Ajouter un Nouveau Contrat';
+
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex justify-center items-center">
       <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg">
         <div className="flex justify-between items-center mb-6 border-b pb-3">
-          <h3 className="text-2xl font-bold text-gray-900">Ajouter un Nouveau Contrat</h3>
+          <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-3xl font-light leading-none">
             &times;
           </button>
@@ -124,7 +154,7 @@ const ContractForm = ({ onClose, onContractAdded }) => {
               className="px-4 py-2 text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition disabled:bg-indigo-400"
               disabled={loading}
             >
-              {loading ? 'Envoi...' : 'Ajouter Contrat'}
+              {loading ? 'Envoi...' : (isEditing ? 'Sauvegarder les Modifications' : 'Ajouter Contrat')}
             </button>
           </div>
         </form>
@@ -146,6 +176,5 @@ const Input = ({ label, name, type = 'text', ...props }) => (
         />
     </div>
 );
-
 
 export default ContractForm;
