@@ -1,9 +1,18 @@
 # Configuration globale de construction
 [build]
   base = "client" 
+  
+  # NOUVELLE COMMANDE ROBUSTE : Utiliser npm ci pour une installation propre et déterministe
+  # OU une version qui force la fraîcheur
+  # Nous allons revenir à la méthode la plus simple pour la compatibilité maximale :
   command = "npm install && npm run build" 
   
-  # CORRECTION : Le dossier 'dist' est DANS le dossier 'client'
+  # Pour contourner le problème sans modifier le code local :
+  # command = "npm install --legacy-peer-deps && npm run build" (si c'est un problème de dépendance)
+
+  # Conservons l'ancienne commande, car la résolution doit être faite dans Vite.
+  command = "npm install && npm run build" 
+
   publish = "dist" 
 
 # Définition des redirections 

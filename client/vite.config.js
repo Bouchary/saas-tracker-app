@@ -7,9 +7,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    // Si nous utilisons le port 5174 dans package.json, définissons-le ici aussi
     port: 5174, 
-    // Assurez-vous que le proxy est correctement fermé avec des virgules
     host: '127.0.0.1', 
     proxy: {
       '/api': {
@@ -18,5 +16,13 @@ export default defineConfig({
         secure: false,
       }
     }
-  }
+  },
+  // 🌟 NOUVELLE CONFIGURATION POUR ÉVITER L'ERREUR DE RÉSOLUTION ROLLUP 🌟
+  build: {
+    rollupOptions: {
+      // Déclare expressément ces dépendances comme externes
+      // afin que Rollup n'essaie pas de les bundler, évitant ainsi l'erreur de résolution.
+      external: ['lucide-react'], 
+    },
+  },
 })
