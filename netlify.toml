@@ -1,21 +1,15 @@
-# Configuration globale de construction
+# Configuration file for Netlify build settings
 [build]
+  # Dossier de base : Netlify exécutera les commandes à partir de ce chemin (/opt/build/repo/client)
   base = "client" 
   
-  # NOUVELLE COMMANDE ROBUSTE : Utiliser npm ci pour une installation propre et déterministe
-  # OU une version qui force la fraîcheur
-  # Nous allons revenir à la méthode la plus simple pour la compatibilité maximale :
+  # Commande de construction : Installe les dépendances puis lance le build Vite
   command = "npm install && npm run build" 
   
-  # Pour contourner le problème sans modifier le code local :
-  # command = "npm install --legacy-peer-deps && npm run build" (si c'est un problème de dépendance)
-
-  # Conservons l'ancienne commande, car la résolution doit être faite dans Vite.
-  command = "npm install && npm run build" 
-
+  # Dossier de publication (relatif à la base, donc client/dist)
   publish = "dist" 
 
-# Définition des redirections 
+# Redirections pour le routing client-side (React Router)
 [[redirects]]
   from = "/*"
   to = "/index.html"
