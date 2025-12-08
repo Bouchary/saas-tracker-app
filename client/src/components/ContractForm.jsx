@@ -3,12 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 
-const API_URL = 'http://localhost:5000/api/contracts';
+// 🌟 UTILISATION DE LA VARIABLE D'ENVIRONNEMENT VITE 🌟
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_URL = `${API_BASE_URL}/contracts`; // URL complète pour la ressource contracts
 
-// La prop 'contractToEdit' est maintenant acceptée
+// La prop 'contractToEdit' est acceptée
 const ContractForm = ({ onClose, onContractAdded, contractToEdit }) => {
   const { token } = useAuth();
-  const isEditing = !!contractToEdit; // Vrai si un contrat est passé pour édition
+  const isEditing = !!contractToEdit;
 
   const initialFormState = {
     name: '',
@@ -16,17 +18,15 @@ const ContractForm = ({ onClose, onContractAdded, contractToEdit }) => {
     monthly_cost: '',
     renewal_date: '',
     notice_period_days: 0,
-    // Note: Le format de date YYYY-MM-DD est requis par l'input type="date"
   };
 
   const [formData, setFormData] = useState(initialFormState);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // 🌟 EFFET POUR PRÉ-REMPLIR EN CAS D'ÉDITION 🌟
+  // EFFET POUR PRÉ-REMPLIR EN CAS D'ÉDITION (inchangé)
   useEffect(() => {
     if (isEditing) {
-      // Formate la date pour l'input type="date"
       const formattedDate = contractToEdit.renewal_date 
         ? new Date(contractToEdit.renewal_date).toISOString().split('T')[0]
         : '';
@@ -34,7 +34,6 @@ const ContractForm = ({ onClose, onContractAdded, contractToEdit }) => {
       setFormData({
         name: contractToEdit.name || '',
         provider: contractToEdit.provider || '',
-        // Assurez-vous que monthly_cost est une chaîne
         monthly_cost: String(contractToEdit.monthly_cost) || '',
         renewal_date: formattedDate,
         notice_period_days: contractToEdit.notice_period_days || 0,
@@ -61,7 +60,7 @@ const ContractForm = ({ onClose, onContractAdded, contractToEdit }) => {
       notice_period_days: parseInt(formData.notice_period_days) || 0,
     };
 
-    // 🌟 LOGIQUE DE L'API : PATCH pour l'édition, POST pour la création 🌟
+    // LOGIQUE DE L'API : PATCH pour l'édition, POST pour la création
     const method = isEditing ? 'PATCH' : 'POST';
     const url = isEditing ? `${API_URL}/${contractToEdit.id}` : API_URL;
 
@@ -82,7 +81,6 @@ const ContractForm = ({ onClose, onContractAdded, contractToEdit }) => {
 
       const updatedContract = await response.json();
       
-      // Appel de la fonction de rafraîchissement/mise à jour du parent
       onContractAdded(updatedContract); 
       onClose(); 
 
@@ -163,7 +161,7 @@ const ContractForm = ({ onClose, onContractAdded, contractToEdit }) => {
   );
 };
 
-// Composant utilitaire pour les champs d'entrée
+// Composant utilitaire pour les champs d'entrée (inchangé)
 const Input = ({ label, name, type = 'text', ...props }) => (
     <div>
         <label htmlFor={name} className="block text-sm font-medium text-gray-700">{label}</label>

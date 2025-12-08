@@ -4,20 +4,21 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../AuthContext';
 import ContractForm from '../components/ContractForm';
 import ContractList from '../components/ContractList';
-import { Plus } from 'lucide-react'; // 🌟 NOUVEL IMPORT LUCIDE 🌟
+import { Plus } from 'lucide-react';
 
-const API_URL = 'http://localhost:5000/api/contracts';
+// 🌟 UTILISATION DE LA VARIABLE D'ENVIRONNEMENT VITE 🌟
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_URL = `${API_BASE_URL}/contracts`; // URL complète pour la ressource contracts
 
-// 🌟 NOUVELLE FONCTION UTILITAIRE DE FORMATAGE 🌟
+// Fonction utilitaire de formatage (inchangée)
 const formatCurrency = (amount) => {
-    // Utilise la locale française (fr-FR) pour la séparation des milliers et la virgule décimale
     return new Intl.NumberFormat('fr-FR', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     }).format(amount);
 };
 
-// Composant utilitaire pour les cartes de statistiques
+// Composant utilitaire pour les cartes de statistiques (inchangé)
 const StatCard = ({ title, value, color }) => (
     <div className={`p-5 bg-white rounded-xl shadow-lg border-l-4 border-${color}-600`}>
         <p className="text-sm font-medium text-gray-500 truncate">{title}</p>
@@ -34,7 +35,7 @@ const HomePage = () => {
     const [contractToEdit, setContractToEdit] = useState(null);
     const { token, isAuthenticated } = useAuth();
     
-    // CALCUL DES MÉTRIQUES
+    // CALCUL DES MÉTRIQUES (inchangé)
     const totalMonthlyCost = contracts.reduce((sum, contract) => {
         const cost = parseFloat(contract.monthly_cost) || 0;
         return sum + cost;
@@ -43,7 +44,6 @@ const HomePage = () => {
     const totalAnnualCost = totalMonthlyCost * 12;
     const activeContractsCount = contracts.length;
     
-    // Déterminer la prochaine date de renouvellement critique (utilisé pour les stats)
     const nextRenewal = contracts.length > 0
         ? contracts.reduce((minContract, currentContract) => {
             const minDate = new Date(minContract.renewal_date);
@@ -156,7 +156,7 @@ const HomePage = () => {
         }
     };
 
-    // --- Rendu conditionnel pour l'utilisateur non connecté ---
+    // --- Rendu conditionnel pour l'utilisateur non connecté (inchangé) ---
     if (!isAuthenticated) {
         return (
             <div className="text-center p-10 bg-yellow-100 rounded-lg">
@@ -178,7 +178,6 @@ const HomePage = () => {
                     onClick={() => openEditModal(null)}
                     className="flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition shadow-md"
                 >
-                    {/* 🌟 ICÔNE MODERNE PLUS 🌟 */}
                     <Plus className="w-5 h-5 mr-2" /> 
                     Ajouter un Contrat
                 </button>
