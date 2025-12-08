@@ -6,7 +6,6 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // 🌟 CORRECTION DU CHEMIN DE BASE POUR LE DÉPLOIEMENT 🌟
   base: '/', 
   
   server: {
@@ -21,9 +20,13 @@ export default defineConfig({
     }
   },
   build: {
-    rollupOptions: {
-      external: ['lucide-react'], 
-    },
+    // 🌟 CORRECTION CRITIQUE : RETIRER ROLLUPOPTIONS.EXTERNAL 🌟
+    // Retirer 'external: ['lucide-react']' force Rollup à bundler Lucide, 
+    // ce qui est souvent plus fiable que de le laisser en 'externe' dans certains environnements.
+    // L'option rollupOptions vide suffit si nous n'avons pas d'autres besoins spécifiques.
+    // rollupOptions: {
+    //   external: ['lucide-react'], 
+    // },
     outDir: 'dist',
   },
   resolve: {
