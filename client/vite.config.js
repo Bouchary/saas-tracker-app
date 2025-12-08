@@ -2,7 +2,6 @@
 
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'; // 🌟 NOUVEL IMPORT NÉCESSAIRE POUR path.resolve 🌟
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -21,20 +20,14 @@ export default defineConfig({
     }
   },
   
-  // 🌟 MODIFICATION CRITIQUE : AJOUT DE L'ALIAS 🌟
-  resolve: {
-    alias: {
-      // Dit à Rollup/Vite que "lucide-react" doit être résolu à partir 
-      // du chemin absolu 'node_modules/lucide-react' DANS le dossier 'client'.
-      'lucide-react': path.resolve(__dirname, 'node_modules/lucide-react'),
-    },
-    extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json'],
-  },
-  
-  optimizeDeps: {
-    include: ['lucide-react'],
-  },
+  // 🌟 RETOUR À LA CONFIGURATION PROPRE 🌟
+  // Les options complexes ont introduit des erreurs ENOENT/Rollup.
+  // Laissons Rollup/Vite gérer la résolution des modules par défaut.
   build: {
     outDir: 'dist',
   },
+  
+  // Supprimer optimizeDeps et resolve.alias
+  // resolve: { /* ... */ }, 
+  // optimizeDeps: { /* ... */ },
 })
