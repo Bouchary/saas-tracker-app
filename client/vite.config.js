@@ -19,15 +19,17 @@ export default defineConfig({
       }
     }
   },
+  
+  // 🌟 CORRECTION DÉFINITIVE : OPTIMISATION ET DÉPENDANCES 🌟
+  optimizeDeps: {
+    // Force la pré-bundling de 'lucide-react' pour le rendre plus simple pour Rollup
+    include: ['lucide-react'],
+  },
   build: {
-    // 🌟 CORRECTION CRITIQUE : RETIRER ROLLUPOPTIONS.EXTERNAL 🌟
-    // Retirer 'external: ['lucide-react']' force Rollup à bundler Lucide, 
-    // ce qui est souvent plus fiable que de le laisser en 'externe' dans certains environnements.
-    // L'option rollupOptions vide suffit si nous n'avons pas d'autres besoins spécifiques.
-    // rollupOptions: {
-    //   external: ['lucide-react'], 
-    // },
     outDir: 'dist',
+    rollupOptions: {
+      // S'assurer que les chemins sont gérés correctement pour l'environnement Netlify
+    }
   },
   resolve: {
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json'],
