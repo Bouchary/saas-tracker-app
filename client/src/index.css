@@ -1,0 +1,11 @@
+/* client/src/index.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Styles personnalisés globaux si nécessaire */
+body {
+  font-family: 'Inter', sans-serif; /* Vous pouvez ajuster la police */
+  background-color: #f7f9fb;
+}
