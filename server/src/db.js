@@ -2,13 +2,17 @@
 
 const { Pool } = require('pg');
 
-// Configuration du pool de connexion utilisant les variables d'environnement
+// Configuration du pool de connexion avec SSL pour production
 const pool = new Pool({
   user: process.env.PGUSER,
   host: process.env.PGHOST,
   database: process.env.PGDATABASE,
   password: process.env.PGPASSWORD,
   port: process.env.PGPORT,
+  // ✅ AJOUT CRITIQUE : Configuration SSL pour Render
+  ssl: process.env.NODE_ENV === 'production' ? {
+    rejectUnauthorized: false
+  } : false
 });
 
 /**
