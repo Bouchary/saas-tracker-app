@@ -1,75 +1,68 @@
-// client/src/AuthContext.jsx
+// Fichier : saas-tracker-app/client/src/AuthContext.jsx
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-// Crée le Contexte
 const AuthContext = createContext();
 
-// Hook personnalisé pour l'utiliser facilement
 export const useAuth = () => {
-  return useContext(AuthContext);
+    return useContext(AuthContext);
 };
 
-// Fournisseur de Contexte (Le composant qui enveloppe l'application)
 export const AuthProvider = ({ children }) => {
-  // 1. Initialise l'état à partir du LocalStorage
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token') || null);
-  const [loading, setLoading] = useState(true);
+    // État pour stocker l'utilisateur et le jeton
+    const [user, setUser] = useState(null);
+    const [token, setToken] = useState(localStorage.getItem('userToken'));
+    const navigate = useNavigate();
 
-  // 2. Vérifie le LocalStorage au chargement initial
-  useEffect(() => {
-    if (token) {
-      // Pour une application plus robuste, on pourrait ici valider le token auprès du backend.
-      // Pour l'instant, on suppose que s'il y a un token, on est connecté.
-      try {
-        // Optionnel : décoder le token pour récupérer les infos utilisateur
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const decoded = JSON.parse(window.atob(base64));
-        
-        // Simuler la récupération des infos utilisateur (ici, juste l'ID)
-        setUser({ id: decoded.id }); 
-      } catch (e) {
-        console.error("Token JWT invalide ou expiré.", e);
+    // Récupère l'état de la session au montage
+    useEffect(() => {
+        const storedToken = localStorage.getItem('userToken');
+        if (storedToken) {
+            setToken(storedToken);
+            // Assure que l'objet utilisateur est chargé si le jeton existe
+            setUser(JSON.parse(localStorage.getItem('user')) || { id: 'unknown' }); 
+        }
+    }, []);
+
+    // -----------------------------------------------------------
+    // FONCTION DE CONNEXION
+    // -----------------------------------------------------------
+    const login = (userData, userToken) => {
+        // Met à jour l'état React
+        setToken(userToken);
+        setUser(userData);
+
+        // Met à jour le stockage local
+        localStorage.setItem('userToken', userToken);
+        localStorage.setItem('user', JSON.stringify(userData));
+    };
+
+    // -----------------------------------------------------------
+    // FONCTION DE DÉCONNEXION
+    // -----------------------------------------------------------
+    const logout = () => {
+        // Efface l'état React
         setToken(null);
-        localStorage.removeItem('token');
-      }
-    }
-    setLoading(false);
-  }, [token]);
+        setUser(null);
 
-  // Fonction de connexion : Stocke le token et met à jour l'état
-  const login = (userData, jwtToken) => {
-    localStorage.setItem('token', jwtToken);
-    setToken(jwtToken);
-    setUser(userData);
-  };
+        // Efface le stockage local
+        localStorage.removeItem('userToken');
+        localStorage.removeItem('user');
+        
+        // ✅ CORRECTION DÉFINITIVE : Redirige vers la route /login (définie dans App.jsx)
+        navigate('/login'); 
+    };
 
-  // Fonction de déconnexion : Supprime le token et réinitialise l'état
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
-  };
+    const isAuthenticated = !!token;
 
-  const value = {
-    user,
-    token,
-    loading,
-    login,
-    logout,
-    isAuthenticated: !!user, // Booleen: l'utilisateur est-il connecté ?
-  };
+    const value = {
+        user,
+        token,
+        isAuthenticated,
+        login,
+        logout,
+    };
 
-  if (loading) {
-      // Peut afficher un loader ou null si l'on attend que le LocalStorage soit vérifié
-      return <div className="text-center p-8">Chargement de la session...</div>;
-  }
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

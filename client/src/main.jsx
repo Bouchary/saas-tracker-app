@@ -5,15 +5,14 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import './index.css';
-import { AuthProvider } from './AuthContext'; // <--- NOUVEL IMPORT
+import { AuthProvider } from './AuthContext';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      {/* 🌟 ENVELOPPEMENT DE L'APPLICATION AVEC LE CONTEXTE 🌟 */}
       <AuthProvider>
         <App />
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,
-)
+);

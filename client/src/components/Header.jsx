@@ -3,7 +3,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { LayoutDashboard } from 'lucide-react'; // 🌟 NOUVEL IMPORT LUCIDE 🌟
+import { LayoutDashboard } from 'lucide-react';
 
 const Header = () => {
   const { isAuthenticated, logout } = useAuth(); 
@@ -16,7 +16,6 @@ const Header = () => {
     <header className="bg-white shadow-md">
       <div className="container mx-auto p-4 flex justify-between items-center">
         <Link to="/" className="text-2xl font-bold text-gray-800 hover:text-indigo-600 transition duration-300 flex items-center space-x-2">
-            {/* 🌟 ICÔNE ÉPURÉE POUR LE LOGO 🌟 */}
             <LayoutDashboard className="w-6 h-6 text-indigo-600" />
             <span>SaaS Tracker</span> 
         </Link>
@@ -31,17 +30,16 @@ const Header = () => {
               </Link>
             </li>
             <li>
-              {/* AFFICHAGE CONDITIONNEL */}
               {isAuthenticated ? (
                 <button
                   onClick={handleLogout}
-                  className="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition duration-300 shadow-md font-medium text-sm" // 🌟 Esthétique sombre/épurée 🌟
+                  className="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition duration-300 shadow-md font-medium text-sm"
                 >
                   Déconnexion
                 </button>
               ) : (
                 <Link 
-                  to="/auth" 
+                  to="/login" 
                   className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition duration-300 shadow-md font-medium text-sm"
                 >
                   Connexion

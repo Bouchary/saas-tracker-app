@@ -1,10 +1,12 @@
-// client/src/pages/LoginPage.jsx
+// Fichier : saas-tracker-app/client/src/pages/LoginPage.jsx
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // <--- NOUVEL IMPORT
-import { useAuth } from '../AuthContext'; // <--- NOUVEL IMPORT
+import { useNavigate } from 'react-router-dom'; 
+import { useAuth } from '../AuthContext'; 
 
-const API_URL = 'http://localhost:5000/api/auth';
+// Utilisation des variables d'environnement pour l'URL de base de l'API (qui inclut /api)
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_URL = `${BASE_URL}/auth`; // L'endpoint réel est /api/auth
 
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -13,7 +15,6 @@ const LoginPage = () => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   
-  // Utilisation du contexte et du hook de navigation
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -25,6 +26,7 @@ const LoginPage = () => {
     const endpoint = isLogin ? 'login' : 'register';
     
     try {
+      // Le fetch va vers http://localhost:5000/api/auth/login ou /register
       const response = await fetch(`${API_URL}/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -37,21 +39,23 @@ const LoginPage = () => {
         throw new Error(data.error || `Erreur ${isLogin ? 'de connexion' : 'd\'inscription'}.`);
       }
 
-      // 🌟 STOCKAGE DU JETON ET DE L'UTILISATEUR 🌟
-      login(data.user, data.token);
+      const userPayload = {
+        id: data.id,
+        email: data.email,
+      };
+      
+      login(userPayload, data.token);
 
-      // Redirection vers la page d'accueil ou le tableau de bord
+      // Redirection après succès
       navigate('/'); 
 
     } catch (err) {
-      setError(err.message);
+      console.error("Erreur de soumission du formulaire:", err);
+      setError(err.message || 'Échec de la connexion/inscription. Vérifiez les logs.');
     } finally {
       setLoading(false);
     }
   };
-  
-  // ... (Le reste du JSX reste identique, sauf l'ajout des imports ci-dessus)
-  // ...
   
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
@@ -66,7 +70,12 @@ const LoginPage = () => {
           </div>
         )}
 
-        <form className="space-y-6" onSubmit={handleSubmit}>
+        <form 
+          className="space-y-6" 
+          onSubmit={handleSubmit}
+          data-lpignore="true" 
+          autoComplete="off"   
+        >
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
             <input
@@ -78,6 +87,7 @@ const LoginPage = () => {
               onChange={(e) => setEmail(e.target.value)}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
               disabled={loading}
+              autoComplete="off" 
             />
           </div>
 
@@ -90,8 +100,9 @@ const LoginPage = () => {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 transition"
               disabled={loading}
+              autoComplete="new-password" 
             />
           </div>
 

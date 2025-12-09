@@ -5,16 +5,11 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated } = useAuth();
 
-  // Afficher un loader le temps de vérifier le token
-  if (loading) {
-    return <div className="text-center p-8">Vérification de la session...</div>;
-  }
-
-  // Rediriger vers la page d'authentification si non connecté
+  // Rediriger vers la page de connexion si non connecté
   if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   // Si connecté, afficher le composant enfant
