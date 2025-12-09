@@ -54,9 +54,8 @@ const Pagination = ({
 
     const pageNumbers = getPageNumbers();
 
-    if (totalPages <= 1) {
-        return null; // Pas de pagination si une seule page
-    }
+    // Toujours afficher au moins le sélecteur d'items par page
+    const showFullPagination = totalPages > 1;
 
     return (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 px-2">
@@ -68,7 +67,8 @@ const Pagination = ({
             </div>
 
             {/* Contrôles de pagination */}
-            <div className="flex items-center gap-2">
+            {showFullPagination && (
+                <div className="flex items-center gap-2">
                 {/* Bouton Première page */}
                 <button
                     onClick={() => onPageChange(1)}
@@ -136,6 +136,7 @@ const Pagination = ({
                     <ChevronsRight className="w-4 h-4" />
                 </button>
             </div>
+            )}
 
             {/* Sélecteur d'items par page */}
             <div className="flex items-center gap-2 text-sm">

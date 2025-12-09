@@ -1,21 +1,31 @@
 // client/src/App.jsx
 
-import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 
 // Importation des composants des pages
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import ContractForm from './pages/ContractForm';
+import DashboardPage from './pages/DashboardPage';
 
 // Importation des composants de structure
 import Header from './components/Header';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const App = () => {
+    const navigate = useNavigate();
+    const [scrollToContract, setScrollToContract] = useState(null);
+
+    // Fonction pour gérer le clic sur une notification
+    const handleNotificationClick = (contractId) => {
+        setScrollToContract(contractId);
+        navigate('/');
+    };
+
     return (
         <>
-            <Header />
+            <Header onNotificationClick={handleNotificationClick} />
             <main className="container mx-auto px-4 py-8">
                 <Routes>
                     {/* Routes publiques pour l'authentification */}
@@ -27,7 +37,7 @@ const App = () => {
                         path="/"
                         element={
                             <ProtectedRoute>
-                                <HomePage />
+                                <HomePage scrollToContract={scrollToContract} />
                             </ProtectedRoute>
                         }
                     />
@@ -38,6 +48,16 @@ const App = () => {
                         element={
                             <ProtectedRoute>
                                 <ContractForm />
+                            </ProtectedRoute>
+                        }
+                    />
+                    
+                    {/* Route pour le dashboard analytique */}
+                    <Route
+                        path="/dashboard"
+                        element={
+                            <ProtectedRoute>
+                                <DashboardPage />
                             </ProtectedRoute>
                         }
                     />

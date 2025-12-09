@@ -10,11 +10,21 @@ const {
     getAllContracts,
     createContract,
     updateContract,
-    deleteContract
+    deleteContract,
+    getProviders,
+    exportContracts
 } = require('./contractsController.js');
 
 // Applique le middleware de protection à toutes les routes
 router.use(protect);
+
+// GET /api/contracts/providers - Obtenir la liste des fournisseurs uniques
+// ⚠️ DOIT ÊTRE AVANT /:id
+router.get('/providers', getProviders);
+
+// GET /api/contracts/export - Exporter les contrats en CSV
+// ⚠️ DOIT ÊTRE AVANT /:id
+router.get('/export', exportContracts);
 
 // GET /api/contracts - Récupérer tous les contrats de l'utilisateur
 router.get('/', getAllContracts);

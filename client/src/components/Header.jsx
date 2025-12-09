@@ -4,8 +4,9 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { LayoutDashboard } from 'lucide-react';
+import Notifications from './Notifications';
 
-const Header = () => {
+const Header = ({ onNotificationClick }) => {
   const { isAuthenticated, logout } = useAuth(); 
 
   const handleLogout = () => {
@@ -20,15 +21,28 @@ const Header = () => {
             <span>SaaS Tracker</span> 
         </Link>
         <nav>
-          <ul className="flex space-x-4">
+          <ul className="flex space-x-4 items-center">
             <li>
               <Link 
                 to="/" 
                 className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300"
               >
-                Tableau de Bord
+                Contrats
               </Link>
             </li>
+            <li>
+              <Link 
+                to="/dashboard" 
+                className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300"
+              >
+                Analytique
+              </Link>
+            </li>
+            {isAuthenticated && (
+              <li>
+                <Notifications onContractClick={onNotificationClick} />
+              </li>
+            )}
             <li>
               {isAuthenticated ? (
                 <button

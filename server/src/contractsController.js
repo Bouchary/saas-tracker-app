@@ -5,7 +5,7 @@ const { sanitizeString } = require('./middlewares/validation');
 
 const LOG_PREFIX = 'Contrats SQL:';
 
-// 1. OBTENIR TOUS LES CONTRATS (filtré par user_id) AVEC PAGINATION
+// 1. OBTENIR TOUS LES CONTRATS AVEC PAGINATION, FILTRES ET RECHERCHE
 const getAllContracts = async (req, res) => {
     const userId = req.user;
     
@@ -13,10 +13,17 @@ const getAllContracts = async (req, res) => {
         return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
     }
 
-    // Paramètres de pagination avec valeurs par défaut
+    // Paramètres de pagination
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
+
+    // Paramètres de recherche et filtres
+    const search = req.query.search ? sanitizeString(req.query.search) : '';
+    const status = req.query.status || '';
+    const provider = req.query.provider || '';
+    const sortBy = req.query.sortBy || 'renewal_date';
+    const sortOrder = req.query.sortOrder === 'desc' ? 'DESC' : 'ASC';
 
     // Validation des paramètres
     if (page < 1 || limit < 1 || limit > 100) {
@@ -24,29 +31,64 @@ const getAllContracts = async (req, res) => {
             error: 'Paramètres de pagination invalides. Page >= 1, Limit entre 1 et 100.' 
         });
     }
+
+    // Validation du champ de tri
+    const validSortFields = ['name', 'provider', 'monthly_cost', 'renewal_date', 'notice_period_days', 'status'];
+    if (!validSortFields.includes(sortBy)) {
+        return res.status(400).json({ 
+            error: `Champ de tri invalide. Valeurs autorisées: ${validSortFields.join(', ')}` 
+        });
+    }
     
     try {
-        // Requête pour compter le nombre total de contrats
-        const countQuery = 'SELECT COUNT(*) FROM contracts WHERE user_id = $1';
-        const countResult = await db.query(countQuery, [userId]);
+        // Construction dynamique de la clause WHERE
+        let whereConditions = ['user_id = $1'];
+        let queryParams = [userId];
+        let paramIndex = 2;
+
+        if (search) {
+            whereConditions.push(`(LOWER(name) LIKE $${paramIndex} OR LOWER(provider) LIKE $${paramIndex})`);
+            queryParams.push(`%${search.toLowerCase()}%`);
+            paramIndex++;
+        }
+
+        if (status) {
+            whereConditions.push(`LOWER(status) = $${paramIndex}`);
+            queryParams.push(status.toLowerCase());
+            paramIndex++;
+        }
+
+        if (provider) {
+            whereConditions.push(`LOWER(provider) = $${paramIndex}`);
+            queryParams.push(provider.toLowerCase());
+            paramIndex++;
+        }
+
+        const whereClause = whereConditions.join(' AND ');
+
+        // Requête pour compter le nombre total de contrats (avec filtres)
+        const countQuery = `SELECT COUNT(*) FROM contracts WHERE ${whereClause}`;
+        const countResult = await db.query(countQuery, queryParams);
         const totalContracts = parseInt(countResult.rows[0].count);
 
-        // Requête pour récupérer les contrats paginés
+        // Requête pour récupérer les contrats paginés et filtrés
         const queryText = `
             SELECT id, name, provider, monthly_cost, renewal_date, notice_period_days, status
             FROM contracts
-            WHERE user_id = $1  
-            ORDER BY renewal_date ASC
-            LIMIT $2 OFFSET $3
+            WHERE ${whereClause}
+            ORDER BY ${sortBy} ${sortOrder}
+            LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
-        const result = await db.query(queryText, [userId, limit, offset]);
+        
+        const finalParams = [...queryParams, limit, offset];
+        const result = await db.query(queryText, finalParams);
 
         // Calcul des métadonnées
         const totalPages = Math.ceil(totalContracts / limit);
         const hasNextPage = page < totalPages;
         const hasPrevPage = page > 1;
 
-        console.log(`${LOG_PREFIX} Page ${page}/${totalPages} - ${result.rowCount} contrats pour l'utilisateur ${userId}`);
+        console.log(`${LOG_PREFIX} Page ${page}/${totalPages} - ${result.rowCount} contrats (filtres: ${search ? 'recherche' : 'aucun'}) pour l'utilisateur ${userId}`);
 
         res.status(200).json({
             contracts: result.rows,
@@ -57,6 +99,13 @@ const getAllContracts = async (req, res) => {
                 limit: limit,
                 hasNextPage: hasNextPage,
                 hasPrevPage: hasPrevPage,
+            },
+            filters: {
+                search: search,
+                status: status,
+                provider: provider,
+                sortBy: sortBy,
+                sortOrder: sortOrder,
             }
         });
     } catch (error) {
@@ -65,7 +114,7 @@ const getAllContracts = async (req, res) => {
     }
 };
 
-// 2. CRÉER UN CONTRAT (insère user_id)
+// 2. CRÉER UN CONTRAT
 const createContract = async (req, res) => {
     const userId = req.user;
     
@@ -73,7 +122,6 @@ const createContract = async (req, res) => {
         return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
     }
     
-    // Sanitize les données
     const name = sanitizeString(req.body.name);
     const provider = req.body.provider ? sanitizeString(req.body.provider) : null;
     const monthly_cost = parseFloat(req.body.monthly_cost);
@@ -97,7 +145,7 @@ const createContract = async (req, res) => {
     }
 };
 
-// 3. MODIFIER UN CONTRAT (vérifie le user_id)
+// 3. MODIFIER UN CONTRAT
 const updateContract = async (req, res) => {
     const { id } = req.params;
     const userId = req.user;
@@ -106,7 +154,6 @@ const updateContract = async (req, res) => {
         return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
     }
     
-    // Sanitize les données
     const name = req.body.name ? sanitizeString(req.body.name) : undefined;
     const provider = req.body.provider ? sanitizeString(req.body.provider) : undefined;
     const monthly_cost = req.body.monthly_cost !== undefined ? parseFloat(req.body.monthly_cost) : undefined;
@@ -114,7 +161,6 @@ const updateContract = async (req, res) => {
     const notice_period_days = req.body.notice_period_days !== undefined ? parseInt(req.body.notice_period_days) : undefined;
     const status = req.body.status ? req.body.status.toLowerCase() : undefined;
     
-    // Construction dynamique de la requête de mise à jour
     let queryText = 'UPDATE contracts SET ';
     const updates = [];
     const values = [];
@@ -151,7 +197,7 @@ const updateContract = async (req, res) => {
     }
 };
 
-// 4. SUPPRIMER UN CONTRAT (vérifie le user_id)
+// 4. SUPPRIMER UN CONTRAT
 const deleteContract = async (req, res) => {
     const { id } = req.params;
     const userId = req.user;
@@ -178,9 +224,133 @@ const deleteContract = async (req, res) => {
     }
 };
 
+// 5. OBTENIR LA LISTE DES FOURNISSEURS UNIQUES
+const getProviders = async (req, res) => {
+    const userId = req.user;
+    
+    if (!userId) {
+        return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
+    }
+
+    try {
+        const queryText = `
+            SELECT DISTINCT provider 
+            FROM contracts 
+            WHERE user_id = $1 AND provider IS NOT NULL AND provider != ''
+            ORDER BY provider ASC
+        `;
+        const result = await db.query(queryText, [userId]);
+        
+        const providers = result.rows.map(row => row.provider);
+        res.status(200).json(providers);
+    } catch (error) {
+        console.error('Erreur getProviders:', error);
+        res.status(500).json({ error: 'Erreur serveur lors de la récupération des fournisseurs.' });
+    }
+};
+
+// 6. EXPORTER LES CONTRATS EN CSV
+const exportContracts = async (req, res) => {
+    const userId = req.user;
+    
+    if (!userId) {
+        return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
+    }
+
+    const search = req.query.search ? sanitizeString(req.query.search) : '';
+    const status = req.query.status || '';
+    const provider = req.query.provider || '';
+    const sortBy = req.query.sortBy || 'renewal_date';
+    const sortOrder = req.query.sortOrder === 'desc' ? 'DESC' : 'ASC';
+
+    const validSortFields = ['name', 'provider', 'monthly_cost', 'renewal_date', 'notice_period_days', 'status'];
+    if (!validSortFields.includes(sortBy)) {
+        return res.status(400).json({ 
+            error: `Champ de tri invalide. Valeurs autorisées: ${validSortFields.join(', ')}` 
+        });
+    }
+
+    try {
+        let whereConditions = ['user_id = $1'];
+        let queryParams = [userId];
+        let paramIndex = 2;
+
+        if (search) {
+            whereConditions.push(`(LOWER(name) LIKE $${paramIndex} OR LOWER(provider) LIKE $${paramIndex})`);
+            queryParams.push(`%${search.toLowerCase()}%`);
+            paramIndex++;
+        }
+
+        if (status) {
+            whereConditions.push(`LOWER(status) = $${paramIndex}`);
+            queryParams.push(status.toLowerCase());
+            paramIndex++;
+        }
+
+        if (provider) {
+            whereConditions.push(`LOWER(provider) = $${paramIndex}`);
+            queryParams.push(provider.toLowerCase());
+            paramIndex++;
+        }
+
+        const whereClause = whereConditions.join(' AND ');
+
+        // ✅ CORRECTION : Construire la requête avec concaténation (pas template literals)
+        let queryText = 'SELECT id, name, provider, monthly_cost, renewal_date, notice_period_days, status ';
+        queryText += 'FROM contracts ';
+        queryText += 'WHERE ' + whereClause + ' ';
+        queryText += 'ORDER BY ' + sortBy + ' ' + sortOrder;
+        
+        console.log(`${LOG_PREFIX} Export CSV - Query:`, queryText);
+        console.log(`${LOG_PREFIX} Export CSV - Params:`, queryParams);
+        
+        const result = await db.query(queryText, queryParams);
+
+        // Générer le CSV
+        const csvHeaders = 'ID,Nom,Fournisseur,Coût Mensuel (€),Date de Renouvellement,Préavis (Jours),Statut\n';
+        
+        const csvRows = result.rows.map(contract => {
+            const escapeCsvField = (field) => {
+                if (field === null || field === undefined) return '';
+                const str = String(field);
+                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                    return `"${str.replace(/"/g, '""')}"`;
+                }
+                return str;
+            };
+
+            return [
+                contract.id,
+                escapeCsvField(contract.name),
+                escapeCsvField(contract.provider || ''),
+                parseFloat(contract.monthly_cost).toFixed(2),
+                contract.renewal_date ? new Date(contract.renewal_date).toISOString().split('T')[0] : '',
+                contract.notice_period_days || 0,
+                escapeCsvField(contract.status)
+            ].join(',');
+        }).join('\n');
+
+        const csvContent = csvHeaders + csvRows;
+        const filename = `contrats_${new Date().toISOString().split('T')[0]}.csv`;
+        
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', Buffer.byteLength(csvContent, 'utf8'));
+
+        console.log(`${LOG_PREFIX} Export CSV de ${result.rowCount} contrats pour l'utilisateur ${userId}`);
+        
+        res.status(200).send(csvContent);
+    } catch (error) {
+        console.error('Erreur exportContracts:', error);
+        res.status(500).json({ error: 'Erreur serveur lors de l\'export des contrats.' });
+    }
+};
+
 module.exports = {
     getAllContracts,
     createContract,
     updateContract,
     deleteContract,
+    getProviders,
+    exportContracts,
 };

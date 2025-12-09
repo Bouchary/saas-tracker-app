@@ -3,9 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import { Link } from 'react-router-dom';
+import { Download } from 'lucide-react';
 import ContractList from '../components/ContractList';
 import ContractForm from '../components/ContractForm';
 import Pagination from '../components/Pagination';
+import FiltersAndSearch from '../components/FiltersAndSearch';
+import QuickFilters from '../components/QuickFilters';
+import AdvancedFilters from '../components/AdvancedFilters';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
@@ -21,14 +25,54 @@ const HomePage = () => {
     const [totalContracts, setTotalContracts] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
 
+    // États pour les filtres et le tri
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filters, setFilters] = useState({ status: '', provider: '' });
+    const [sortBy, setSortBy] = useState(localStorage.getItem('sortBy') || 'renewal_date');
+    const [sortOrder, setSortOrder] = useState(localStorage.getItem('sortOrder') || 'asc');
+    const [providers, setProviders] = useState([]);
+    
+    // États pour les filtres avancés
+    const [quickFilter, setQuickFilter] = useState('all');
+    const [costRange, setCostRange] = useState({ minCost: 0, maxCost: 1000 });
+    const [allContractsData, setAllContractsData] = useState([]);
+
     // États pour l'édition et la suppression
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [contractToEdit, setContractToEdit] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [contractToDelete, setContractToDelete] = useState(null);
 
-    // Fonction pour charger les contrats avec pagination
-    const fetchContracts = async (page = currentPage, limit = itemsPerPage) => {
+    // Charger la liste des fournisseurs uniques
+    const fetchProviders = async () => {
+        if (!token) return;
+
+        try {
+            const response = await fetch(`${API_URL}/contracts/providers`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setProviders(data);
+            }
+        } catch (err) {
+            console.error('Erreur récupération fournisseurs:', err);
+        }
+    };
+
+    // Fonction pour charger les contrats avec tous les paramètres
+    const fetchContracts = async (
+        page = currentPage, 
+        limit = itemsPerPage,
+        search = searchTerm,
+        filterStatus = filters.status,
+        filterProvider = filters.provider,
+        sort = sortBy,
+        order = sortOrder
+    ) => {
         if (!token) {
             setLoading(false);
             return;
@@ -37,7 +81,19 @@ const HomePage = () => {
         setLoading(true);
 
         try {
-            const response = await fetch(`${API_URL}/contracts?page=${page}&limit=${limit}`, {
+            // Construction de l'URL avec tous les paramètres
+            const params = new URLSearchParams({
+                page: page.toString(),
+                limit: limit.toString(),
+                sortBy: sort,
+                sortOrder: order,
+            });
+
+            if (search) params.append('search', search);
+            if (filterStatus) params.append('status', filterStatus);
+            if (filterProvider) params.append('provider', filterProvider);
+
+            const response = await fetch(`${API_URL}/contracts?${params}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -56,7 +112,6 @@ const HomePage = () => {
 
             const data = await response.json();
             
-            // Nouvelle structure avec pagination
             setContracts(data.contracts || []);
             setTotalContracts(data.pagination?.totalContracts || 0);
             setTotalPages(data.pagination?.totalPages || 0);
@@ -70,21 +125,182 @@ const HomePage = () => {
         }
     };
 
+    // Charger les contrats et fournisseurs au montage
     useEffect(() => {
-        fetchContracts(currentPage, itemsPerPage);
+        fetchContracts();
+        fetchProviders();
     }, [token]);
 
     // Gestion du changement de page
     const handlePageChange = (newPage) => {
         setCurrentPage(newPage);
-        fetchContracts(newPage, itemsPerPage);
+        fetchContracts(newPage);
     };
 
     // Gestion du changement d'items par page
     const handleItemsPerPageChange = (newLimit) => {
         setItemsPerPage(newLimit);
-        setCurrentPage(1); // Retour à la page 1
+        setCurrentPage(1);
         fetchContracts(1, newLimit);
+    };
+
+    // Gestion de la recherche
+    const handleSearch = (search) => {
+        setSearchTerm(search);
+        setCurrentPage(1);
+        fetchContracts(1, itemsPerPage, search);
+    };
+
+    // Gestion des filtres
+    const handleFilterChange = (newFilters) => {
+        setFilters(newFilters);
+        setCurrentPage(1);
+        fetchContracts(1, itemsPerPage, searchTerm, newFilters.status, newFilters.provider);
+    };
+
+    // Gestion du tri
+    const handleSort = (field, order) => {
+        setSortBy(field);
+        setSortOrder(order);
+        // Sauvegarder dans localStorage
+        localStorage.setItem('sortBy', field);
+        localStorage.setItem('sortOrder', order);
+        fetchContracts(currentPage, itemsPerPage, searchTerm, filters.status, filters.provider, field, order);
+    };
+
+    // Gestion des filtres rapides
+    const handleQuickFilter = async (filterId) => {
+        setQuickFilter(filterId);
+        
+        if (filterId === 'all') {
+            // Réinitialiser tous les filtres
+            setSearchTerm('');
+            setFilters({ status: '', provider: '' });
+            setCostRange({ minCost: 0, maxCost: 1000 });
+            setCurrentPage(1);
+            setAllContractsData([]);
+            fetchContracts(1, itemsPerPage, '', '', '');
+        } else {
+            // Charger tous les contrats puis appliquer le filtre
+            await fetchAllContracts(filterId);
+        }
+    };
+
+    // Charger tous les contrats pour les filtres rapides
+    const fetchAllContracts = async (filterId) => {
+        if (!token) return;
+
+        setLoading(true);
+
+        try {
+            const response = await fetch(`${API_URL}/contracts?limit=100`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const allContracts = data.contracts || [];
+                setAllContractsData(allContracts);
+                applyClientSideFilters(allContracts, filterId);
+            }
+        } catch (err) {
+            console.error('Erreur chargement contrats:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Appliquer les filtres rapides côté client
+    const applyClientSideFilters = (contractsList, filterId = quickFilter) => {
+        let filtered = [...contractsList];
+
+        if (filterId === 'expiring') {
+            // Contrats qui expirent dans moins de 30 jours
+            const today = new Date();
+            filtered = filtered.filter(c => {
+                if (!c.renewal_date) return false;
+                const renewalDate = new Date(c.renewal_date);
+                const deadline = new Date(renewalDate);
+                deadline.setDate(renewalDate.getDate() - (c.notice_period_days || 0));
+                const daysLeft = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                return daysLeft >= 0 && daysLeft <= 30;
+            });
+        } else if (filterId === 'expensive') {
+            // Contrats au-dessus de la moyenne
+            const average = contractsList.reduce((sum, c) => sum + (parseFloat(c.monthly_cost) || 0), 0) / contractsList.length;
+            filtered = filtered.filter(c => parseFloat(c.monthly_cost) > average);
+        }
+
+        // Appliquer le filtre de plage de coûts
+        if (costRange.minCost > 0 || costRange.maxCost < 1000) {
+            filtered = filtered.filter(c => {
+                const cost = parseFloat(c.monthly_cost) || 0;
+                return cost >= costRange.minCost && cost <= costRange.maxCost;
+            });
+        }
+
+        setContracts(filtered);
+        setTotalContracts(filtered.length);
+        setTotalPages(Math.ceil(filtered.length / itemsPerPage));
+        setCurrentPage(1);
+    };
+
+    // Gestion des filtres avancés (plage de coûts)
+    const handleAdvancedFilters = async (range) => {
+        setCostRange(range);
+        
+        if (quickFilter !== 'all') {
+            // Si un filtre rapide est actif, recharger et réappliquer
+            if (allContractsData.length > 0) {
+                applyClientSideFilters(allContractsData);
+            } else {
+                await fetchAllContracts(quickFilter);
+            }
+        } else {
+            // Sinon, charger tous les contrats et filtrer par plage
+            await fetchAndFilterByCost(range);
+        }
+    };
+
+    // Charger et filtrer par plage de coûts
+    const fetchAndFilterByCost = async (range) => {
+        if (!token) return;
+
+        setLoading(true);
+
+        try {
+            const response = await fetch(`${API_URL}/contracts?limit=100`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                let filtered = data.contracts || [];
+
+                // Appliquer le filtre de plage
+                if (range.minCost > 0 || range.maxCost < 1000) {
+                    filtered = filtered.filter(c => {
+                        const cost = parseFloat(c.monthly_cost) || 0;
+                        return cost >= range.minCost && cost <= range.maxCost;
+                    });
+                }
+
+                setContracts(filtered);
+                setTotalContracts(filtered.length);
+                setTotalPages(Math.ceil(filtered.length / itemsPerPage));
+                setCurrentPage(1);
+            }
+        } catch (err) {
+            console.error('Erreur filtrage par coût:', err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     // Fonction pour gérer l'ouverture du modal d'édition
@@ -101,9 +317,8 @@ const HomePage = () => {
 
     // Fonction pour gérer la mise à jour d'un contrat
     const handleContractUpdated = (updatedContract) => {
-        setContracts(prevContracts => 
-            prevContracts.map(c => c.id === updatedContract.id ? updatedContract : c)
-        );
+        // Recharger la page actuelle pour refléter les changements
+        fetchContracts();
         handleCloseEditModal();
     };
 
@@ -129,8 +344,9 @@ const HomePage = () => {
                 throw new Error('Erreur lors de la suppression du contrat.');
             }
 
-            // Recharger la page actuelle après suppression
-            fetchContracts(currentPage, itemsPerPage);
+            // Recharger la page actuelle
+            fetchContracts();
+            fetchProviders(); // Mettre à jour la liste des fournisseurs
 
             setIsDeleteModalOpen(false);
             setContractToDelete(null);
@@ -147,8 +363,60 @@ const HomePage = () => {
         setContractToDelete(null);
     };
 
-    // Calculs pour les statistiques (basé sur TOUS les contrats, pas juste la page actuelle)
-    // Note: Pour avoir les vrais totaux, il faudrait un endpoint séparé, mais pour l'instant on utilise les données de la page
+    // Fonction pour exporter les contrats en CSV
+    const handleExportCSV = async () => {
+        try {
+            // Construction de l'URL avec tous les paramètres actuels (filtres, recherche, tri)
+            const params = new URLSearchParams();
+            
+            params.append('sortBy', sortBy);
+            params.append('sortOrder', sortOrder);
+
+            if (searchTerm && searchTerm.trim()) {
+                params.append('search', searchTerm.trim());
+            }
+            if (filters.status) {
+                params.append('status', filters.status);
+            }
+            if (filters.provider) {
+                params.append('provider', filters.provider);
+            }
+
+            console.log('Export URL:', `${API_URL}/contracts/export?${params.toString()}`);
+
+            const response = await fetch(`${API_URL}/contracts/export?${params.toString()}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            console.log('Export response status:', response.status);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Export error:', errorText);
+                throw new Error('Erreur lors de l\'export des contrats.');
+            }
+
+            // Créer un blob et télécharger le fichier
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `contrats_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            console.log('Export CSV réussi !');
+        } catch (err) {
+            console.error('Erreur export CSV:', err);
+            alert('Erreur lors de l\'export des contrats: ' + err.message);
+        }
+    };
+
+    // Calculs pour les statistiques de la page actuelle
     const totalAmount = contracts.reduce((sum, contract) => sum + (parseFloat(contract.monthly_cost) || 0), 0);
     const activeContracts = contracts.filter(c => c.status === 'active').length;
         
@@ -195,18 +463,65 @@ const HomePage = () => {
             </div>
 
             {/* En-tête avec bouton d'ajout */}
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                 <h2 className="text-2xl font-semibold text-gray-800">Vos Contrats</h2>
-                <Link 
-                    to="/contracts/new" 
-                    className="py-2 px-4 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition"
-                >
-                    + Ajouter un Contrat
-                </Link>
+                <div className="flex gap-3">
+                    {/* Bouton Export CSV */}
+                    <button
+                        onClick={handleExportCSV}
+                        className="flex items-center gap-2 py-2 px-4 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition"
+                    >
+                        <Download className="w-4 h-4" />
+                        Exporter CSV
+                    </button>
+                    {/* Bouton Ajouter */}
+                    <Link 
+                        to="/contracts/new" 
+                        className="py-2 px-4 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition"
+                    >
+                        + Ajouter un Contrat
+                    </Link>
+                </div>
+            </div>
+
+            {/* Filtres et recherche */}
+            <FiltersAndSearch
+                onSearch={handleSearch}
+                onFilterChange={handleFilterChange}
+                providers={providers}
+                currentFilters={{ search: searchTerm, ...filters }}
+            />
+
+            {/* Filtres rapides et avancés */}
+            <div className="flex flex-wrap items-center gap-3 mb-6">
+                <QuickFilters 
+                    onFilterSelect={handleQuickFilter}
+                    activeFilter={quickFilter}
+                />
+                <AdvancedFilters 
+                    onApply={handleAdvancedFilters}
+                    minCost={costRange.minCost}
+                    maxCost={costRange.maxCost}
+                />
+                
+                {/* Badge du nombre de filtres actifs */}
+                {(quickFilter !== 'all' || costRange.minCost > 0 || costRange.maxCost < 1000 || searchTerm || filters.status || filters.provider) && (
+                    <div className="ml-auto">
+                        <span className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg text-sm font-semibold shadow-md">
+                            {[
+                                quickFilter !== 'all',
+                                costRange.minCost > 0 || costRange.maxCost < 1000,
+                                searchTerm,
+                                filters.status,
+                                filters.provider
+                            ].filter(Boolean).length} filtre(s) actif(s)
+                        </span>
+                    </div>
+                )}
             </div>
 
             {/* Liste des contrats */}
-            {totalContracts === 0 ? (
+            {totalContracts === 0 && !searchTerm && !filters.status && !filters.provider ? (
                 <div className="text-center p-10 bg-gray-50 rounded-lg shadow-inner">
                     <p className="text-lg text-gray-500">Vous n'avez aucun contrat enregistré.</p>
                     <Link 
@@ -222,9 +537,11 @@ const HomePage = () => {
                         contracts={contracts}
                         onDeleteContract={handleDeleteClick}
                         onEditContract={handleEditContract}
+                        sortBy={sortBy}
+                        sortOrder={sortOrder}
+                        onSort={handleSort}
                     />
                     
-                    {/* Composant de pagination */}
                     <Pagination
                         currentPage={currentPage}
                         totalPages={totalPages}
