@@ -20,14 +20,12 @@ export default defineConfig({
     }
   },
   
-  // 🌟 RETOUR À LA CONFIGURATION PROPRE 🌟
-  // Les options complexes ont introduit des erreurs ENOENT/Rollup.
-  // Laissons Rollup/Vite gérer la résolution des modules par défaut.
+  // Configuration la plus simple (qui doit fonctionner)
   build: {
     outDir: 'dist',
   },
   
-  // Supprimer optimizeDeps et resolve.alias
-  // resolve: { /* ... */ }, 
-  // optimizeDeps: { /* ... */ },
+  resolve: {
+    extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json'],
+  }
 })
