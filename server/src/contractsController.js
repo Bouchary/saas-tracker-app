@@ -1,14 +1,17 @@
-// server/src/contracts.controller.js
+// server/src/contractsController.js
 
 const db = require('./db');
 
-// Remplacement des logs par la variable
 const LOG_PREFIX = 'Contrats SQL:';
 
 // 1. OBTENIR TOUS LES CONTRATS (filtré par user_id)
 const getAllContracts = async (req, res) => {
-    // Récupération de l'ID utilisateur à partir du middleware
-    const userId = req.userId; 
+    // Le middleware protect met l'ID utilisateur dans req.user
+    const userId = req.user;
+    
+    if (!userId) {
+        return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
+    }
     
     try {
         const queryText = `
@@ -29,7 +32,11 @@ const getAllContracts = async (req, res) => {
 // 2. CRÉER UN CONTRAT (insère user_id)
 const createContract = async (req, res) => {
     const { name, provider, monthly_cost, renewal_date, notice_period_days } = req.body;
-    const userId = req.userId; // Récupération de l'ID utilisateur
+    const userId = req.user;
+    
+    if (!userId) {
+        return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
+    }
     
     // Validation minimale
     if (!name || !monthly_cost || !renewal_date) {
@@ -38,11 +45,18 @@ const createContract = async (req, res) => {
 
     try {
         const queryText = `
-            INSERT INTO contracts (name, provider, monthly_cost, renewal_date, notice_period_days, user_id)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO contracts (name, provider, monthly_cost, renewal_date, notice_period_days, user_id, status)
+            VALUES ($1, $2, $3, $4, $5, $6, 'active')
             RETURNING *
         `;
-        const values = [name, provider, monthly_cost, renewal_date, notice_period_days, userId];
+        const values = [
+            name, 
+            provider || null, 
+            monthly_cost, 
+            renewal_date, 
+            notice_period_days || 0, 
+            userId
+        ];
         const result = await db.query(queryText, values);
         
         console.log(`${LOG_PREFIX} Création du contrat ${result.rows[0].id} pour l'utilisateur ${userId}`);
@@ -57,15 +71,18 @@ const createContract = async (req, res) => {
 const updateContract = async (req, res) => {
     const { id } = req.params;
     const { name, provider, monthly_cost, renewal_date, notice_period_days, status } = req.body;
-    const userId = req.userId; // Récupération de l'ID utilisateur
+    const userId = req.user;
     
-    // Construction dynamique de la requête de mise à jour (pour ne mettre à jour que les champs fournis)
+    if (!userId) {
+        return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
+    }
+    
+    // Construction dynamique de la requête de mise à jour
     let queryText = 'UPDATE contracts SET ';
     const updates = [];
     const values = [];
     let paramIndex = 1;
 
-    // Ajouter les champs modifiés à la requête
     if (name !== undefined) { updates.push(`name = $${paramIndex++}`); values.push(name); }
     if (provider !== undefined) { updates.push(`provider = $${paramIndex++}`); values.push(provider); }
     if (monthly_cost !== undefined) { updates.push(`monthly_cost = $${paramIndex++}`); values.push(monthly_cost); }
@@ -78,8 +95,6 @@ const updateContract = async (req, res) => {
     }
 
     queryText += updates.join(', ');
-    
-    // Condition : l'ID doit correspondre ET l'utilisateur doit être le propriétaire
     queryText += ` WHERE id = $${paramIndex++} AND user_id = $${paramIndex++} RETURNING *`;
     
     values.push(id, userId);
@@ -88,7 +103,6 @@ const updateContract = async (req, res) => {
         const result = await db.query(queryText, values);
         
         if (result.rowCount === 0) {
-            // Contrat non trouvé OU l'utilisateur n'en est pas le propriétaire
             return res.status(404).json({ error: 'Contrat non trouvé ou accès non autorisé.' });
         }
 
@@ -103,19 +117,24 @@ const updateContract = async (req, res) => {
 // 4. SUPPRIMER UN CONTRAT (vérifie le user_id)
 const deleteContract = async (req, res) => {
     const { id } = req.params;
-    const userId = req.userId; // Récupération de l'ID utilisateur
+    const userId = req.user;
+
+    if (!userId) {
+        return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
+    }
 
     try {
-        // Suppression conditionnelle par ID et user_id
-        const result = await db.query('DELETE FROM contracts WHERE id = $1 AND user_id = $2 RETURNING id', [id, userId]);
+        const result = await db.query(
+            'DELETE FROM contracts WHERE id = $1 AND user_id = $2 RETURNING id', 
+            [id, userId]
+        );
 
         if (result.rowCount === 0) {
-            // Contrat non trouvé OU l'utilisateur n'en est pas le propriétaire
             return res.status(404).json({ error: 'Contrat non trouvé ou accès non autorisé.' });
         }
 
         console.log(`${LOG_PREFIX} Contrat ${id} supprimé par l'utilisateur ${userId}`);
-        res.status(204).send(); // 204 No Content pour une suppression réussie
+        res.status(204).send();
     } catch (error) {
         console.error('Erreur deleteContract:', error);
         res.status(500).json({ error: 'Erreur serveur lors de la suppression du contrat.' });

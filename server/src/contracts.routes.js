@@ -1,40 +1,29 @@
-// Fichier : saas-tracker-app/server/src/contracts.routes.js
+// server/src/contracts.routes.js
 
 const express = require('express');
 const router = express.Router();
 
-const { protect } = require('./middlewares/authMiddleware.js'); 
-const pool = require('./db.js'); 
+const { protect } = require('./middlewares/authMiddleware.js');
+const {
+    getAllContracts,
+    createContract,
+    updateContract,
+    deleteContract
+} = require('./contractsController.js');
 
-// Applique le middleware de protection à toutes les routes de contrats
+// Applique le middleware de protection à toutes les routes
 router.use(protect);
 
-// --- ROUTE GET /api/contracts (Récupérer tous les contrats de l'utilisateur) ---
-router.get('/', async (req, res) => {
-    // ✅ CORRECTION CRITIQUE : Assurer que nous extrayons bien l'ID (req.user est l'ID JWT décodé)
-    // Le middleware 'protect' met l'ID utilisateur directement dans req.user.
-    // Cependant, pour la robustesse et l'adhérence à la norme, nous vérifions si req.user est un objet avec un ID.
-    // Dans notre contexte, req.user est l'ID lui-même (mis par le middleware).
-    const userId = req.user; 
+// GET /api/contracts - Récupérer tous les contrats de l'utilisateur
+router.get('/', getAllContracts);
 
-    if (!userId) {
-        return res.status(401).json({ error: "Non autorisé. ID utilisateur manquant." });
-    }
+// POST /api/contracts - Créer un nouveau contrat
+router.post('/', createContract);
 
-    try {
-        const result = await pool.query(
-            'SELECT * FROM contracts WHERE user_id = $1 ORDER BY renewal_date ASC',
-            [userId]
-        );
-        
-        res.json(result.rows); 
+// PATCH /api/contracts/:id - Mettre à jour un contrat existant
+router.patch('/:id', updateContract);
 
-    } catch (error) {
-        console.error('Erreur récupération contrats:', error);
-        res.status(500).json({ error: "Erreur serveur lors de la récupération des contrats." });
-    }
-});
-
-// Ajoutez d'autres routes de contrat (POST, PUT, DELETE) ici...
+// DELETE /api/contracts/:id - Supprimer un contrat
+router.delete('/:id', deleteContract);
 
 module.exports = router;
