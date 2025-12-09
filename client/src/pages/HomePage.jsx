@@ -5,6 +5,7 @@ import { useAuth } from '../AuthContext';
 import { Link } from 'react-router-dom';
 import ContractList from '../components/ContractList';
 import ContractForm from '../components/ContractForm';
+import Pagination from '../components/Pagination';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
@@ -14,21 +15,29 @@ const HomePage = () => {
     const [error, setError] = useState(null);
     const { token, logout } = useAuth();
 
+    // États pour la pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [totalContracts, setTotalContracts] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
+
     // États pour l'édition et la suppression
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [contractToEdit, setContractToEdit] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [contractToDelete, setContractToDelete] = useState(null);
 
-    // Fonction pour charger les contrats
-    const fetchContracts = async () => {
+    // Fonction pour charger les contrats avec pagination
+    const fetchContracts = async (page = currentPage, limit = itemsPerPage) => {
         if (!token) {
             setLoading(false);
             return;
         }
 
+        setLoading(true);
+
         try {
-            const response = await fetch(`${API_URL}/contracts`, {
+            const response = await fetch(`${API_URL}/contracts?page=${page}&limit=${limit}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -46,8 +55,12 @@ const HomePage = () => {
             }
 
             const data = await response.json();
-            const contractsArray = Array.isArray(data) ? data : (data.contracts || []);
-            setContracts(contractsArray);
+            
+            // Nouvelle structure avec pagination
+            setContracts(data.contracts || []);
+            setTotalContracts(data.pagination?.totalContracts || 0);
+            setTotalPages(data.pagination?.totalPages || 0);
+            setCurrentPage(data.pagination?.currentPage || 1);
 
         } catch (err) {
             setError(err.message);
@@ -58,8 +71,21 @@ const HomePage = () => {
     };
 
     useEffect(() => {
-        fetchContracts();
+        fetchContracts(currentPage, itemsPerPage);
     }, [token]);
+
+    // Gestion du changement de page
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+        fetchContracts(newPage, itemsPerPage);
+    };
+
+    // Gestion du changement d'items par page
+    const handleItemsPerPageChange = (newLimit) => {
+        setItemsPerPage(newLimit);
+        setCurrentPage(1); // Retour à la page 1
+        fetchContracts(1, newLimit);
+    };
 
     // Fonction pour gérer l'ouverture du modal d'édition
     const handleEditContract = (contract) => {
@@ -103,10 +129,8 @@ const HomePage = () => {
                 throw new Error('Erreur lors de la suppression du contrat.');
             }
 
-            // Supprime le contrat de la liste locale
-            setContracts(prevContracts => 
-                prevContracts.filter(c => c.id !== contractToDelete.id)
-            );
+            // Recharger la page actuelle après suppression
+            fetchContracts(currentPage, itemsPerPage);
 
             setIsDeleteModalOpen(false);
             setContractToDelete(null);
@@ -123,11 +147,12 @@ const HomePage = () => {
         setContractToDelete(null);
     };
 
-    // Calculs pour les statistiques
+    // Calculs pour les statistiques (basé sur TOUS les contrats, pas juste la page actuelle)
+    // Note: Pour avoir les vrais totaux, il faudrait un endpoint séparé, mais pour l'instant on utilise les données de la page
     const totalAmount = contracts.reduce((sum, contract) => sum + (parseFloat(contract.monthly_cost) || 0), 0);
     const activeContracts = contracts.filter(c => c.status === 'active').length;
         
-    if (loading) {
+    if (loading && contracts.length === 0) {
         return (
             <div className="flex justify-center items-center h-full">
                 <p className="text-lg text-gray-600">Chargement des contrats...</p>
@@ -152,17 +177,17 @@ const HomePage = () => {
                 <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
                     <p className="text-sm font-medium text-gray-500">Total des Contrats</p>
                     <p className="text-3xl font-semibold text-gray-900 mt-1">
-                        {contracts.length}
+                        {totalContracts}
                     </p>
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <p className="text-sm font-medium text-gray-500">Contrats Actifs</p>
+                    <p className="text-sm font-medium text-gray-500">Contrats Actifs (page)</p>
                     <p className="text-3xl font-semibold text-green-600 mt-1">
                         {activeContracts}
                     </p>
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <p className="text-sm font-medium text-gray-500">Montant Total (€)</p>
+                    <p className="text-sm font-medium text-gray-500">Montant Total Page (€)</p>
                     <p className="text-3xl font-semibold text-indigo-600 mt-1">
                         {totalAmount.toFixed(2)} €
                     </p>
@@ -181,7 +206,7 @@ const HomePage = () => {
             </div>
 
             {/* Liste des contrats */}
-            {contracts.length === 0 ? (
+            {totalContracts === 0 ? (
                 <div className="text-center p-10 bg-gray-50 rounded-lg shadow-inner">
                     <p className="text-lg text-gray-500">Vous n'avez aucun contrat enregistré.</p>
                     <Link 
@@ -192,11 +217,23 @@ const HomePage = () => {
                     </Link>
                 </div>
             ) : (
-                <ContractList 
-                    contracts={contracts}
-                    onDeleteContract={handleDeleteClick}
-                    onEditContract={handleEditContract}
-                />
+                <>
+                    <ContractList 
+                        contracts={contracts}
+                        onDeleteContract={handleDeleteClick}
+                        onEditContract={handleEditContract}
+                    />
+                    
+                    {/* Composant de pagination */}
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        totalItems={totalContracts}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={handlePageChange}
+                        onItemsPerPageChange={handleItemsPerPageChange}
+                    />
+                </>
             )}
 
             {/* Modal d'édition */}

@@ -3,6 +3,7 @@
 const db = require('./db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { sanitizeString } = require('./middlewares/validation');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -10,11 +11,9 @@ const JWT_SECRET = process.env.JWT_SECRET;
  * Gère l'inscription d'un nouvel utilisateur.
  */
 const register = async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Veuillez fournir un email et un mot de passe.' });
-  }
+  // Sanitize les données d'entrée
+  const email = req.body.email.trim().toLowerCase();
+  const password = req.body.password;
 
   try {
     // 1. Vérifier si l'utilisateur existe déjà
@@ -23,8 +22,8 @@ const register = async (req, res) => {
       return res.status(409).json({ error: 'Cet email est déjà utilisé.' });
     }
 
-    // 2. Hacher le mot de passe
-    const salt = await bcrypt.genSalt(10);
+    // 2. Hacher le mot de passe avec un salt fort
+    const salt = await bcrypt.genSalt(12); // Augmenté à 12 pour plus de sécurité
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // 3. Enregistrer l'utilisateur
@@ -33,13 +32,16 @@ const register = async (req, res) => {
       [email, hashedPassword]
     );
 
-    // 4. Générer le token (pour la connexion automatique après l'inscription)
+    // 4. Générer le token
     const user = result.rows[0];
-    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' }); // 7 jours
+
+    console.log(`Nouvel utilisateur inscrit: ${user.email} (ID: ${user.id})`);
 
     res.status(201).json({ 
       token, 
-      user: { id: user.id, email: user.email } 
+      id: user.id,
+      email: user.email
     });
 
   } catch (error) {
@@ -52,11 +54,9 @@ const register = async (req, res) => {
  * Gère la connexion d'un utilisateur existant.
  */
 const login = async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Veuillez fournir un email et un mot de passe.' });
-  }
+  // Sanitize les données d'entrée
+  const email = req.body.email.trim().toLowerCase();
+  const password = req.body.password;
 
   try {
     // 1. Rechercher l'utilisateur
@@ -76,11 +76,14 @@ const login = async (req, res) => {
     }
 
     // 3. Générer le token JWT
-    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' }); // 7 jours
+
+    console.log(`Utilisateur connecté: ${user.email} (ID: ${user.id})`);
 
     res.status(200).json({ 
       token, 
-      user: { id: user.id, email: user.email } 
+      id: user.id,
+      email: user.email
     });
 
   } catch (error) {

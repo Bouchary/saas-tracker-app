@@ -1,18 +1,18 @@
-// Fichier : saas-tracker-app/client/src/pages/LoginPage.jsx
+// client/src/pages/LoginPage.jsx
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom'; 
 import { useAuth } from '../AuthContext'; 
 
-// Utilisation des variables d'environnement pour l'URL de base de l'API (qui inclut /api)
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-const API_URL = `${BASE_URL}/auth`; // L'endpoint réel est /api/auth
+const API_URL = `${BASE_URL}/auth`;
 
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
+  const [validationErrors, setValidationErrors] = useState([]);
   const [loading, setLoading] = useState(false);
   
   const { login } = useAuth();
@@ -21,12 +21,12 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setValidationErrors([]);
     setLoading(true);
 
     const endpoint = isLogin ? 'login' : 'register';
     
     try {
-      // Le fetch va vers http://localhost:5000/api/auth/login ou /register
       const response = await fetch(`${API_URL}/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -36,6 +36,12 @@ const LoginPage = () => {
       const data = await response.json();
       
       if (!response.ok) {
+        // Si c'est une erreur de validation (400) avec des détails
+        if (response.status === 400 && data.details) {
+          setValidationErrors(data.details);
+          throw new Error('Veuillez corriger les erreurs ci-dessous.');
+        }
+        
         throw new Error(data.error || `Erreur ${isLogin ? 'de connexion' : 'd\'inscription'}.`);
       }
 
@@ -45,8 +51,6 @@ const LoginPage = () => {
       };
       
       login(userPayload, data.token);
-
-      // Redirection après succès
       navigate('/'); 
 
     } catch (err) {
@@ -67,6 +71,19 @@ const LoginPage = () => {
         {error && (
           <div className="p-3 text-sm text-red-700 bg-red-100 rounded-lg">
             {error}
+          </div>
+        )}
+
+        {validationErrors.length > 0 && (
+          <div className="p-3 text-sm text-red-700 bg-red-100 rounded-lg space-y-1">
+            <p className="font-semibold mb-2">Erreurs de validation :</p>
+            <ul className="list-disc list-inside space-y-1">
+              {validationErrors.map((err, index) => (
+                <li key={index}>
+                  <strong>{err.field}</strong> : {err.message}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -104,6 +121,11 @@ const LoginPage = () => {
               disabled={loading}
               autoComplete="new-password" 
             />
+            {!isLogin && (
+              <p className="mt-1 text-xs text-gray-500">
+                Min 8 caractères, 1 majuscule, 1 chiffre
+              </p>
+            )}
           </div>
 
           <button
@@ -117,7 +139,11 @@ const LoginPage = () => {
         
         <div className="text-sm text-center">
           <button
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError(null);
+              setValidationErrors([]);
+            }}
             className="font-medium text-indigo-600 hover:text-indigo-500"
             disabled={loading}
           >
