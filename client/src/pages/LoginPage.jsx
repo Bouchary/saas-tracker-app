@@ -1,14 +1,17 @@
 // client/src/pages/LoginPage.jsx
+// Page de connexion moderne avec photo paysage et glassmorphism
 
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';  // ← Ajout de Link
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import { Eye, EyeOff, Lock, Mail, ArrowRight } from 'lucide-react';
 import API_URL from '../config/api';
 
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [validationErrors, setValidationErrors] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -34,12 +37,10 @@ const LoginPage = () => {
       const data = await response.json();
       
       if (!response.ok) {
-        // Si c'est une erreur de validation (400) avec des détails
         if (response.status === 400 && data.details) {
           setValidationErrors(data.details);
           throw new Error('Veuillez corriger les erreurs ci-dessous.');
         }
-        
         throw new Error(data.error || `Erreur ${isLogin ? 'de connexion' : 'd\'inscription'}.`);
       }
 
@@ -53,116 +54,250 @@ const LoginPage = () => {
 
     } catch (err) {
       console.error("Erreur de soumission du formulaire:", err);
-      setError(err.message || 'Échec de la connexion/inscription. Vérifiez les logs.');
+      setError(err.message || 'Échec de la connexion/inscription.');
     } finally {
       setLoading(false);
     }
   };
   
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-2xl border border-gray-100">
-        <h2 className="text-3xl font-extrabold text-gray-900 text-center">
-          {isLogin ? 'Connexion' : 'Inscription'}
-        </h2>
+    <div className="min-h-screen relative flex items-center justify-center overflow-hidden">
+      {/* Image de fond avec overlay */}
+      <div 
+        className="absolute inset-0 z-0"
+        style={{
+          backgroundImage: `url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2070&auto=format&fit=crop')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        }}
+      >
+        {/* Overlay gradient pour assombrir et améliorer la lisibilité */}
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/70 via-purple-900/60 to-blue-900/70"></div>
+      </div>
 
-        {error && (
-          <div className="p-3 text-sm text-red-700 bg-red-100 rounded-lg">
-            {error}
-          </div>
-        )}
+      {/* Contenu principal */}
+      <div className="relative z-10 w-full max-w-md px-6 py-8">
+        {/* Logo/Titre au-dessus */}
+        <div className="text-center mb-8 animate-fade-in">
+          <h1 className="text-4xl font-bold text-white mb-2 drop-shadow-lg">
+            SaaS Tracker
+          </h1>
+          <p className="text-indigo-200 text-sm">
+            Gérez vos abonnements en toute simplicité
+          </p>
+        </div>
 
-        {validationErrors.length > 0 && (
-          <div className="p-3 text-sm text-red-700 bg-red-100 rounded-lg space-y-1">
-            <p className="font-semibold mb-2">Erreurs de validation :</p>
-            <ul className="list-disc list-inside space-y-1">
-              {validationErrors.map((err, index) => (
-                <li key={index}>
-                  <strong>{err.field}</strong> : {err.message}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <form 
-          className="space-y-6" 
-          onSubmit={handleSubmit}
-          data-lpignore="true" 
-          autoComplete="off"   
-        >
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+        {/* Carte glassmorphism */}
+        <div className="backdrop-blur-xl bg-white/10 rounded-2xl shadow-2xl border border-white/20 p-8 animate-slide-up">
+          {/* Onglets Login/Register */}
+          <div className="flex gap-2 mb-8">
+            <button
+              onClick={() => {
+                setIsLogin(true);
+                setError(null);
+                setValidationErrors([]);
+              }}
+              className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all duration-300 ${
+                isLogin
+                  ? 'bg-white text-indigo-600 shadow-lg'
+                  : 'text-white hover:bg-white/10'
+              }`}
               disabled={loading}
-              autoComplete="off" 
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Mot de passe</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 transition"
+            >
+              Connexion
+            </button>
+            <button
+              onClick={() => {
+                setIsLogin(false);
+                setError(null);
+                setValidationErrors([]);
+              }}
+              className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all duration-300 ${
+                !isLogin
+                  ? 'bg-white text-indigo-600 shadow-lg'
+                  : 'text-white hover:bg-white/10'
+              }`}
               disabled={loading}
-              autoComplete="new-password" 
-            />
-            {!isLogin && (
-              <p className="mt-1 text-xs text-gray-500">
-                Min 8 caractères, 1 majuscule, 1 chiffre
-              </p>
-            )}
+            >
+              Inscription
+            </button>
           </div>
 
-          {/* ✅ NOUVEAU : Lien "Mot de passe oublié" (visible seulement en mode Login) */}
-          {isLogin && (
-            <div className="flex items-center justify-end">
-              <div className="text-sm">
+          {/* Messages d'erreur */}
+          {error && (
+            <div className="mb-6 p-4 rounded-lg bg-red-500/20 border border-red-300/50 backdrop-blur-sm animate-shake">
+              <p className="text-sm text-white font-medium">{error}</p>
+            </div>
+          )}
+
+          {validationErrors.length > 0 && (
+            <div className="mb-6 p-4 rounded-lg bg-red-500/20 border border-red-300/50 backdrop-blur-sm">
+              <p className="font-semibold text-white mb-2 text-sm">Erreurs de validation :</p>
+              <ul className="space-y-1 text-sm text-white/90">
+                {validationErrors.map((err, index) => (
+                  <li key={index}>
+                    <strong>{err.field}</strong> : {err.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Formulaire */}
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            {/* Champ Email */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
+                Email
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-white/60" />
+                </div>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-3 bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition"
+                  placeholder="votre@email.com"
+                  disabled={loading}
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
+            {/* Champ Mot de passe */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-white mb-2">
+                Mot de passe
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-white/60" />
+                </div>
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full pl-10 pr-10 py-3 bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition"
+                  placeholder="••••••••"
+                  disabled={loading}
+                  autoComplete={isLogin ? 'current-password' : 'new-password'}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5 text-white/60 hover:text-white transition" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-white/60 hover:text-white transition" />
+                  )}
+                </button>
+              </div>
+              {!isLogin && (
+                <p className="mt-2 text-xs text-white/70">
+                  Min 8 caractères, 1 majuscule, 1 chiffre
+                </p>
+              )}
+            </div>
+
+            {/* Lien mot de passe oublié */}
+            {isLogin && (
+              <div className="flex items-center justify-end">
                 <Link 
                   to="/forgot-password"
-                  className="font-medium text-indigo-600 hover:text-indigo-500"
+                  className="text-sm font-medium text-white hover:text-indigo-200 transition"
                 >
                   Mot de passe oublié ?
                 </Link>
               </div>
-            </div>
-          )}
+            )}
 
-          <button
-            type="submit"
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 transition"
-            disabled={loading}
-          >
-            {loading ? 'Chargement...' : (isLogin ? 'Se Connecter' : 'S\'inscrire')}
-          </button>
-        </form>
-        
-        <div className="text-sm text-center">
-          <button
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setError(null);
-              setValidationErrors([]);
-            }}
-            className="font-medium text-indigo-600 hover:text-indigo-500"
-            disabled={loading}
-          >
-            {isLogin ? "Pas de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
-          </button>
+            {/* Bouton submit */}
+            <button
+              type="submit"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-white text-indigo-600 font-semibold rounded-lg hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:bg-white/50 disabled:cursor-not-allowed transition-all duration-300 group"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
+                  Chargement...
+                </>
+              ) : (
+                <>
+                  {isLogin ? 'Se Connecter' : 'S\'inscrire'}
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
+            </button>
+          </form>
         </div>
+
+        {/* Texte en dessous */}
+        <p className="mt-6 text-center text-sm text-white/80">
+          En continuant, vous acceptez nos{' '}
+          <Link to="/cgu" className="underline hover:text-white transition">
+            conditions d'utilisation
+          </Link>
+          {' '}et notre{' '}
+          <Link to="/privacy" className="underline hover:text-white transition">
+            politique de confidentialité
+          </Link>
+        </p>
       </div>
+
+      {/* Styles d'animation */}
+      <style jsx>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes slide-up {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-10px); }
+          75% { transform: translateX(10px); }
+        }
+
+        .animate-fade-in {
+          animation: fade-in 0.6s ease-out;
+        }
+
+        .animate-slide-up {
+          animation: slide-up 0.8s ease-out;
+        }
+
+        .animate-shake {
+          animation: shake 0.5s ease-out;
+        }
+      `}</style>
     </div>
   );
 };
