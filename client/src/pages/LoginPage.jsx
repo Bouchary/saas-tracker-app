@@ -1,7 +1,7 @@
 // client/src/pages/LoginPage.jsx
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; 
+import { useNavigate, Link } from 'react-router-dom';  // ← Ajout de Link
 import { useAuth } from '../AuthContext';
 import API_URL from '../config/api';
 
@@ -125,6 +125,20 @@ const LoginPage = () => {
               </p>
             )}
           </div>
+
+          {/* ✅ NOUVEAU : Lien "Mot de passe oublié" (visible seulement en mode Login) */}
+          {isLogin && (
+            <div className="flex items-center justify-end">
+              <div className="text-sm">
+                <Link 
+                  to="/forgot-password"
+                  className="font-medium text-indigo-600 hover:text-indigo-500"
+                >
+                  Mot de passe oublié ?
+                </Link>
+              </div>
+            </div>
+          )}
 
           <button
             type="submit"

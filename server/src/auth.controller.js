@@ -79,17 +79,45 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Identifiants invalides.' });
     }
 
+    // ✅ LOGS DE DEBUG
+    console.log('═══════════════════════════════════');
+    console.log('🔍 DEBUG LOGIN');
+    console.log('Email:', email);
+    console.log('Password saisi:', password);
+    console.log('Password longueur:', password.length);
+    console.log('Password bytes:', Buffer.from(password).toString('hex'));
+    console.log('Hash en base:', user.password_hash);
+    console.log('Hash longueur:', user.password_hash.length);
+    console.log('═══════════════════════════════════');
+
     // 2. Comparer le mot de passe
     const isMatch = await bcrypt.compare(password, user.password_hash);
 
+    console.log('✅ Résultat comparaison:', isMatch);
+
     if (!isMatch) {
+      // Tests additionnels pour diagnostiquer
+      console.log('❌ Comparaison échouée, tests additionnels:');
+      
+      const trimmedMatch = await bcrypt.compare(password.trim(), user.password_hash);
+      console.log('  - Avec trim():', trimmedMatch);
+      
+      const upperMatch = await bcrypt.compare(password.toUpperCase(), user.password_hash);
+      console.log('  - En majuscules:', upperMatch);
+      
+      const lowerMatch = await bcrypt.compare(password.toLowerCase(), user.password_hash);
+      console.log('  - En minuscules:', lowerMatch);
+      
+      console.log('═══════════════════════════════════');
+      
       return res.status(401).json({ error: 'Identifiants invalides.' });
     }
 
     // 3. Générer le token JWT
     const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' }); // 7 jours
 
-    console.log(`Utilisateur connecté: ${user.email} (ID: ${user.id})`);
+    console.log(`✅ Utilisateur connecté: ${user.email} (ID: ${user.id})`);
+    console.log('═══════════════════════════════════');
 
     res.status(200).json({ 
       token, 
@@ -98,7 +126,7 @@ const login = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Erreur connexion:', error);
+    console.error('❌ Erreur connexion:', error);
     res.status(500).json({ error: 'Erreur serveur lors de la connexion.' });
   }
 };

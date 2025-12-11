@@ -10,6 +10,8 @@ import ContractForm from './pages/ContractForm';
 import DashboardPage from './pages/DashboardPage';
 import Profile from './pages/Profile';
 import ContractDocuments from './pages/ContractDocuments';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 // Importation des composants de structure
 import Header from './components/Header';
@@ -33,6 +35,8 @@ const App = () => {
                     {/* Routes publiques pour l'authentification */}
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/register" element={<LoginPage />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/reset-password/:token" element={<ResetPassword />} />
                     
                     {/* Route protégée pour la page d'accueil */}
                     <Route
@@ -74,13 +78,14 @@ const App = () => {
                         }
                     />
 
+                    {/* Route pour les documents d'un contrat */}
                     <Route 
                         path="/contracts/:contractId/documents" 
                         element={
                             <ProtectedRoute>
                                 <ContractDocuments />
                             </ProtectedRoute>
-                     } 
+                        } 
                     />
                     
                     {/* Route 404 pour les pages non trouvées */}
