@@ -1,6 +1,7 @@
 // client/src/pages/HomePage.jsx
+// Version corrigée avec useCallback pour éviter les boucles infinies
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../AuthContext';
 import { Link } from 'react-router-dom';
 import { Download } from 'lucide-react';
@@ -42,8 +43,8 @@ const HomePage = () => {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [contractToDelete, setContractToDelete] = useState(null);
 
-    // Charger la liste des fournisseurs uniques
-    const fetchProviders = async () => {
+    // ✅ Charger la liste des fournisseurs uniques (useCallback)
+    const fetchProviders = useCallback(async () => {
         if (!token) return;
 
         try {
@@ -60,10 +61,10 @@ const HomePage = () => {
         } catch (err) {
             console.error('Erreur récupération fournisseurs:', err);
         }
-    };
+    }, [token]);
 
-    // Fonction pour charger les contrats avec tous les paramètres
-    const fetchContracts = async (
+    // ✅ Fonction pour charger les contrats avec tous les paramètres (useCallback)
+    const fetchContracts = useCallback(async (
         page = currentPage, 
         limit = itemsPerPage,
         search = searchTerm,
@@ -122,13 +123,13 @@ const HomePage = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [token, logout, currentPage, itemsPerPage, searchTerm, filters.status, filters.provider, sortBy, sortOrder]);
 
-    // Charger les contrats et fournisseurs au montage
+    // ✅ Charger les contrats et fournisseurs au montage SEULEMENT
     useEffect(() => {
         fetchContracts();
         fetchProviders();
-    }, [token]);
+    }, []); // ← Tableau vide = charge UNE SEULE FOIS au montage
 
     // Gestion du changement de page
     const handlePageChange = (newPage) => {
