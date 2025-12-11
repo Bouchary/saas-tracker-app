@@ -9,6 +9,7 @@ import LoginPage from './pages/LoginPage';
 import ContractForm from './pages/ContractForm';
 import DashboardPage from './pages/DashboardPage';
 import Profile from './pages/Profile';
+import ContractDocuments from './pages/ContractDocuments';
 
 // Importation des composants de structure
 import Header from './components/Header';
@@ -71,6 +72,15 @@ const App = () => {
                                 <Profile />
                             </ProtectedRoute>
                         }
+                    />
+
+                    <Route 
+                        path="/contracts/:contractId/documents" 
+                        element={
+                            <ProtectedRoute>
+                                <ContractDocuments />
+                            </ProtectedRoute>
+                     } 
                     />
                     
                     {/* Route 404 pour les pages non trouvées */}

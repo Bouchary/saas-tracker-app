@@ -4,8 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import { PieChart, Pie, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { TrendingUp, DollarSign, Calendar, AlertCircle } from 'lucide-react';
-
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+import API_URL from '../config/api';
 
 const COLORS = {
     active: '#10b981',
@@ -24,7 +23,7 @@ const DashboardPage = () => {
         if (!token) return;
 
         try {
-            const response = await fetch(`${API_URL}/contracts?limit=100`, {
+            const response = await fetch(`${API_URL}/api/contracts?limit=100`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',

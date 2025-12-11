@@ -1,8 +1,9 @@
 // client/src/pages/Profile.jsx
 
 import { useState, useEffect } from 'react';
-import { User, Bell, Mail, Calendar, DollarSign, FileText, Save, CheckCircle, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Bell, Mail, Calendar, DollarSign, FileText, Save, CheckCircle, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '../AuthContext';
+import API_URL from '../config/api';
 
 export default function Profile() {
   const { token } = useAuth(); // ✅ Utiliser le hook useAuth
@@ -24,6 +25,11 @@ export default function Profile() {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
+  
+  // États pour afficher/masquer les mots de passe
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Charger les données du profil
   useEffect(() => {
@@ -33,7 +39,7 @@ export default function Profile() {
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/profile', {
+      const response = await fetch(`${API_URL}/api/profile`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -55,7 +61,7 @@ export default function Profile() {
 
   const fetchNotificationHistory = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/profile/notifications/history?limit=10', {
+      const response = await fetch(`${API_URL}/api/profile/notifications/history?limit=10`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -75,7 +81,7 @@ export default function Profile() {
     setSuccessMessage('');
 
     try {
-      const response = await fetch('http://localhost:5000/api/profile/notifications', {
+      const response = await fetch(`${API_URL}/api/profile/notifications`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -133,7 +139,7 @@ export default function Profile() {
     setChangingPassword(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/profile/password', {
+      const response = await fetch(`${API_URL}/api/profile/password`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -163,6 +169,43 @@ export default function Profile() {
       setChangingPassword(false);
     }
   };
+
+  // Calculer la force du mot de passe
+  const getPasswordStrength = (password) => {
+    if (!password) return { score: 0, label: '', color: '' };
+    
+    let score = 0;
+    
+    // Longueur
+    if (password.length >= 6) score++;
+    if (password.length >= 10) score++;
+    
+    // Caractères variés
+    if (/[a-z]/.test(password)) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    
+    // Déterminer le niveau
+    if (score <= 2) return { score: 1, label: 'Faible', color: 'bg-red-500' };
+    if (score <= 4) return { score: 2, label: 'Moyen', color: 'bg-orange-500' };
+    if (score <= 5) return { score: 3, label: 'Bon', color: 'bg-yellow-500' };
+    return { score: 4, label: 'Excellent', color: 'bg-green-500' };
+  };
+
+  // Vérifier les exigences du mot de passe
+  const getPasswordRequirements = (password) => {
+    return [
+      { label: 'Au moins 6 caractères', met: password.length >= 6 },
+      { label: 'Une lettre minuscule', met: /[a-z]/.test(password) },
+      { label: 'Une lettre majuscule', met: /[A-Z]/.test(password) },
+      { label: 'Un chiffre', met: /[0-9]/.test(password) },
+      { label: 'Un caractère spécial', met: /[^A-Za-z0-9]/.test(password) }
+    ];
+  };
+
+  const passwordStrength = getPasswordStrength(newPassword);
+  const passwordRequirements = getPasswordRequirements(newPassword);
 
   if (loading) {
     return (
@@ -375,13 +418,22 @@ export default function Profile() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Mot de passe actuel
                     </label>
-                    <input
-                      type="password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="Entrez votre mot de passe actuel"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showCurrentPassword ? "text" : "password"}
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="Entrez votre mot de passe actuel"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Nouveau mot de passe */}
@@ -389,13 +441,59 @@ export default function Profile() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Nouveau mot de passe
                     </label>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="Minimum 6 caractères"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showNewPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="Minimum 6 caractères"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                    
+                    {/* Barre de force du mot de passe */}
+                    {newPassword && (
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="text-gray-600">Force du mot de passe</span>
+                          <span className={`font-semibold ${
+                            passwordStrength.score === 1 ? 'text-red-600' :
+                            passwordStrength.score === 2 ? 'text-orange-600' :
+                            passwordStrength.score === 3 ? 'text-yellow-600' :
+                            'text-green-600'
+                          }`}>
+                            {passwordStrength.label}
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full transition-all duration-300 ${passwordStrength.color}`}
+                            style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Exigences du mot de passe */}
+                    {newPassword && (
+                      <div className="mt-3 space-y-1">
+                        {passwordRequirements.map((req, index) => (
+                          <div key={index} className="flex items-center gap-2 text-xs">
+                            <CheckCircle className={`w-4 h-4 ${req.met ? 'text-green-500' : 'text-gray-300'}`} />
+                            <span className={req.met ? 'text-green-700' : 'text-gray-500'}>
+                              {req.label}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Confirmer nouveau mot de passe */}
@@ -403,13 +501,39 @@ export default function Profile() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Confirmer le nouveau mot de passe
                     </label>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="Confirmez le nouveau mot de passe"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="Confirmez le nouveau mot de passe"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                    
+                    {/* Indicateur de correspondance */}
+                    {confirmPassword && (
+                      <div className="mt-2 flex items-center gap-2 text-sm">
+                        {newPassword === confirmPassword ? (
+                          <>
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span className="text-green-700">Les mots de passe correspondent</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="w-4 h-4 text-red-500" />
+                            <span className="text-red-700">Les mots de passe ne correspondent pas</span>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Bouton changer */}

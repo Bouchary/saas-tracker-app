@@ -10,3 +10,12 @@ client/dist/
 
 # Dossiers spécifiques du backend
 server/node_modules/
+
+# Uploads
+uploads/
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.doc
+*.docx

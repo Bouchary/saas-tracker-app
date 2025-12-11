@@ -1,7 +1,8 @@
 // client/src/components/ContractList.jsx
 
 import React from 'react';
-import { Edit, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Edit, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Paperclip } from 'lucide-react';
 
 // Fonction utilitaire pour formater la date
 const formatDate = (dateString) => {
@@ -160,6 +161,17 @@ const ContractList = ({
                                         </span>
                                     </Td>
                                     <Td className="flex items-center space-x-3">
+                                        {/* Bouton Documents */}
+                                        <Link
+                                            to={`/contracts/${contract.id}/documents`}
+                                            className="text-gray-600 hover:text-purple-600 font-medium text-sm flex items-center transition duration-150"
+                                            title="Gérer les documents"
+                                        >
+                                            <Paperclip className="w-4 h-4 mr-1" />
+                                            Documents
+                                        </Link>
+                                        
+                                        {/* Bouton Éditer */}
                                         <button 
                                             onClick={() => onEditContract(contract)}
                                             className="text-gray-600 hover:text-indigo-600 font-medium text-sm flex items-center transition duration-150"
@@ -167,6 +179,8 @@ const ContractList = ({
                                             <Edit className="w-4 h-4 mr-1" />
                                             Éditer
                                         </button>
+                                        
+                                        {/* Bouton Supprimer */}
                                         <button 
                                             onClick={() => onDeleteContract(contract.id, contract.name)}
                                             className="text-gray-600 hover:text-red-600 font-medium text-sm flex items-center transition duration-150"

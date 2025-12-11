@@ -10,8 +10,7 @@ import Pagination from '../components/Pagination';
 import FiltersAndSearch from '../components/FiltersAndSearch';
 import QuickFilters from '../components/QuickFilters';
 import AdvancedFilters from '../components/AdvancedFilters';
-
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+import API_URL from '../config/api';
 
 const HomePage = () => {
     const [contracts, setContracts] = useState([]);
@@ -48,7 +47,7 @@ const HomePage = () => {
         if (!token) return;
 
         try {
-            const response = await fetch(`${API_URL}/contracts/providers`, {
+            const response = await fetch(`${API_URL}/api/contracts/providers`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                 },
@@ -93,7 +92,7 @@ const HomePage = () => {
             if (filterStatus) params.append('status', filterStatus);
             if (filterProvider) params.append('provider', filterProvider);
 
-            const response = await fetch(`${API_URL}/contracts?${params}`, {
+            const response = await fetch(`${API_URL}/api/contracts?${params}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -193,7 +192,7 @@ const HomePage = () => {
         setLoading(true);
 
         try {
-            const response = await fetch(`${API_URL}/contracts?limit=100`, {
+            const response = await fetch(`${API_URL}/api/contracts?limit=100`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -272,7 +271,7 @@ const HomePage = () => {
         setLoading(true);
 
         try {
-            const response = await fetch(`${API_URL}/contracts?limit=100`, {
+            const response = await fetch(`${API_URL}/api/contracts?limit=100`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -333,7 +332,7 @@ const HomePage = () => {
         if (!contractToDelete) return;
 
         try {
-            const response = await fetch(`${API_URL}/contracts/${contractToDelete.id}`, {
+            const response = await fetch(`${API_URL}/api/contracts/${contractToDelete.id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -382,9 +381,9 @@ const HomePage = () => {
                 params.append('provider', filters.provider);
             }
 
-            console.log('Export URL:', `${API_URL}/contracts/export?${params.toString()}`);
+            console.log('Export URL:', `${API_URL}/api/contracts/export?${params.toString()}`);
 
-            const response = await fetch(`${API_URL}/contracts/export?${params.toString()}`, {
+            const response = await fetch(`${API_URL}/api/contracts/export?${params.toString()}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                 },

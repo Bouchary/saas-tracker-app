@@ -2,10 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
-
-// 🌟 UTILISATION DE LA VARIABLE D'ENVIRONNEMENT VITE 🌟
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-const API_URL = `${API_BASE_URL}/contracts`; // URL complète pour la ressource contracts
+import API_URL from '../config/api';
 
 // La prop 'contractToEdit' est acceptée
 const ContractForm = ({ onClose, onContractAdded, contractToEdit }) => {
@@ -24,7 +21,7 @@ const ContractForm = ({ onClose, onContractAdded, contractToEdit }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // EFFET POUR PRÉ-REMPLIR EN CAS D'ÉDITION (inchangé)
+  // EFFET POUR PRÉ-REMPLIR EN CAS D'ÉDITION
   useEffect(() => {
     if (isEditing) {
       const formattedDate = contractToEdit.renewal_date 
@@ -62,7 +59,7 @@ const ContractForm = ({ onClose, onContractAdded, contractToEdit }) => {
 
     // LOGIQUE DE L'API : PATCH pour l'édition, POST pour la création
     const method = isEditing ? 'PATCH' : 'POST';
-    const url = isEditing ? `${API_URL}/${contractToEdit.id}` : API_URL;
+    const url = isEditing ? `${API_URL}/api/contracts/${contractToEdit.id}` : `${API_URL}/api/contracts`;
 
     try {
       const response = await fetch(url, {
@@ -161,7 +158,7 @@ const ContractForm = ({ onClose, onContractAdded, contractToEdit }) => {
   );
 };
 
-// Composant utilitaire pour les champs d'entrée (inchangé)
+// Composant utilitaire pour les champs d'entrée
 const Input = ({ label, name, type = 'text', ...props }) => (
     <div>
         <label htmlFor={name} className="block text-sm font-medium text-gray-700">{label}</label>

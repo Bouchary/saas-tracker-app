@@ -2,6 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
+const db = require('./db');
 
 const { protect } = require('./middlewares/authMiddleware.js');
 const { validate } = require('./middlewares/validation');
@@ -26,7 +27,34 @@ router.get('/providers', getProviders);
 // ⚠️ DOIT ÊTRE AVANT /:id
 router.get('/export', exportContracts);
 
+// ==========================================
+// ROUTE : RÉCUPÉRER UN CONTRAT PAR ID
+// ==========================================
+// GET /api/contracts/:id
+// ⚠️ DOIT ÊTRE APRÈS /providers et /export mais AVANT /
+router.get('/:id', async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user;
+
+    try {
+        const result = await db.query(
+            'SELECT * FROM contracts WHERE id = $1 AND user_id = $2',
+            [id, userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Contrat non trouvé' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Erreur récupération contrat:', error);
+        res.status(500).json({ error: 'Erreur serveur' });
+    }
+});
+
 // GET /api/contracts - Récupérer tous les contrats de l'utilisateur
+// ⚠️ DOIT ÊTRE APRÈS /:id
 router.get('/', getAllContracts);
 
 // POST /api/contracts - Créer un nouveau contrat avec validation

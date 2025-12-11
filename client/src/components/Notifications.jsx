@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, AlertCircle, Clock, Calendar } from 'lucide-react';
 import { useAuth } from '../AuthContext';
-
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+import API_URL from '../config/api';
 
 const Notifications = ({ onContractClick }) => {
     const [alerts, setAlerts] = useState([]);
@@ -32,7 +31,7 @@ const Notifications = ({ onContractClick }) => {
         setLoading(true);
         try {
             // Récupérer tous les contrats (limite max du backend = 100)
-            const response = await fetch(`${API_URL}/contracts?limit=100`, {
+            const response = await fetch(`${API_URL}/api/contracts?limit=100`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',

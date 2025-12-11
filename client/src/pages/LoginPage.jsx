@@ -2,10 +2,8 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom'; 
-import { useAuth } from '../AuthContext'; 
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-const API_URL = `${BASE_URL}/auth`;
+import { useAuth } from '../AuthContext';
+import API_URL from '../config/api';
 
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -27,7 +25,7 @@ const LoginPage = () => {
     const endpoint = isLogin ? 'login' : 'register';
     
     try {
-      const response = await fetch(`${API_URL}/${endpoint}`, {
+      const response = await fetch(`${API_URL}/api/auth/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

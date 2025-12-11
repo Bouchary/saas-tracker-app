@@ -3,9 +3,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-const API_URL = `${API_BASE_URL}/contracts`;
+import API_URL from '../config/api';
 
 const ContractForm = () => {
     const { token } = useAuth();
@@ -51,7 +49,7 @@ const ContractForm = () => {
         };
 
         try {
-            const response = await fetch(API_URL, {
+            const response = await fetch(`${API_URL}/api/contracts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
