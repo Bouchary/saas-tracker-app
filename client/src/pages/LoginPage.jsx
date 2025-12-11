@@ -1,10 +1,10 @@
 // client/src/pages/LoginPage.jsx
-// Page de connexion moderne avec photo paysage et glassmorphism
+// Version moderne avec photo paysage + validation mot de passe en temps réel
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { Eye, EyeOff, Lock, Mail, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, ArrowRight, Check, X } from 'lucide-react';
 import API_URL from '../config/api';
 
 const LoginPage = () => {
@@ -16,8 +16,46 @@ const LoginPage = () => {
   const [validationErrors, setValidationErrors] = useState([]);
   const [loading, setLoading] = useState(false);
   
+  // États pour la validation du mot de passe
+  const [passwordValidation, setPasswordValidation] = useState({
+    hasMinLength: false,
+    hasUpperCase: false,
+    hasLowerCase: false,
+    hasNumber: false,
+    hasSpecialChar: false
+  });
+  const [passwordStrength, setPasswordStrength] = useState(0);
+  
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // Validation du mot de passe en temps réel
+  useEffect(() => {
+    if (!isLogin && password) {
+      const validation = {
+        hasMinLength: password.length >= 8,
+        hasUpperCase: /[A-Z]/.test(password),
+        hasLowerCase: /[a-z]/.test(password),
+        hasNumber: /[0-9]/.test(password),
+        hasSpecialChar: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+      };
+      
+      setPasswordValidation(validation);
+      
+      // Calculer la force du mot de passe
+      const strength = Object.values(validation).filter(Boolean).length;
+      setPasswordStrength(strength);
+    } else {
+      setPasswordValidation({
+        hasMinLength: false,
+        hasUpperCase: false,
+        hasLowerCase: false,
+        hasNumber: false,
+        hasSpecialChar: false
+      });
+      setPasswordStrength(0);
+    }
+  }, [password, isLogin]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -50,7 +88,7 @@ const LoginPage = () => {
       };
       
       login(userPayload, data.token);
-      navigate('/'); 
+      navigate('/contracts'); // Redirige vers la liste des contrats après connexion
 
     } catch (err) {
       console.error("Erreur de soumission du formulaire:", err);
@@ -58,6 +96,24 @@ const LoginPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Fonction pour obtenir la couleur de la barre de force
+  const getStrengthColor = () => {
+    if (passwordStrength === 0) return 'bg-gray-200';
+    if (passwordStrength <= 2) return 'bg-red-500';
+    if (passwordStrength <= 3) return 'bg-orange-500';
+    if (passwordStrength <= 4) return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
+
+  // Fonction pour obtenir le texte de la force
+  const getStrengthText = () => {
+    if (passwordStrength === 0) return '';
+    if (passwordStrength <= 2) return 'Faible';
+    if (passwordStrength <= 3) return 'Moyen';
+    if (passwordStrength <= 4) return 'Fort';
+    return 'Très fort';
   };
   
   return (
@@ -97,6 +153,7 @@ const LoginPage = () => {
                 setIsLogin(true);
                 setError(null);
                 setValidationErrors([]);
+                setPassword('');
               }}
               className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all duration-300 ${
                 isLogin
@@ -112,6 +169,7 @@ const LoginPage = () => {
                 setIsLogin(false);
                 setError(null);
                 setValidationErrors([]);
+                setPassword('');
               }}
               className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all duration-300 ${
                 !isLogin
@@ -203,10 +261,75 @@ const LoginPage = () => {
                   )}
                 </button>
               </div>
-              {!isLogin && (
-                <p className="mt-2 text-xs text-white/70">
-                  Min 8 caractères, 1 majuscule, 1 chiffre
-                </p>
+
+              {/* Validation en temps réel (uniquement pour inscription) */}
+              {!isLogin && password && (
+                <div className="mt-4 space-y-3">
+                  {/* Barre de force du mot de passe */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-white/80">Force du mot de passe</span>
+                      <span className={`text-xs font-semibold ${
+                        passwordStrength <= 2 ? 'text-red-300' :
+                        passwordStrength <= 3 ? 'text-orange-300' :
+                        passwordStrength <= 4 ? 'text-yellow-300' :
+                        'text-green-300'
+                      }`}>
+                        {getStrengthText()}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-300 ${getStrengthColor()}`}
+                        style={{ width: `${(passwordStrength / 5) * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Critères de validation */}
+                  <div className="grid grid-cols-1 gap-2 text-xs">
+                    <div className={`flex items-center gap-2 ${passwordValidation.hasMinLength ? 'text-green-300' : 'text-white/60'}`}>
+                      {passwordValidation.hasMinLength ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <X className="w-4 h-4" />
+                      )}
+                      <span>Au moins 8 caractères</span>
+                    </div>
+                    <div className={`flex items-center gap-2 ${passwordValidation.hasUpperCase ? 'text-green-300' : 'text-white/60'}`}>
+                      {passwordValidation.hasUpperCase ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <X className="w-4 h-4" />
+                      )}
+                      <span>Une lettre majuscule</span>
+                    </div>
+                    <div className={`flex items-center gap-2 ${passwordValidation.hasLowerCase ? 'text-green-300' : 'text-white/60'}`}>
+                      {passwordValidation.hasLowerCase ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <X className="w-4 h-4" />
+                      )}
+                      <span>Une lettre minuscule</span>
+                    </div>
+                    <div className={`flex items-center gap-2 ${passwordValidation.hasNumber ? 'text-green-300' : 'text-white/60'}`}>
+                      {passwordValidation.hasNumber ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <X className="w-4 h-4" />
+                      )}
+                      <span>Un chiffre</span>
+                    </div>
+                    <div className={`flex items-center gap-2 ${passwordValidation.hasSpecialChar ? 'text-green-300' : 'text-white/60'}`}>
+                      {passwordValidation.hasSpecialChar ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <X className="w-4 h-4" />
+                      )}
+                      <span>Un caractère spécial (!@#$%...)</span>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
 

@@ -1,4 +1,5 @@
 // client/src/components/Header.jsx
+// Version CORRIGÉE - Redirections vers /contracts
 
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -16,15 +17,17 @@ const Header = ({ onNotificationClick }) => {
   return (
     <header className="bg-white shadow-md">
       <div className="container mx-auto p-4 flex justify-between items-center">
-        <Link to="/" className="text-2xl font-bold text-gray-800 hover:text-indigo-600 transition duration-300 flex items-center space-x-2">
+        {/* ✅ CORRIGÉ : Logo pointe vers /contracts au lieu de / */}
+        <Link to="/contracts" className="text-2xl font-bold text-gray-800 hover:text-indigo-600 transition duration-300 flex items-center space-x-2">
             <LayoutDashboard className="w-6 h-6 text-indigo-600" />
             <span>SaaS Tracker</span> 
         </Link>
         <nav>
           <ul className="flex space-x-4 items-center">
             <li>
+              {/* ✅ CORRIGÉ : Bouton Contrats pointe vers /contracts au lieu de / */}
               <Link 
-                to="/" 
+                to="/contracts" 
                 className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300"
               >
                 Contrats

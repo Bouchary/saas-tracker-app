@@ -1,12 +1,15 @@
 // client/src/pages/Profile.jsx
+// Version MODERNE avec design amélioré - LOGIQUE ORIGINALE CONSERVÉE
 
 import { useState, useEffect } from 'react';
-import { User, Bell, Mail, Calendar, DollarSign, FileText, Save, CheckCircle, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { User, Bell, Mail, Calendar, DollarSign, FileText, Save, CheckCircle, Lock, Eye, EyeOff, AlertCircle, Shield, TrendingUp } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import API_URL from '../config/api';
 
 export default function Profile() {
-  const { token } = useAuth(); // ✅ Utiliser le hook useAuth
+  const { token } = useAuth();
+  
+  // ✅ ÉTATS ORIGINAUX CONSERVÉS
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState(null);
   const [notifications, setNotifications] = useState([]);
@@ -31,12 +34,13 @@ export default function Profile() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Charger les données du profil
+  // ✅ USEEFFECT ORIGINAL CONSERVÉ
   useEffect(() => {
     fetchProfile();
     fetchNotificationHistory();
   }, []);
 
+  // ✅ TOUTES LES FONCTIONS ORIGINALES CONSERVÉES
   const fetchProfile = async () => {
     try {
       const response = await fetch(`${API_URL}/api/profile`, {
@@ -176,24 +180,19 @@ export default function Profile() {
     
     let score = 0;
     
-    // Longueur
     if (password.length >= 6) score++;
     if (password.length >= 10) score++;
-    
-    // Caractères variés
     if (/[a-z]/.test(password)) score++;
     if (/[A-Z]/.test(password)) score++;
     if (/[0-9]/.test(password)) score++;
     if (/[^A-Za-z0-9]/.test(password)) score++;
     
-    // Déterminer le niveau
     if (score <= 2) return { score: 1, label: 'Faible', color: 'bg-red-500' };
     if (score <= 4) return { score: 2, label: 'Moyen', color: 'bg-orange-500' };
     if (score <= 5) return { score: 3, label: 'Bon', color: 'bg-yellow-500' };
     return { score: 4, label: 'Excellent', color: 'bg-green-500' };
   };
 
-  // Vérifier les exigences du mot de passe
   const getPasswordRequirements = (password) => {
     return [
       { label: 'Au moins 6 caractères', met: password.length >= 6 },
@@ -207,60 +206,65 @@ export default function Profile() {
   const passwordStrength = getPasswordStrength(newPassword);
   const passwordRequirements = getPasswordRequirements(newPassword);
 
+  // ✨ LOADING STATE MODERNISÉ
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600 font-medium">Chargement du profil...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-8 px-4">
-      <div className="max-w-6xl mx-auto">
-        
-        {/* En-tête */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Mon Profil</h1>
-          <p className="text-gray-600">Gérez vos informations et préférences de notification</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 pb-12">
+      {/* ✨ HEADER MODERNE AVEC GRADIENT */}
+      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-12 px-8 mb-8 shadow-lg">
+        <div className="container mx-auto max-w-6xl">
+          <h1 className="text-4xl md:text-5xl font-bold mb-2">Mon Profil</h1>
+          <p className="text-indigo-100 text-lg">Gérez vos informations et préférences</p>
         </div>
+      </div>
 
-        {/* Message de succès */}
+      <div className="container mx-auto px-6 max-w-6xl">
+        {/* ✨ MESSAGE SUCCÈS MODERNISÉ */}
         {successMessage && (
-          <div className="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg flex items-center gap-2">
-            <CheckCircle className="w-5 h-5" />
-            {successMessage}
+          <div className="mb-6 bg-green-50 border-2 border-green-200 text-green-800 px-6 py-4 rounded-xl flex items-center gap-3 shadow-md animate-slide-down -mt-16">
+            <CheckCircle className="w-6 h-6 flex-shrink-0" />
+            <span className="font-semibold">{successMessage}</span>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 -mt-16">
           
-          {/* Colonne gauche : Infos personnelles + Stats */}
+          {/* ✨ COLONNE GAUCHE MODERNISÉE */}
           <div className="lg:col-span-1 space-y-6">
             
             {/* Informations personnelles */}
-            <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-indigo-100 rounded-lg">
-                  <User className="w-6 h-6 text-indigo-600" />
+                <div className="w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center">
+                  <User className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-semibold text-gray-900">Informations</h2>
+                <h2 className="text-xl font-bold text-gray-900">Informations</h2>
               </div>
 
               <div className="space-y-4">
-                <div>
-                  <label className="text-sm text-gray-500 block mb-1">Email</label>
+                <div className="p-3 bg-indigo-50 rounded-lg">
+                  <label className="text-xs text-indigo-600 font-semibold block mb-1">Email</label>
                   <div className="flex items-center gap-2 text-gray-900">
-                    <Mail className="w-4 h-4 text-gray-400" />
+                    <Mail className="w-4 h-4 text-indigo-600" />
                     <span className="font-medium">{profile?.email}</span>
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-sm text-gray-500 block mb-1">Membre depuis</label>
+                <div className="p-3 bg-purple-50 rounded-lg">
+                  <label className="text-xs text-purple-600 font-semibold block mb-1">Membre depuis</label>
                   <div className="flex items-center gap-2 text-gray-900">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    <span>{new Date(profile?.created_at).toLocaleDateString('fr-FR', {
+                    <Calendar className="w-4 h-4 text-purple-600" />
+                    <span className="text-sm">{new Date(profile?.created_at).toLocaleDateString('fr-FR', {
                       day: 'numeric',
                       month: 'long',
                       year: 'numeric'
@@ -270,33 +274,48 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Statistiques */}
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Statistiques</h2>
+            {/* ✨ STATISTIQUES MODERNISÉES */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">Statistiques</h2>
+              </div>
               
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-blue-600" />
-                    <span className="text-gray-700">Contrats actifs</span>
+                <div className="group bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-100 hover:shadow-md transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
+                        <FileText className="w-5 h-5 text-white" />
+                      </div>
+                      <span className="text-gray-700 font-medium">Contrats actifs</span>
+                    </div>
+                    <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                      {stats?.active_contracts || 0}
+                    </span>
                   </div>
-                  <span className="text-2xl font-bold text-blue-600">{stats?.active_contracts || 0}</span>
                 </div>
 
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <DollarSign className="w-5 h-5 text-green-600" />
-                    <span className="text-gray-700">Coût mensuel</span>
+                <div className="group bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100 hover:shadow-md transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                        <DollarSign className="w-5 h-5 text-white" />
+                      </div>
+                      <span className="text-gray-700 font-medium">Coût mensuel</span>
+                    </div>
+                    <span className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                      {parseFloat(stats?.total_monthly_cost || 0).toFixed(2)} €
+                    </span>
                   </div>
-                  <span className="text-2xl font-bold text-green-600">
-                    {parseFloat(stats?.total_monthly_cost || 0).toFixed(2)} €
-                  </span>
                 </div>
 
                 {stats?.next_renewal && (
-                  <div className="p-3 bg-purple-50 rounded-lg">
-                    <div className="text-sm text-gray-600 mb-1">Prochain renouvellement</div>
-                    <div className="font-semibold text-purple-600">
+                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
+                    <div className="text-xs text-purple-600 font-semibold mb-1">Prochain renouvellement</div>
+                    <div className="font-bold text-lg text-purple-700">
                       {new Date(stats.next_renewal).toLocaleDateString('fr-FR')}
                     </div>
                   </div>
@@ -305,26 +324,26 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Colonne droite : Préférences + Historique */}
+          {/* ✨ COLONNE DROITE MODERNISÉE */}
           <div className="lg:col-span-2 space-y-6">
             
-            {/* Paramètres de notification */}
-            <div className="bg-white rounded-xl shadow-md p-6">
+            {/* ✨ NOTIFICATIONS MODERNISÉES */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-purple-100 rounded-lg">
-                  <Bell className="w-6 h-6 text-purple-600" />
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
+                  <Bell className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-semibold text-gray-900">Préférences de notification</h2>
+                <h2 className="text-xl font-bold text-gray-900">Préférences de notification</h2>
               </div>
 
               {/* Toggle emails */}
-              <div className="mb-6">
+              <div className="mb-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
                 <label className="flex items-center justify-between cursor-pointer group">
                   <div>
-                    <span className="text-gray-900 font-medium">Activer les emails de notification</span>
-                    <p className="text-sm text-gray-500">Recevoir des alertes par email avant l'expiration des préavis</p>
+                    <span className="text-gray-900 font-semibold">Activer les emails de notification</span>
+                    <p className="text-sm text-gray-600 mt-1">Recevoir des alertes par email avant l'expiration des préavis</p>
                   </div>
-                  <div className="relative">
+                  <div className="relative ml-4">
                     <input
                       type="checkbox"
                       className="sr-only"
@@ -332,9 +351,9 @@ export default function Profile() {
                       onChange={(e) => setNotificationEmail(e.target.checked)}
                     />
                     <div className={`w-14 h-8 rounded-full transition-colors ${
-                      notificationEmail ? 'bg-indigo-600' : 'bg-gray-300'
+                      notificationEmail ? 'bg-gradient-to-r from-indigo-600 to-purple-600' : 'bg-gray-300'
                     }`}>
-                      <div className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${
+                      <div className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
                         notificationEmail ? 'transform translate-x-6' : ''
                       }`}></div>
                     </div>
@@ -344,10 +363,10 @@ export default function Profile() {
 
               {/* Sélection des jours */}
               <div className="mb-6">
-                <label className="block text-gray-900 font-medium mb-3">
+                <label className="block text-gray-900 font-semibold mb-2">
                   Jours d'alerte avant expiration du préavis
                 </label>
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-sm text-gray-600 mb-4">
                   Sélectionnez les moments où vous souhaitez recevoir des alertes
                 </p>
                 <div className="flex flex-wrap gap-3">
@@ -355,10 +374,10 @@ export default function Profile() {
                     <button
                       key={day}
                       onClick={() => toggleNotificationDay(day)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                      className={`px-5 py-3 rounded-xl font-semibold transition-all ${
                         notificationDays.includes(day)
-                          ? 'bg-indigo-600 text-white shadow-md'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg scale-105'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105'
                       }`}
                     >
                       {day} jour{day > 1 ? 's' : ''}
@@ -371,7 +390,7 @@ export default function Profile() {
               <button
                 onClick={handleSavePreferences}
                 disabled={saving}
-                className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-bold hover:shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:scale-100"
               >
                 {saving ? (
                   <>
@@ -387,43 +406,44 @@ export default function Profile() {
               </button>
             </div>
 
-            {/* Sécurité - Changement de mot de passe */}
-            <div className="bg-white rounded-xl shadow-md p-6">
+            {/* ✨ SÉCURITÉ MODERNISÉE */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-red-100 rounded-lg">
-                  <Lock className="w-6 h-6 text-red-600" />
+                <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-orange-600 rounded-xl flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-semibold text-gray-900">Sécurité</h2>
+                <h2 className="text-xl font-bold text-gray-900">Sécurité</h2>
               </div>
 
               <form onSubmit={handleChangePassword}>
                 <div className="space-y-4">
-                  {/* Message d'erreur */}
+                  {/* Messages */}
                   {passwordError && (
-                    <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
-                      {passwordError}
+                    <div className="bg-red-50 border-2 border-red-200 text-red-800 px-4 py-3 rounded-xl flex items-start gap-2 animate-shake">
+                      <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                      <span className="text-sm font-medium">{passwordError}</span>
                     </div>
                   )}
 
-                  {/* Message de succès */}
                   {passwordSuccess && (
-                    <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg flex items-center gap-2 text-sm">
-                      <CheckCircle className="w-5 h-5" />
-                      {passwordSuccess}
+                    <div className="bg-green-50 border-2 border-green-200 text-green-800 px-4 py-3 rounded-xl flex items-center gap-2 animate-slide-down">
+                      <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                      <span className="text-sm font-semibold">{passwordSuccess}</span>
                     </div>
                   )}
 
-                  {/* Ancien mot de passe */}
+                  {/* Champs mot de passe (identiques à l'original) */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Mot de passe actuel
                     </label>
                     <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input
                         type={showCurrentPassword ? "text" : "password"}
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full pl-10 pr-10 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                         placeholder="Entrez votre mot de passe actuel"
                       />
                       <button
@@ -436,17 +456,17 @@ export default function Profile() {
                     </div>
                   </div>
 
-                  {/* Nouveau mot de passe */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Nouveau mot de passe
                     </label>
                     <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input
                         type={showNewPassword ? "text" : "password"}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full pl-10 pr-10 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                         placeholder="Minimum 6 caractères"
                       />
                       <button
@@ -458,55 +478,53 @@ export default function Profile() {
                       </button>
                     </div>
                     
-                    {/* Barre de force du mot de passe */}
                     {newPassword && (
-                      <div className="mt-2">
-                        <div className="flex items-center justify-between text-xs mb-1">
-                          <span className="text-gray-600">Force du mot de passe</span>
-                          <span className={`font-semibold ${
-                            passwordStrength.score === 1 ? 'text-red-600' :
-                            passwordStrength.score === 2 ? 'text-orange-600' :
-                            passwordStrength.score === 3 ? 'text-yellow-600' :
-                            'text-green-600'
-                          }`}>
-                            {passwordStrength.label}
-                          </span>
-                        </div>
-                        <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full transition-all duration-300 ${passwordStrength.color}`}
-                            style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Exigences du mot de passe */}
-                    {newPassword && (
-                      <div className="mt-3 space-y-1">
-                        {passwordRequirements.map((req, index) => (
-                          <div key={index} className="flex items-center gap-2 text-xs">
-                            <CheckCircle className={`w-4 h-4 ${req.met ? 'text-green-500' : 'text-gray-300'}`} />
-                            <span className={req.met ? 'text-green-700' : 'text-gray-500'}>
-                              {req.label}
+                      <>
+                        <div className="mt-3">
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="text-gray-600 font-medium">Force du mot de passe</span>
+                            <span className={`font-bold ${
+                              passwordStrength.score === 1 ? 'text-red-600' :
+                              passwordStrength.score === 2 ? 'text-orange-600' :
+                              passwordStrength.score === 3 ? 'text-yellow-600' :
+                              'text-green-600'
+                            }`}>
+                              {passwordStrength.label}
                             </span>
                           </div>
-                        ))}
-                      </div>
+                          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full transition-all duration-300 ${passwordStrength.color}`}
+                              style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3 space-y-1.5">
+                          {passwordRequirements.map((req, index) => (
+                            <div key={index} className="flex items-center gap-2 text-xs">
+                              <CheckCircle className={`w-4 h-4 ${req.met ? 'text-green-500' : 'text-gray-300'}`} />
+                              <span className={req.met ? 'text-green-700 font-medium' : 'text-gray-500'}>
+                                {req.label}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
 
-                  {/* Confirmer nouveau mot de passe */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Confirmer le nouveau mot de passe
                     </label>
                     <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input
                         type={showConfirmPassword ? "text" : "password"}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full pl-10 pr-10 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                         placeholder="Confirmez le nouveau mot de passe"
                       />
                       <button
@@ -518,29 +536,27 @@ export default function Profile() {
                       </button>
                     </div>
                     
-                    {/* Indicateur de correspondance */}
                     {confirmPassword && (
                       <div className="mt-2 flex items-center gap-2 text-sm">
                         {newPassword === confirmPassword ? (
                           <>
                             <CheckCircle className="w-4 h-4 text-green-500" />
-                            <span className="text-green-700">Les mots de passe correspondent</span>
+                            <span className="text-green-700 font-medium">Les mots de passe correspondent</span>
                           </>
                         ) : (
                           <>
                             <AlertCircle className="w-4 h-4 text-red-500" />
-                            <span className="text-red-700">Les mots de passe ne correspondent pas</span>
+                            <span className="text-red-700 font-medium">Les mots de passe ne correspondent pas</span>
                           </>
                         )}
                       </div>
                     )}
                   </div>
 
-                  {/* Bouton changer */}
                   <button
                     type="submit"
                     disabled={changingPassword}
-                    className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full bg-gradient-to-r from-red-600 to-orange-600 text-white py-4 rounded-xl font-bold hover:shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:scale-100"
                   >
                     {changingPassword ? (
                       <>
@@ -549,7 +565,7 @@ export default function Profile() {
                       </>
                     ) : (
                       <>
-                        <Lock className="w-5 h-5" />
+                        <Shield className="w-5 h-5" />
                         Changer le mot de passe
                       </>
                     )}
@@ -558,23 +574,33 @@ export default function Profile() {
               </form>
             </div>
 
-            {/* Historique des notifications */}
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Historique des notifications</h2>
+            {/* ✨ HISTORIQUE MODERNISÉ */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center">
+                  <Mail className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">Historique des notifications</h2>
+              </div>
               
               {notifications.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">Aucune notification envoyée pour le moment</p>
+                <div className="text-center py-12 bg-gray-50 rounded-xl">
+                  <Mail className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">Aucune notification envoyée pour le moment</p>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {notifications.map(notif => (
-                    <div key={notif.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                      <Mail className="w-5 h-5 text-gray-400 mt-0.5" />
+                    <div key={notif.id} className="flex items-start gap-3 p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl hover:shadow-md transition-all border border-gray-100">
+                      <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Mail className="w-5 h-5 text-white" />
+                      </div>
                       <div className="flex-1">
-                        <p className="text-gray-900 font-medium">{notif.message}</p>
+                        <p className="text-gray-900 font-semibold">{notif.message}</p>
                         {notif.contract_name && (
-                          <p className="text-sm text-gray-600">Contrat : {notif.contract_name}</p>
+                          <p className="text-sm text-gray-600 mt-1">Contrat : {notif.contract_name}</p>
                         )}
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-gray-500 mt-2">
                           {new Date(notif.sent_at).toLocaleDateString('fr-FR', {
                             day: 'numeric',
                             month: 'long',
@@ -592,6 +618,34 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      {/* ✨ STYLES D'ANIMATION */}
+      <style jsx>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-10px); }
+          75% { transform: translateX(10px); }
+        }
+
+        @keyframes slide-down {
+          from {
+            opacity: 0;
+            transform: translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-shake {
+          animation: shake 0.5s ease-out;
+        }
+
+        .animate-slide-down {
+          animation: slide-down 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
