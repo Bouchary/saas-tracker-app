@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const bcrypt = require('bcryptjs');
 const { protect } = require('../middlewares/authMiddleware');
 
 /**
@@ -175,6 +176,72 @@ router.get('/notifications/history', protect, async (req, res) => {
     } catch (error) {
         console.error('Erreur récupération historique:', error);
         res.status(500).json({ error: 'Erreur lors de la récupération de l\'historique' });
+    }
+});
+
+/**
+ * @route   PUT /api/profile/password
+ * @desc    Changer le mot de passe de l'utilisateur
+ * @access  Private
+ */
+router.put('/password', protect, async (req, res) => {
+    try {
+        const userId = req.user;
+        const { currentPassword, newPassword } = req.body;
+
+        // Validation
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ 
+                error: 'L\'ancien et le nouveau mot de passe sont requis' 
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ 
+                error: 'Le nouveau mot de passe doit contenir au moins 6 caractères' 
+            });
+        }
+
+        // Récupérer l'utilisateur avec son mot de passe actuel
+        const userResult = await db.query(
+            'SELECT id, password_hash FROM users WHERE id = $1',
+            [userId]
+        );
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Utilisateur non trouvé' });
+        }
+
+        const user = userResult.rows[0];
+
+        // Vérifier l'ancien mot de passe
+        const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+
+        if (!isMatch) {
+            return res.status(401).json({ 
+                error: 'Le mot de passe actuel est incorrect' 
+            });
+        }
+
+        // Hacher le nouveau mot de passe
+        const salt = await bcrypt.genSalt(12);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        // Mettre à jour le mot de passe
+        await db.query(
+            'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+            [hashedPassword, userId]
+        );
+
+        console.log(`✅ Mot de passe changé pour l'utilisateur ${userId}`);
+
+        res.json({
+            success: true,
+            message: 'Mot de passe changé avec succès'
+        });
+    } catch (error) {
+        console.error('Erreur changement mot de passe:', error);
+        res.status(500).json({ error: 'Erreur lors du changement de mot de passe' });
     }
 });
 

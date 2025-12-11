@@ -1,7 +1,7 @@
 // client/src/pages/Profile.jsx
 
 import { useState, useEffect } from 'react';
-import { User, Bell, Mail, Calendar, DollarSign, FileText, Save, CheckCircle } from 'lucide-react';
+import { User, Bell, Mail, Calendar, DollarSign, FileText, Save, CheckCircle, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 
 export default function Profile() {
@@ -16,6 +16,14 @@ export default function Profile() {
   // États pour les paramètres
   const [notificationEmail, setNotificationEmail] = useState(true);
   const [notificationDays, setNotificationDays] = useState([30, 14, 7, 3, 1]);
+
+  // États pour le changement de mot de passe
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
 
   // Charger les données du profil
   useEffect(() => {
@@ -98,6 +106,61 @@ export default function Profile() {
       setNotificationDays(notificationDays.filter(d => d !== day));
     } else {
       setNotificationDays([...notificationDays, day].sort((a, b) => b - a));
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    // Validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError('Tous les champs sont requis');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError('Le nouveau mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Les mots de passe ne correspondent pas');
+      return;
+    }
+
+    setChangingPassword(true);
+
+    try {
+      const response = await fetch('http://localhost:5000/api/profile/password', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setPasswordSuccess('✅ Mot de passe changé avec succès !');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setTimeout(() => setPasswordSuccess(''), 5000);
+      } else {
+        setPasswordError(data.error || 'Erreur lors du changement de mot de passe');
+      }
+    } catch (error) {
+      console.error('Erreur changement mot de passe:', error);
+      setPasswordError('Erreur lors du changement de mot de passe');
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -279,6 +342,96 @@ export default function Profile() {
                   </>
                 )}
               </button>
+            </div>
+
+            {/* Sécurité - Changement de mot de passe */}
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-red-100 rounded-lg">
+                  <Lock className="w-6 h-6 text-red-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900">Sécurité</h2>
+              </div>
+
+              <form onSubmit={handleChangePassword}>
+                <div className="space-y-4">
+                  {/* Message d'erreur */}
+                  {passwordError && (
+                    <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
+                      {passwordError}
+                    </div>
+                  )}
+
+                  {/* Message de succès */}
+                  {passwordSuccess && (
+                    <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg flex items-center gap-2 text-sm">
+                      <CheckCircle className="w-5 h-5" />
+                      {passwordSuccess}
+                    </div>
+                  )}
+
+                  {/* Ancien mot de passe */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mot de passe actuel
+                    </label>
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Entrez votre mot de passe actuel"
+                    />
+                  </div>
+
+                  {/* Nouveau mot de passe */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nouveau mot de passe
+                    </label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Minimum 6 caractères"
+                    />
+                  </div>
+
+                  {/* Confirmer nouveau mot de passe */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Confirmer le nouveau mot de passe
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Confirmez le nouveau mot de passe"
+                    />
+                  </div>
+
+                  {/* Bouton changer */}
+                  <button
+                    type="submit"
+                    disabled={changingPassword}
+                    className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {changingPassword ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        Changement en cours...
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-5 h-5" />
+                        Changer le mot de passe
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
 
             {/* Historique des notifications */}
