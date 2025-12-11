@@ -38,6 +38,8 @@ const DashboardPage = () => {
             if (response.ok) {
                 const data = await response.json();
                 setContracts(data.contracts || []);
+            } else {
+                throw new Error('Erreur lors du chargement des contrats');
             }
         } catch (err) {
             setError(err.message);
@@ -48,8 +50,19 @@ const DashboardPage = () => {
     };
 
     useEffect(() => {
-        fetchContracts();
-    }, [token]);
+        let isMounted = true;  // ✅ Empêche les mises à jour après démontage
+        
+        const loadData = async () => {
+            if (!isMounted) return;  // ✅ Arrêt si composant démonté
+            await fetchContracts();
+        };
+
+        loadData();
+
+        return () => {
+            isMounted = false;  // ✅ Nettoyage au démontage
+        };
+    }, [token]);  // ✅ Ne se déclenche que quand le token change
 
     // Calculs pour les statistiques
     const totalContracts = contracts.length;
@@ -110,16 +123,53 @@ const DashboardPage = () => {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-full">
-                <p className="text-lg text-gray-600">Chargement du tableau de bord...</p>
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                    <p className="text-lg text-gray-600">Chargement du tableau de bord...</p>
+                </div>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="text-center p-6 bg-red-100 text-red-700 rounded-lg">
-                <p>Erreur : {error}</p>
+            <div className="p-8">
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-6 flex items-start gap-3">
+                    <AlertCircle className="w-6 h-6 flex-shrink-0 mt-0.5" />
+                    <div>
+                        <h3 className="font-semibold mb-1">Erreur de chargement</h3>
+                        <p>{error}</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ✅ Message spécial pour tableau de bord vide
+    if (totalContracts === 0) {
+        return (
+            <div className="p-8">
+                <h1 className="text-4xl font-bold mb-6 text-gray-900">Tableau de Bord Analytique</h1>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-8 text-center">
+                    <div className="mb-4">
+                        <TrendingUp className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                        Bienvenue sur votre tableau de bord !
+                    </h2>
+                    <p className="text-gray-600 mb-6">
+                        Vous n'avez pas encore de contrats. Créez votre premier contrat pour voir vos statistiques ici.
+                    </p>
+                    <a
+                        href="/contracts/new"
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-semibold"
+                    >
+                        <TrendingUp className="w-5 h-5" />
+                        Créer mon premier contrat
+                    </a>
+                </div>
             </div>
         );
     }
