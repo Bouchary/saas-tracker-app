@@ -4,6 +4,7 @@ const db = require('./db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { sanitizeString } = require('./middlewares/validation');
+const emailService = require('./services/emailService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -37,6 +38,16 @@ const register = async (req, res) => {
     const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' }); // 7 jours
 
     console.log(`Nouvel utilisateur inscrit: ${user.email} (ID: ${user.id})`);
+
+    // 5. Envoyer l'email de bienvenue
+    try {
+      const userName = email.split('@')[0]; // Utilise la partie avant @ comme nom
+      await emailService.sendWelcomeEmail(email, userName);
+      console.log(`✅ Email de bienvenue envoyé à ${email}`);
+    } catch (emailError) {
+      // Ne pas bloquer l'inscription si l'email échoue
+      console.error('⚠️ Erreur envoi email de bienvenue:', emailError);
+    }
 
     res.status(201).json({ 
       token, 

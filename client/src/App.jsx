@@ -8,6 +8,7 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import ContractForm from './pages/ContractForm';
 import DashboardPage from './pages/DashboardPage';
+import Profile from './pages/Profile';
 
 // Importation des composants de structure
 import Header from './components/Header';
@@ -58,6 +59,16 @@ const App = () => {
                         element={
                             <ProtectedRoute>
                                 <DashboardPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    
+                    {/* Route pour le profil utilisateur */}
+                    <Route
+                        path="/profile"
+                        element={
+                            <ProtectedRoute>
+                                <Profile />
                             </ProtectedRoute>
                         }
                     />

@@ -12,6 +12,7 @@ const cors = require('cors');
 const authRoutes = require('./src/auth.routes.js'); 
 const contractRoutes = require('./src/contracts.routes.js'); 
 const emailRoutes = require('./src/routes/emails.js');
+const profileRoutes = require('./src/routes/profile.js');
 
 // 📧 Import du planificateur d'emails
 const emailScheduler = require('./src/jobs/emailScheduler');
@@ -27,6 +28,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/contracts', contractRoutes);
 app.use('/api/emails', emailRoutes);
+app.use('/api/profile', profileRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: "SaaS Tracker API est opérationnelle!" });
