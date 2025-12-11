@@ -1,7 +1,7 @@
 // client/src/pages/HomePage.jsx
 // Version corrigée avec useCallback pour éviter les boucles infinies
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import { Link } from 'react-router-dom';
 import { Download } from 'lucide-react';
@@ -63,35 +63,44 @@ const HomePage = () => {
         }
     }, [token]);
 
-    // ✅ Fonction pour charger les contrats avec tous les paramètres (useCallback)
-    const fetchContracts = useCallback(async (
-        page = currentPage, 
-        limit = itemsPerPage,
-        search = searchTerm,
-        filterStatus = filters.status,
-        filterProvider = filters.provider,
-        sort = sortBy,
-        order = sortOrder
+    // ✅ Fonction pour charger les contrats avec tous les paramètres (PAS de useCallback)
+    const fetchContracts = async (
+        page, 
+        limit,
+        search,
+        filterStatus,
+        filterProvider,
+        sort,
+        order
     ) => {
         if (!token) {
             setLoading(false);
             return;
         }
 
+        // Utiliser les valeurs actuelles si pas fournies
+        const actualPage = page ?? currentPage;
+        const actualLimit = limit ?? itemsPerPage;
+        const actualSearch = search ?? searchTerm;
+        const actualFilterStatus = filterStatus ?? filters.status;
+        const actualFilterProvider = filterProvider ?? filters.provider;
+        const actualSort = sort ?? sortBy;
+        const actualOrder = order ?? sortOrder;
+
         setLoading(true);
 
         try {
             // Construction de l'URL avec tous les paramètres
             const params = new URLSearchParams({
-                page: page.toString(),
-                limit: limit.toString(),
-                sortBy: sort,
-                sortOrder: order,
+                page: actualPage.toString(),
+                limit: actualLimit.toString(),
+                sortBy: actualSort,
+                sortOrder: actualOrder,
             });
 
-            if (search) params.append('search', search);
-            if (filterStatus) params.append('status', filterStatus);
-            if (filterProvider) params.append('provider', filterProvider);
+            if (actualSearch) params.append('search', actualSearch);
+            if (actualFilterStatus) params.append('status', actualFilterStatus);
+            if (actualFilterProvider) params.append('provider', actualFilterProvider);
 
             const response = await fetch(`${API_URL}/api/contracts?${params}`, {
                 headers: {
@@ -123,13 +132,19 @@ const HomePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, logout, currentPage, itemsPerPage, searchTerm, filters.status, filters.provider, sortBy, sortOrder]);
+    };
 
     // ✅ Charger les contrats et fournisseurs au montage SEULEMENT
     useEffect(() => {
-        fetchContracts();
-        fetchProviders();
-    }, []); // ← Tableau vide = charge UNE SEULE FOIS au montage
+        if (!token) return;
+        
+        const initialLoad = async () => {
+            await fetchContracts();
+            await fetchProviders();
+        };
+        
+        initialLoad();
+    }, [token]); // ← Se déclenche seulement si token change
 
     // Gestion du changement de page
     const handlePageChange = (newPage) => {
