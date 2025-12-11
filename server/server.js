@@ -11,7 +11,10 @@ const cors = require('cors');
 // 🌟 Chemins corrigés pour les fichiers de routes dans server/src/ 🌟
 const authRoutes = require('./src/auth.routes.js'); 
 const contractRoutes = require('./src/contracts.routes.js'); 
+const emailRoutes = require('./src/routes/emails.js');
 
+// 📧 Import du planificateur d'emails
+const emailScheduler = require('./src/jobs/emailScheduler');
 
 const app = express();
 const port = process.env.PORT || 5000; 
@@ -23,6 +26,7 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/contracts', contractRoutes);
+app.use('/api/emails', emailRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: "SaaS Tracker API est opérationnelle!" });
@@ -32,4 +36,32 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
   console.log(`🚀 Serveur en cours d'exécution sur le port ${port}`);
   console.log(`Debug JWT_SECRET: ${process.env.JWT_SECRET ? 'OK (' + process.env.JWT_SECRET.length + ' chars)' : 'ERREUR: UNDEFINED'}`);
+  
+  // 📧 DÉMARRER LE PLANIFICATEUR D'EMAILS
+  if (process.env.NODE_ENV === 'production') {
+    emailScheduler.start();
+    console.log('✅ Planificateur d\'emails activé en production');
+    console.log('   - Alertes quotidiennes : 9h00');
+    console.log('   - Résumés hebdomadaires : Lundi 9h00');
+  } else {
+    console.log('ℹ️  Planificateur d\'emails désactivé en développement');
+    console.log('   Utilisez POST /api/emails/test pour tester les emails');
+  }
+});
+
+// 🛑 Gérer l'arrêt propre du serveur
+process.on('SIGTERM', () => {
+  console.log('SIGTERM reçu, arrêt du serveur...');
+  if (process.env.NODE_ENV === 'production') {
+    emailScheduler.stop();
+  }
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT reçu, arrêt du serveur...');
+  if (process.env.NODE_ENV === 'production') {
+    emailScheduler.stop();
+  }
+  process.exit(0);
 });
