@@ -43,8 +43,8 @@ const HomePage = () => {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [contractToDelete, setContractToDelete] = useState(null);
 
-    // ✅ Charger la liste des fournisseurs uniques (useCallback)
-    const fetchProviders = useCallback(async () => {
+    // ✅ Charger la liste des fournisseurs uniques
+    const fetchProviders = async () => {
         if (!token) return;
 
         try {
@@ -61,7 +61,7 @@ const HomePage = () => {
         } catch (err) {
             console.error('Erreur récupération fournisseurs:', err);
         }
-    }, [token]);
+    };
 
     // ✅ Fonction pour charger les contrats avec tous les paramètres (PAS de useCallback)
     const fetchContracts = async (
