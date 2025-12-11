@@ -1,15 +1,11 @@
-# Configuration file for Netlify build settings
 [build]
-  # Dossier de base : Netlify exécutera les commandes à partir de ce chemin (/opt/build/repo/client)
-  base = "client" 
-  
-  # Commande de construction : Installe les dépendances puis lance le build Vite
-  command = "npm install && npm run build" 
-  
-  # Dossier de publication (relatif à la base, donc client/dist)
-  publish = "dist" 
+  base = "client/"
+  command = "npm ci && npm run build"
+  publish = "client/dist"
 
-# Redirections pour le routing client-side (React Router)
+[build.environment]
+  NODE_VERSION = "20"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
