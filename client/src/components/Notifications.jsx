@@ -1,4 +1,5 @@
 // client/src/components/Notifications.jsx
+// Version corrigée sans boucle infinie
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, AlertCircle, Clock, Calendar } from 'lucide-react';
@@ -30,7 +31,6 @@ const Notifications = ({ onContractClick }) => {
 
         setLoading(true);
         try {
-            // Récupérer tous les contrats (limite max du backend = 100)
             const response = await fetch(`${API_URL}/api/contracts?limit=100`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -82,7 +82,6 @@ const Notifications = ({ onContractClick }) => {
                             message
                         });
                     } else if (daysUntilDeadline <= 0) {
-                        // Préavis dépassé
                         alertList.push({
                             id: contract.id,
                             name: contract.name,
@@ -95,7 +94,6 @@ const Notifications = ({ onContractClick }) => {
                     }
                 });
 
-                // Trier par urgence (critique d'abord)
                 alertList.sort((a, b) => {
                     const severityOrder = { critical: 0, warning: 1, info: 2 };
                     return severityOrder[a.severity] - severityOrder[b.severity] || a.daysLeft - b.daysLeft;
@@ -110,12 +108,16 @@ const Notifications = ({ onContractClick }) => {
         }
     };
 
-    // Charger les alertes au montage et toutes les 5 minutes
+    // ✅ Charger au montage + intervalle 5 min (PAS de dépendances problématiques)
     useEffect(() => {
-        fetchAlerts();
+        if (!token) return;
+        
+        fetchAlerts(); // Chargement initial
+        
         const interval = setInterval(fetchAlerts, 5 * 60 * 1000); // 5 minutes
+        
         return () => clearInterval(interval);
-    }, [token]);
+    }, []); // ✅ Tableau vide = se déclenche UNE FOIS au montage
 
     const criticalCount = alerts.filter(a => a.severity === 'critical').length;
     const warningCount = alerts.filter(a => a.severity === 'warning').length;
@@ -160,14 +162,12 @@ const Notifications = ({ onContractClick }) => {
 
     return (
         <div className="relative" ref={dropdownRef}>
-            {/* Bouton cloche */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="relative p-2 rounded-lg hover:bg-gray-100 transition"
             >
                 <Bell className={`w-6 h-6 text-gray-700 ${totalCount > 0 ? 'animate-pulse' : ''}`} />
                 
-                {/* Badge de notifications */}
                 {totalCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                         {totalCount > 9 ? '9+' : totalCount}
@@ -175,10 +175,8 @@ const Notifications = ({ onContractClick }) => {
                 )}
             </button>
 
-            {/* Dropdown des notifications */}
             {isOpen && (
                 <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 max-h-[32rem] overflow-hidden flex flex-col">
-                    {/* En-tête */}
                     <div className="p-4 border-b border-gray-200 bg-gray-50">
                         <h3 className="text-lg font-bold text-gray-900">Notifications</h3>
                         {totalCount > 0 && (
@@ -197,7 +195,6 @@ const Notifications = ({ onContractClick }) => {
                         )}
                     </div>
 
-                    {/* Liste des notifications */}
                     <div className="overflow-y-auto flex-1">
                         {loading ? (
                             <div className="p-8 text-center text-gray-500">
