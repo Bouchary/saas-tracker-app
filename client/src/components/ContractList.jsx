@@ -1,14 +1,36 @@
 // client/src/components/ContractList.jsx
+// Version avec colonne LICENCES + taux d'utilisation
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Edit, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Paperclip } from 'lucide-react';
+import { Edit, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Paperclip, Users, AlertTriangle } from 'lucide-react';
 
 // Fonction utilitaire pour formater la date
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
     return new Date(dateString).toLocaleDateString('fr-FR', options);
+};
+
+// ✨ NOUVELLE : Fonction pour calculer le taux d'utilisation des licences
+const getLicenseUsage = (licenseCount, licensesUsed) => {
+    if (!licenseCount || licenseCount === 0) return null;
+    
+    const used = licensesUsed || 0;
+    const rate = (used / licenseCount) * 100;
+    
+    let color = 'green';
+    let status = 'Excellent';
+    
+    if (rate < 50) {
+        color = 'red';
+        status = 'Gaspillage';
+    } else if (rate < 80) {
+        color = 'orange';
+        status = 'Moyen';
+    }
+    
+    return { rate: rate.toFixed(0), color, status, used, total: licenseCount };
 };
 
 // Fonction pour calculer le statut et les jours restants
@@ -96,10 +118,8 @@ const ContractList = ({
     // Fonction pour gérer le clic sur un en-tête de colonne
     const handleSort = (field) => {
         if (sortBy === field) {
-            // Si on clique sur la même colonne, inverser l'ordre
             onSort(field, sortOrder === 'asc' ? 'desc' : 'asc');
         } else {
-            // Nouvelle colonne, tri ascendant par défaut
             onSort(field, 'asc');
         }
     };
@@ -123,6 +143,9 @@ const ContractList = ({
                             <ThSortable field="name" sortBy={sortBy} onSort={handleSort}>
                                 Nom <SortIcon field="name" />
                             </ThSortable>
+                            <Th>Fournisseur</Th>
+                            {/* ✨ NOUVELLE COLONNE LICENCES */}
+                            <Th>Licences</Th>
                             <ThSortable field="monthly_cost" sortBy={sortBy} onSort={handleSort}>
                                 Coût (€) <SortIcon field="monthly_cost" />
                             </ThSortable>
@@ -147,47 +170,141 @@ const ContractList = ({
                             );
                             
                             const { row: rowClasses } = getColorClasses(status);
+                            
+                            // ✨ CALCUL UTILISATION LICENCES
+                            const licenseUsage = getLicenseUsage(
+                                contract.license_count, 
+                                contract.licenses_used
+                            );
 
                             return (
-                                <tr key={contract.id} className={rowClasses}>
-                                    <Td className="font-medium text-gray-900">{contract.name}</Td>
-                                    <Td className="text-right">{parseFloat(contract.monthly_cost).toFixed(2)}</Td>
-                                    <Td>{formatDate(contract.renewal_date)}</Td>
-                                    <Td>{contract.notice_period_days} j.</Td>
-                                    <Td>{getStatusBadge(status)}</Td>
+                                <tr key={contract.id} className={`${rowClasses} transition-colors`}>
+                                    {/* Nom */}
                                     <Td>
-                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getColorClasses(status).badge}`}>
+                                        <div className="flex items-center">
+                                            <div className="font-medium text-gray-900">{contract.name}</div>
+                                            {contract.provider && (
+                                                <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                                                    {contract.provider}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </Td>
+
+                                    {/* Fournisseur */}
+                                    <Td>
+                                        <span className="text-sm text-gray-600">
+                                            {contract.provider || '-'}
+                                        </span>
+                                    </Td>
+
+                                    {/* ✨ LICENCES */}
+                                    <Td>
+                                        {contract.pricing_model === 'per_user' && contract.license_count ? (
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <Users className="w-4 h-4 text-indigo-600" />
+                                                    <span className="text-sm font-semibold">
+                                                        {licenseUsage ? `${licenseUsage.used}/${licenseUsage.total}` : contract.license_count}
+                                                    </span>
+                                                </div>
+                                                {licenseUsage && (
+                                                    <div className="flex items-center gap-2">
+                                                        {/* Barre de progression */}
+                                                        <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                            <div 
+                                                                className={`h-full transition-all ${
+                                                                    licenseUsage.color === 'green' ? 'bg-green-500' :
+                                                                    licenseUsage.color === 'orange' ? 'bg-orange-500' :
+                                                                    'bg-red-500'
+                                                                }`}
+                                                                style={{ width: `${licenseUsage.rate}%` }}
+                                                            ></div>
+                                                        </div>
+                                                        <span className={`text-xs font-medium ${
+                                                            licenseUsage.color === 'green' ? 'text-green-600' :
+                                                            licenseUsage.color === 'orange' ? 'text-orange-600' :
+                                                            'text-red-600'
+                                                        }`}>
+                                                            {licenseUsage.rate}%
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {licenseUsage && licenseUsage.rate < 50 && (
+                                                    <div className="flex items-center gap-1 text-xs text-red-600">
+                                                        <AlertTriangle className="w-3 h-3" />
+                                                        <span>Gaspillage</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className="text-sm text-gray-400">-</span>
+                                        )}
+                                    </Td>
+
+                                    {/* Coût */}
+                                    <Td>
+                                        <div className="text-sm">
+                                            <span className="font-semibold text-gray-900">
+                                                {parseFloat(contract.monthly_cost).toFixed(2)}€
+                                            </span>
+                                            {contract.pricing_model === 'per_user' && contract.unit_cost && (
+                                                <div className="text-xs text-gray-500">
+                                                    {parseFloat(contract.unit_cost).toFixed(2)}€/licence
+                                                </div>
+                                            )}
+                                        </div>
+                                    </Td>
+
+                                    {/* Renouvellement */}
+                                    <Td>
+                                        <span className="text-sm text-gray-900">
+                                            {formatDate(contract.renewal_date)}
+                                        </span>
+                                    </Td>
+
+                                    {/* Préavis */}
+                                    <Td>
+                                        <span className="text-sm text-gray-900">
+                                            {contract.notice_period_days || 0}
+                                        </span>
+                                    </Td>
+
+                                    {/* Statut */}
+                                    <Td>{getStatusBadge(status)}</Td>
+
+                                    {/* Jours Restants */}
+                                    <Td>
+                                        <span className="text-sm text-gray-900 font-medium">
                                             {badgeText}
                                         </span>
                                     </Td>
-                                    <Td className="flex items-center space-x-3">
-                                        {/* Bouton Documents */}
-                                        <Link
-                                            to={`/contracts/${contract.id}/documents`}
-                                            className="text-gray-600 hover:text-purple-600 font-medium text-sm flex items-center transition duration-150"
-                                            title="Gérer les documents"
-                                        >
-                                            <Paperclip className="w-4 h-4 mr-1" />
-                                            Documents
-                                        </Link>
-                                        
-                                        {/* Bouton Éditer */}
-                                        <button 
-                                            onClick={() => onEditContract(contract)}
-                                            className="text-gray-600 hover:text-indigo-600 font-medium text-sm flex items-center transition duration-150"
-                                        >
-                                            <Edit className="w-4 h-4 mr-1" />
-                                            Éditer
-                                        </button>
-                                        
-                                        {/* Bouton Supprimer */}
-                                        <button 
-                                            onClick={() => onDeleteContract(contract.id, contract.name)}
-                                            className="text-gray-600 hover:text-red-600 font-medium text-sm flex items-center transition duration-150"
-                                        >
-                                            <Trash2 className="w-4 h-4 mr-1" />
-                                            Supprimer
-                                        </button>
+
+                                    {/* Actions */}
+                                    <Td>
+                                        <div className="flex items-center space-x-2">
+                                            <button
+                                                onClick={() => onEditContract(contract)}
+                                                className="text-indigo-600 hover:text-indigo-900 transition-colors p-1 hover:bg-indigo-50 rounded"
+                                                title="Modifier"
+                                            >
+                                                <Edit className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => onDeleteContract(contract.id, contract.name)}
+                                                className="text-red-600 hover:text-red-900 transition-colors p-1 hover:bg-red-50 rounded"
+                                                title="Supprimer"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                            <Link
+                                                to={`/contracts/${contract.id}/documents`}
+                                                className="text-gray-600 hover:text-gray-900 transition-colors p-1 hover:bg-gray-50 rounded"
+                                                title="Documents"
+                                            >
+                                                <Paperclip className="w-4 h-4" />
+                                            </Link>
+                                        </div>
                                     </Td>
                                 </tr>
                             );
@@ -199,22 +316,11 @@ const ContractList = ({
     );
 };
 
-// Composant pour l'en-tête de colonne (non triable)
-const Th = ({ children }) => (
-    <th
-        scope="col"
-        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-    >
-        {children}
-    </th>
-);
-
-// Composant pour l'en-tête de colonne triable
+// ✅ Composants d'en-tête (identiques)
 const ThSortable = ({ field, sortBy, onSort, children }) => (
     <th
-        scope="col"
         onClick={() => onSort(field)}
-        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition select-none"
+        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors select-none"
     >
         <div className="flex items-center gap-1">
             {children}
@@ -222,9 +328,14 @@ const ThSortable = ({ field, sortBy, onSort, children }) => (
     </th>
 );
 
-// Composant pour les cellules de données
-const Td = ({ children, className = '' }) => (
-    <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 ${className}`}>
+const Th = ({ children }) => (
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        {children}
+    </th>
+);
+
+const Td = ({ children }) => (
+    <td className="px-6 py-4 whitespace-nowrap text-sm">
         {children}
     </td>
 );

@@ -71,9 +71,10 @@ const getAllContracts = async (req, res) => {
         const countResult = await db.query(countQuery, queryParams);
         const totalContracts = parseInt(countResult.rows[0].count);
 
-        // Requête pour récupérer les contrats paginés et filtrés
+        // ✅ AJOUT DES COLONNES LICENCES
         const queryText = `
-            SELECT id, name, provider, monthly_cost, renewal_date, notice_period_days, status
+            SELECT id, name, provider, monthly_cost, renewal_date, notice_period_days, status,
+                   pricing_model, license_count, licenses_used, unit_cost
             FROM contracts
             WHERE ${whereClause}
             ORDER BY ${sortBy} ${sortOrder}
@@ -114,7 +115,7 @@ const getAllContracts = async (req, res) => {
     }
 };
 
-// 2. CRÉER UN CONTRAT
+// 2. CRÉER UN CONTRAT (✅ AVEC LICENCES)
 const createContract = async (req, res) => {
     const userId = req.user;
     
@@ -124,17 +125,44 @@ const createContract = async (req, res) => {
     
     const name = sanitizeString(req.body.name);
     const provider = req.body.provider ? sanitizeString(req.body.provider) : null;
-    const monthly_cost = parseFloat(req.body.monthly_cost);
     const renewal_date = req.body.renewal_date;
     const notice_period_days = parseInt(req.body.notice_period_days) || 0;
+    
+    // ✅ NOUVEAUX CHAMPS LICENCES
+    const pricing_model = req.body.pricing_model || 'fixed';
+    const license_count = req.body.license_count ? parseInt(req.body.license_count) : null;
+    const licenses_used = req.body.licenses_used ? parseInt(req.body.licenses_used) : null;
+    const unit_cost = req.body.unit_cost ? parseFloat(req.body.unit_cost) : null;
+
+    // ✅ CALCUL AUTOMATIQUE DU COÛT
+    let monthly_cost = req.body.monthly_cost ? parseFloat(req.body.monthly_cost) : null;
+    
+    if (pricing_model === 'per_user' && license_count && unit_cost) {
+        monthly_cost = license_count * unit_cost;
+    }
+
+    // Validation
+    if (pricing_model === 'fixed' && !monthly_cost) {
+        return res.status(400).json({ error: 'Le coût mensuel est requis pour un prix fixe' });
+    }
+
+    if (pricing_model === 'per_user' && (!license_count || !unit_cost)) {
+        return res.status(400).json({ error: 'Le nombre de licences et le coût unitaire sont requis' });
+    }
 
     try {
         const queryText = `
-            INSERT INTO contracts (name, provider, monthly_cost, renewal_date, notice_period_days, user_id, status)
-            VALUES ($1, $2, $3, $4, $5, $6, 'active')
+            INSERT INTO contracts (
+                name, provider, monthly_cost, renewal_date, notice_period_days, 
+                user_id, status, pricing_model, license_count, licenses_used, unit_cost
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, $9, $10)
             RETURNING *
         `;
-        const values = [name, provider, monthly_cost, renewal_date, notice_period_days, userId];
+        const values = [
+            name, provider, monthly_cost, renewal_date, notice_period_days, 
+            userId, pricing_model, license_count, licenses_used, unit_cost
+        ];
         const result = await db.query(queryText, values);
         
         console.log(`${LOG_PREFIX} Création du contrat ${result.rows[0].id} pour l'utilisateur ${userId}`);
@@ -145,7 +173,7 @@ const createContract = async (req, res) => {
     }
 };
 
-// 3. MODIFIER UN CONTRAT
+// 3. MODIFIER UN CONTRAT (✅ AVEC LICENCES)
 const updateContract = async (req, res) => {
     const { id } = req.params;
     const userId = req.user;
@@ -153,41 +181,73 @@ const updateContract = async (req, res) => {
     if (!userId) {
         return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
     }
-    
-    const name = req.body.name ? sanitizeString(req.body.name) : undefined;
-    const provider = req.body.provider ? sanitizeString(req.body.provider) : undefined;
-    const monthly_cost = req.body.monthly_cost !== undefined ? parseFloat(req.body.monthly_cost) : undefined;
-    const renewal_date = req.body.renewal_date;
-    const notice_period_days = req.body.notice_period_days !== undefined ? parseInt(req.body.notice_period_days) : undefined;
-    const status = req.body.status ? req.body.status.toLowerCase() : undefined;
-    
-    let queryText = 'UPDATE contracts SET ';
-    const updates = [];
-    const values = [];
-    let paramIndex = 1;
-
-    if (name !== undefined) { updates.push(`name = $${paramIndex++}`); values.push(name); }
-    if (provider !== undefined) { updates.push(`provider = $${paramIndex++}`); values.push(provider); }
-    if (monthly_cost !== undefined) { updates.push(`monthly_cost = $${paramIndex++}`); values.push(monthly_cost); }
-    if (renewal_date !== undefined) { updates.push(`renewal_date = $${paramIndex++}`); values.push(renewal_date); }
-    if (notice_period_days !== undefined) { updates.push(`notice_period_days = $${paramIndex++}`); values.push(notice_period_days); }
-    if (status !== undefined) { updates.push(`status = $${paramIndex++}`); values.push(status); }
-
-    if (updates.length === 0) {
-        return res.status(400).json({ error: 'Aucun champ à mettre à jour fourni.' });
-    }
-
-    queryText += updates.join(', ');
-    queryText += ` WHERE id = $${paramIndex++} AND user_id = $${paramIndex++} RETURNING *`;
-    
-    values.push(id, userId);
 
     try {
-        const result = await db.query(queryText, values);
-        
-        if (result.rowCount === 0) {
+        // Vérifier que le contrat existe
+        const checkResult = await db.query(
+            'SELECT * FROM contracts WHERE id = $1 AND user_id = $2',
+            [id, userId]
+        );
+
+        if (checkResult.rows.length === 0) {
             return res.status(404).json({ error: 'Contrat non trouvé ou accès non autorisé.' });
         }
+
+        const currentContract = checkResult.rows[0];
+
+        // Récupérer les champs
+        const name = req.body.name ? sanitizeString(req.body.name) : undefined;
+        const provider = req.body.provider !== undefined ? (req.body.provider ? sanitizeString(req.body.provider) : null) : undefined;
+        const renewal_date = req.body.renewal_date;
+        const notice_period_days = req.body.notice_period_days !== undefined ? parseInt(req.body.notice_period_days) : undefined;
+        const status = req.body.status ? req.body.status.toLowerCase() : undefined;
+        
+        // ✅ NOUVEAUX CHAMPS LICENCES
+        const pricing_model = req.body.pricing_model !== undefined ? req.body.pricing_model : undefined;
+        const license_count = req.body.license_count !== undefined ? (req.body.license_count ? parseInt(req.body.license_count) : null) : undefined;
+        const licenses_used = req.body.licenses_used !== undefined ? (req.body.licenses_used ? parseInt(req.body.licenses_used) : null) : undefined;
+        const unit_cost = req.body.unit_cost !== undefined ? (req.body.unit_cost ? parseFloat(req.body.unit_cost) : null) : undefined;
+
+        // ✅ CALCUL AUTOMATIQUE DU COÛT
+        let monthly_cost = req.body.monthly_cost !== undefined ? parseFloat(req.body.monthly_cost) : undefined;
+        
+        const finalPricingModel = pricing_model !== undefined ? pricing_model : currentContract.pricing_model;
+        const finalLicenseCount = license_count !== undefined ? license_count : currentContract.license_count;
+        const finalUnitCost = unit_cost !== undefined ? unit_cost : currentContract.unit_cost;
+        
+        if (finalPricingModel === 'per_user' && finalLicenseCount && finalUnitCost) {
+            monthly_cost = finalLicenseCount * finalUnitCost;
+        }
+
+        // Construction dynamique de la requête
+        let queryText = 'UPDATE contracts SET ';
+        const updates = [];
+        const values = [];
+        let paramIndex = 1;
+
+        if (name !== undefined) { updates.push(`name = $${paramIndex++}`); values.push(name); }
+        if (provider !== undefined) { updates.push(`provider = $${paramIndex++}`); values.push(provider); }
+        if (monthly_cost !== undefined) { updates.push(`monthly_cost = $${paramIndex++}`); values.push(monthly_cost); }
+        if (renewal_date !== undefined) { updates.push(`renewal_date = $${paramIndex++}`); values.push(renewal_date); }
+        if (notice_period_days !== undefined) { updates.push(`notice_period_days = $${paramIndex++}`); values.push(notice_period_days); }
+        if (status !== undefined) { updates.push(`status = $${paramIndex++}`); values.push(status); }
+        
+        // ✅ NOUVEAUX CHAMPS
+        if (pricing_model !== undefined) { updates.push(`pricing_model = $${paramIndex++}`); values.push(pricing_model); }
+        if (license_count !== undefined) { updates.push(`license_count = $${paramIndex++}`); values.push(license_count); }
+        if (licenses_used !== undefined) { updates.push(`licenses_used = $${paramIndex++}`); values.push(licenses_used); }
+        if (unit_cost !== undefined) { updates.push(`unit_cost = $${paramIndex++}`); values.push(unit_cost); }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'Aucun champ à mettre à jour fourni.' });
+        }
+
+        queryText += updates.join(', ');
+        queryText += ` WHERE id = $${paramIndex++} AND user_id = $${paramIndex++} RETURNING *`;
+        
+        values.push(id, userId);
+
+        const result = await db.query(queryText, values);
 
         console.log(`${LOG_PREFIX} Contrat ${id} mis à jour par l'utilisateur ${userId}`);
         res.status(200).json(result.rows[0]);
@@ -249,7 +309,7 @@ const getProviders = async (req, res) => {
     }
 };
 
-// 6. EXPORTER LES CONTRATS EN CSV
+// 6. EXPORTER LES CONTRATS EN CSV (✅ AVEC LICENCES)
 const exportContracts = async (req, res) => {
     const userId = req.user;
     
@@ -295,8 +355,9 @@ const exportContracts = async (req, res) => {
 
         const whereClause = whereConditions.join(' AND ');
 
-        // ✅ CORRECTION : Construire la requête avec concaténation (pas template literals)
-        let queryText = 'SELECT id, name, provider, monthly_cost, renewal_date, notice_period_days, status ';
+        // ✅ AJOUT DES COLONNES LICENCES
+        let queryText = 'SELECT id, name, provider, monthly_cost, renewal_date, notice_period_days, status, ';
+        queryText += 'pricing_model, license_count, licenses_used, unit_cost ';
         queryText += 'FROM contracts ';
         queryText += 'WHERE ' + whereClause + ' ';
         queryText += 'ORDER BY ' + sortBy + ' ' + sortOrder;
@@ -306,8 +367,8 @@ const exportContracts = async (req, res) => {
         
         const result = await db.query(queryText, queryParams);
 
-        // Générer le CSV
-        const csvHeaders = 'ID,Nom,Fournisseur,Coût Mensuel (€),Date de Renouvellement,Préavis (Jours),Statut\n';
+        // ✅ CSV AVEC LICENCES
+        const csvHeaders = 'ID,Nom,Fournisseur,Coût Mensuel (€),Date de Renouvellement,Préavis (Jours),Statut,Type Tarification,Licences,Licences Utilisées,Coût Unitaire (€)\n';
         
         const csvRows = result.rows.map(contract => {
             const escapeCsvField = (field) => {
@@ -326,7 +387,11 @@ const exportContracts = async (req, res) => {
                 parseFloat(contract.monthly_cost).toFixed(2),
                 contract.renewal_date ? new Date(contract.renewal_date).toISOString().split('T')[0] : '',
                 contract.notice_period_days || 0,
-                escapeCsvField(contract.status)
+                escapeCsvField(contract.status),
+                escapeCsvField(contract.pricing_model || 'fixed'),
+                contract.license_count || '',
+                contract.licenses_used || '',
+                contract.unit_cost ? parseFloat(contract.unit_cost).toFixed(2) : ''
             ].join(',');
         }).join('\n');
 
