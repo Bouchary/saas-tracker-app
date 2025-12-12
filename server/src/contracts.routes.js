@@ -60,6 +60,10 @@ router.get('/', getAllContracts);
 // POST /api/contracts - Créer un nouveau contrat avec validation
 router.post('/', validate(createContractValidation), createContract);
 
+// PUT /api/contracts/:id - Mettre à jour un contrat existant (méthode PUT ajoutée)
+// ✅ ROUTE AJOUTÉE pour supporter PUT en plus de PATCH
+router.put('/:id', validate(updateContractValidation), updateContract);
+
 // PATCH /api/contracts/:id - Mettre à jour un contrat existant avec validation
 router.patch('/:id', validate(updateContractValidation), updateContract);
 

@@ -1,10 +1,10 @@
 // client/src/components/Header.jsx
-// Version CORRIGÉE - Redirections vers /contracts
+// Version avec lien Optimisation (optionnel)
 
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { LayoutDashboard, User } from 'lucide-react';
+import { LayoutDashboard, User, Lightbulb } from 'lucide-react';
 import Notifications from './Notifications';
 
 const Header = ({ onNotificationClick }) => {
@@ -17,7 +17,6 @@ const Header = ({ onNotificationClick }) => {
   return (
     <header className="bg-white shadow-md">
       <div className="container mx-auto p-4 flex justify-between items-center">
-        {/* ✅ CORRIGÉ : Logo pointe vers /contracts au lieu de / */}
         <Link to="/contracts" className="text-2xl font-bold text-gray-800 hover:text-indigo-600 transition duration-300 flex items-center space-x-2">
             <LayoutDashboard className="w-6 h-6 text-indigo-600" />
             <span>SaaS Tracker</span> 
@@ -25,7 +24,6 @@ const Header = ({ onNotificationClick }) => {
         <nav>
           <ul className="flex space-x-4 items-center">
             <li>
-              {/* ✅ CORRIGÉ : Bouton Contrats pointe vers /contracts au lieu de / */}
               <Link 
                 to="/contracts" 
                 className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300"
@@ -39,6 +37,15 @@ const Header = ({ onNotificationClick }) => {
                 className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300"
               >
                 Analytique
+              </Link>
+            </li>
+            <li>
+              <Link 
+                to="/optimization" 
+                className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
+              >
+                <Lightbulb className="w-4 h-4" />
+                Optimisation
               </Link>
             </li>
             {isAuthenticated && (

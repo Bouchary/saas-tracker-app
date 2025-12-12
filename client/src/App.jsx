@@ -7,7 +7,7 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
-import ContractForm from './pages/ContractForm';
+import ContractFormPage from './pages/ContractForm';
 import DashboardPage from './pages/DashboardPage';
 import Profile from './pages/Profile';
 import ContractDocuments from './pages/ContractDocuments';
@@ -17,6 +17,7 @@ import MentionsLegales from './pages/MentionsLegales';
 import CGU from './pages/CGU';
 import Privacy from './pages/Privacy';
 import Cookies from './pages/Cookies';
+import OptimizationPage from './pages/OptimizationPage'; // ✅ NOUVEAU
 
 // Importation des composants de structure
 import Header from './components/Header';
@@ -83,7 +84,7 @@ const App = () => {
                         path="/contracts/new"
                         element={
                             <ProtectedRoute>
-                                <ContractForm />
+                                <ContractFormPage />
                             </ProtectedRoute>
                         }
                     />
@@ -94,6 +95,16 @@ const App = () => {
                         element={
                             <ProtectedRoute>
                                 <DashboardPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    
+                    {/* ✅ NOUVELLE ROUTE : Page Optimisation */}
+                    <Route
+                        path="/optimization"
+                        element={
+                            <ProtectedRoute>
+                                <OptimizationPage />
                             </ProtectedRoute>
                         }
                     />

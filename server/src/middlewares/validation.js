@@ -1,29 +1,32 @@
 // server/src/middlewares/validation.js
 
+const { validationResult } = require('express-validator');
+
 /**
- * Middleware générique pour exécuter les validations et retourner les erreurs
+ * Middleware pour express-validator
+ * Utilisé avec les validations de contractValidator.js
  */
 const validate = (validations) => {
     return async (req, res, next) => {
-        const errors = [];
-
         // Exécuter toutes les validations
-        for (const validation of validations) {
-            const error = validation(req.body);
-            if (error) {
-                errors.push(error);
-            }
+        for (let validation of validations) {
+            const result = await validation.run(req);
         }
 
-        // Si des erreurs existent, les retourner
-        if (errors.length > 0) {
-            return res.status(400).json({ 
-                error: 'Validation échouée', 
-                details: errors 
-            });
+        // Vérifier les erreurs
+        const errors = validationResult(req);
+        if (errors.isEmpty()) {
+            return next();
         }
 
-        next();
+        // Retourner les erreurs
+        const extractedErrors = [];
+        errors.array().map(err => extractedErrors.push({ [err.path]: err.msg }));
+
+        return res.status(400).json({
+            error: 'Erreur de validation',
+            details: extractedErrors,
+        });
     };
 };
 
@@ -85,11 +88,6 @@ const validatePassword = (password) => {
     if (!/[0-9]/.test(password)) {
         return 'Mot de passe doit contenir au moins un chiffre';
     }
-
-    // Optionnel : vérifier un caractère spécial
-    // if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-    //     return 'Mot de passe doit contenir au moins un caractère spécial';
-    // }
 
     return null;
 };

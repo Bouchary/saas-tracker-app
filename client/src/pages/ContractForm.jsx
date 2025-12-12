@@ -1,10 +1,10 @@
 // client/src/pages/ContractForm.jsx
-// Version COMPLÈTE avec gestion licences + calcul automatique
+// Version COMPLÈTE avec real_users pour surconsommation
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { FileText, DollarSign, Calendar, Bell, CheckCircle2, X, AlertCircle, Users, Calculator } from 'lucide-react';
+import { FileText, DollarSign, Calendar, Bell, CheckCircle2, X, AlertCircle, Users, Calculator, ShieldAlert } from 'lucide-react';
 import API_URL from '../config/api';
 
 const ContractForm = () => {
@@ -18,10 +18,11 @@ const ContractForm = () => {
         monthly_cost: '',
         renewal_date: '',
         notice_period_days: 0,
-        // ✨ NOUVEAUX CHAMPS LICENCES
+        // ✨ CHAMPS LICENCES
         pricing_model: 'fixed',
         license_count: '',
         licenses_used: '',
+        real_users: '', // ✅ NOUVEAU CHAMP
         unit_cost: '',
     });
 
@@ -34,7 +35,15 @@ const ContractForm = () => {
         ? (parseFloat(formData.license_count) * parseFloat(formData.unit_cost)).toFixed(2)
         : null;
 
-    // ✨ TAUX D'UTILISATION LICENCES
+    // ✨ SURCONSOMMATION avec real_users
+    const realUsers = formData.real_users ? parseInt(formData.real_users) : 0;
+    const licenseCount = formData.license_count ? parseInt(formData.license_count) : 0;
+    const isOverconsumed = formData.license_count && realUsers > licenseCount;
+    const missingLicenses = isOverconsumed ? realUsers - licenseCount : 0;
+    const unitCost = formData.unit_cost ? parseFloat(formData.unit_cost) : 0;
+    const overconsumptionCost = missingLicenses * unitCost;
+
+    // ✨ TAUX D'UTILISATION (basé sur licenses_used, pas real_users)
     const usageRate = formData.license_count && formData.licenses_used
         ? ((parseFloat(formData.licenses_used) / parseFloat(formData.license_count)) * 100).toFixed(0)
         : null;
@@ -45,7 +54,7 @@ const ContractForm = () => {
         : null;
 
     // ✨ COÛT GASPILLÉ
-    const wastedCost = unusedLicenses && formData.unit_cost
+    const wastedCost = unusedLicenses && formData.unit_cost && unusedLicenses > 0
         ? (unusedLicenses * parseFloat(formData.unit_cost)).toFixed(2)
         : null;
 
@@ -83,14 +92,6 @@ const ContractForm = () => {
             return;
         }
 
-        // ✅ VALIDATION LICENCES
-        if (formData.licenses_used && formData.license_count && 
-            parseFloat(formData.licenses_used) > parseFloat(formData.license_count)) {
-            setError('Le nombre de licences utilisées ne peut pas dépasser le nombre de licences achetées.');
-            setLoading(false);
-            return;
-        }
-
         const dataToSend = {
             name: formData.name,
             provider: formData.provider || null,
@@ -101,9 +102,10 @@ const ContractForm = () => {
             monthly_cost: formData.pricing_model === 'per_user' 
                 ? parseFloat(calculatedCost)
                 : parseFloat(formData.monthly_cost) || 0,
-            // ✨ LICENCES
+            // ✨ LICENCES avec real_users
             license_count: formData.license_count ? parseInt(formData.license_count) : null,
             licenses_used: formData.licenses_used ? parseInt(formData.licenses_used) : null,
+            real_users: formData.real_users ? parseInt(formData.real_users) : null, // ✅ ENVOI
             unit_cost: formData.unit_cost ? parseFloat(formData.unit_cost) : null,
         };
 
@@ -180,6 +182,34 @@ const ContractForm = () => {
                         </div>
                     )}
 
+                    {/* ✨ ALERTE SURCONSOMMATION EN HAUT */}
+                    {isOverconsumed && (
+                        <div className="mb-6 bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-300 rounded-xl p-5 animate-pulse">
+                            <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <ShieldAlert className="w-6 h-6 text-white" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-lg font-bold text-red-900 mb-2">🚨 Surconsommation Détectée</h3>
+                                    <div className="space-y-2 text-sm text-red-800">
+                                        <p>
+                                            <strong>{missingLicenses} licences manquantes</strong> : 
+                                            vous avez {realUsers} utilisateurs réels pour seulement {licenseCount} licences achetées
+                                        </p>
+                                        <p className="font-semibold text-red-900">
+                                            💰 Surcoût estimé : {overconsumptionCost.toFixed(2)} €/mois 
+                                            ({(overconsumptionCost * 12).toFixed(0)} €/an)
+                                        </p>
+                                        <p className="text-xs bg-white/50 p-2 rounded border border-red-200">
+                                            ⚠️ <strong>Action requise :</strong> Acheter {missingLicenses} licences supplémentaires 
+                                            ou désactiver {missingLicenses} comptes utilisateurs
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {/* NOM */}
                         <div>
@@ -241,7 +271,7 @@ const ContractForm = () => {
                             <div className="grid grid-cols-2 gap-3">
                                 <button
                                     type="button"
-                                    onClick={() => setFormData({...formData, pricing_model: 'fixed', license_count: '', licenses_used: '', unit_cost: ''})}
+                                    onClick={() => setFormData({...formData, pricing_model: 'fixed', license_count: '', licenses_used: '', real_users: '', unit_cost: ''})}
                                     className={`px-4 py-3 rounded-xl font-semibold transition-all ${
                                         formData.pricing_model === 'fixed'
                                             ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg'
@@ -304,7 +334,7 @@ const ContractForm = () => {
                             </div>
                         )}
 
-                        {/* ✨ SI PAR UTILISATEUR → LICENCES */}
+                        {/* ✨ SI PAR UTILISATEUR → LICENCES avec REAL_USERS */}
                         {formData.pricing_model === 'per_user' && (
                             <div className="space-y-6 p-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border-2 border-indigo-100">
                                 <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -313,7 +343,7 @@ const ContractForm = () => {
                                 </h3>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Nombre de licences */}
+                                    {/* Licences achetées */}
                                     <div>
                                         <label htmlFor="license_count" className="block text-sm font-semibold text-gray-700 mb-2">
                                             Licences achetées <span className="text-red-500">*</span>
@@ -330,6 +360,7 @@ const ContractForm = () => {
                                             className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 transition"
                                             disabled={loading}
                                         />
+                                        <p className="text-xs text-gray-600 mt-1">💼 Nombre de licences dans le contrat</p>
                                     </div>
 
                                     {/* Coût unitaire */}
@@ -350,13 +381,14 @@ const ContractForm = () => {
                                             className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 transition"
                                             disabled={loading}
                                         />
+                                        <p className="text-xs text-gray-600 mt-1">💵 Prix par licence/utilisateur</p>
                                     </div>
                                 </div>
 
-                                {/* Licences utilisées (optionnel) */}
+                                {/* Licences attribuées */}
                                 <div>
                                     <label htmlFor="licenses_used" className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Licences utilisées (optionnel)
+                                        Licences attribuées
                                     </label>
                                     <input
                                         id="licenses_used"
@@ -366,13 +398,30 @@ const ContractForm = () => {
                                         max={formData.license_count || undefined}
                                         value={formData.licenses_used}
                                         onChange={handleChange}
-                                        placeholder="Ex: 32"
+                                        placeholder="Ex: 45"
                                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 transition"
                                         disabled={loading}
                                     />
-                                    <p className="mt-1 text-xs text-gray-500">
-                                        Pour suivre l'utilisation réelle et détecter le gaspillage
-                                    </p>
+                                    <p className="text-xs text-gray-600 mt-1">👥 Licences assignées légalement (max {formData.license_count || '—'})</p>
+                                </div>
+
+                                {/* ✅ NOUVEAU CHAMP : Utilisateurs réels */}
+                                <div>
+                                    <label htmlFor="real_users" className="block text-sm font-semibold text-gray-700 mb-2">
+                                        Utilisateurs réels <span className="text-gray-500 font-normal">(optionnel)</span>
+                                    </label>
+                                    <input
+                                        id="real_users"
+                                        name="real_users"
+                                        type="number"
+                                        min="0"
+                                        value={formData.real_users}
+                                        onChange={handleChange}
+                                        placeholder="Ex: 70"
+                                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 transition"
+                                        disabled={loading}
+                                    />
+                                    <p className="text-xs text-gray-600 mt-1">🔍 Nombre réel d'utilisateurs connectés (peut dépasser les licences achetées)</p>
                                 </div>
 
                                 {/* ✨ CALCUL AUTOMATIQUE */}
@@ -422,18 +471,19 @@ const ContractForm = () => {
                                             </p>
                                         </div>
 
-                                        {unusedLicenses > 0 && wastedCost && (
-                                            <div className="p-4 bg-red-50 rounded-xl border-2 border-red-200">
+                                        {/* Alerte Gaspillage */}
+                                        {unusedLicenses > 0 && wastedCost && !isOverconsumed && (
+                                            <div className="p-4 bg-yellow-50 rounded-xl border-2 border-yellow-200">
                                                 <div className="flex items-center justify-between">
                                                     <div>
-                                                        <p className="text-sm font-semibold text-red-900">⚠️ Gaspillage détecté</p>
-                                                        <p className="text-xs text-red-700 mt-1">
+                                                        <p className="text-sm font-semibold text-yellow-900">⚠️ Gaspillage détecté</p>
+                                                        <p className="text-xs text-yellow-700 mt-1">
                                                             {unusedLicenses} licence{unusedLicenses > 1 ? 's' : ''} inutilisée{unusedLicenses > 1 ? 's' : ''}
                                                         </p>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="text-2xl font-bold text-red-600">{wastedCost}€</p>
-                                                        <p className="text-xs text-red-700">gaspillés/mois</p>
+                                                        <p className="text-2xl font-bold text-yellow-600">{wastedCost}€</p>
+                                                        <p className="text-xs text-yellow-700">gaspillés/mois</p>
                                                     </div>
                                                 </div>
                                             </div>

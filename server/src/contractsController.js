@@ -71,10 +71,10 @@ const getAllContracts = async (req, res) => {
         const countResult = await db.query(countQuery, queryParams);
         const totalContracts = parseInt(countResult.rows[0].count);
 
-        // ✅ AJOUT DES COLONNES LICENCES
+        // ✅ AJOUT COLONNE real_users
         const queryText = `
             SELECT id, name, provider, monthly_cost, renewal_date, notice_period_days, status,
-                   pricing_model, license_count, licenses_used, unit_cost
+                   pricing_model, license_count, licenses_used, unit_cost, real_users
             FROM contracts
             WHERE ${whereClause}
             ORDER BY ${sortBy} ${sortOrder}
@@ -115,7 +115,7 @@ const getAllContracts = async (req, res) => {
     }
 };
 
-// 2. CRÉER UN CONTRAT (✅ AVEC LICENCES)
+// 2. CRÉER UN CONTRAT (✅ AVEC real_users)
 const createContract = async (req, res) => {
     const userId = req.user;
     
@@ -128,11 +128,12 @@ const createContract = async (req, res) => {
     const renewal_date = req.body.renewal_date;
     const notice_period_days = parseInt(req.body.notice_period_days) || 0;
     
-    // ✅ NOUVEAUX CHAMPS LICENCES
+    // ✅ CHAMPS LICENCES
     const pricing_model = req.body.pricing_model || 'fixed';
     const license_count = req.body.license_count ? parseInt(req.body.license_count) : null;
     const licenses_used = req.body.licenses_used ? parseInt(req.body.licenses_used) : null;
     const unit_cost = req.body.unit_cost ? parseFloat(req.body.unit_cost) : null;
+    const real_users = req.body.real_users ? parseInt(req.body.real_users) : null; // ✨ NOUVEAU
 
     // ✅ CALCUL AUTOMATIQUE DU COÛT
     let monthly_cost = req.body.monthly_cost ? parseFloat(req.body.monthly_cost) : null;
@@ -154,14 +155,14 @@ const createContract = async (req, res) => {
         const queryText = `
             INSERT INTO contracts (
                 name, provider, monthly_cost, renewal_date, notice_period_days, 
-                user_id, status, pricing_model, license_count, licenses_used, unit_cost
+                user_id, status, pricing_model, license_count, licenses_used, unit_cost, real_users
             )
-            VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, $9, $10)
+            VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, $9, $10, $11)
             RETURNING *
         `;
         const values = [
             name, provider, monthly_cost, renewal_date, notice_period_days, 
-            userId, pricing_model, license_count, licenses_used, unit_cost
+            userId, pricing_model, license_count, licenses_used, unit_cost, real_users
         ];
         const result = await db.query(queryText, values);
         
@@ -173,7 +174,7 @@ const createContract = async (req, res) => {
     }
 };
 
-// 3. MODIFIER UN CONTRAT (✅ AVEC LICENCES)
+// 3. MODIFIER UN CONTRAT (✅ AVEC real_users)
 const updateContract = async (req, res) => {
     const { id } = req.params;
     const userId = req.user;
@@ -202,11 +203,12 @@ const updateContract = async (req, res) => {
         const notice_period_days = req.body.notice_period_days !== undefined ? parseInt(req.body.notice_period_days) : undefined;
         const status = req.body.status ? req.body.status.toLowerCase() : undefined;
         
-        // ✅ NOUVEAUX CHAMPS LICENCES
+        // ✅ CHAMPS LICENCES
         const pricing_model = req.body.pricing_model !== undefined ? req.body.pricing_model : undefined;
         const license_count = req.body.license_count !== undefined ? (req.body.license_count ? parseInt(req.body.license_count) : null) : undefined;
         const licenses_used = req.body.licenses_used !== undefined ? (req.body.licenses_used ? parseInt(req.body.licenses_used) : null) : undefined;
         const unit_cost = req.body.unit_cost !== undefined ? (req.body.unit_cost ? parseFloat(req.body.unit_cost) : null) : undefined;
+        const real_users = req.body.real_users !== undefined ? (req.body.real_users ? parseInt(req.body.real_users) : null) : undefined; // ✨ NOUVEAU
 
         // ✅ CALCUL AUTOMATIQUE DU COÛT
         let monthly_cost = req.body.monthly_cost !== undefined ? parseFloat(req.body.monthly_cost) : undefined;
@@ -232,11 +234,12 @@ const updateContract = async (req, res) => {
         if (notice_period_days !== undefined) { updates.push(`notice_period_days = $${paramIndex++}`); values.push(notice_period_days); }
         if (status !== undefined) { updates.push(`status = $${paramIndex++}`); values.push(status); }
         
-        // ✅ NOUVEAUX CHAMPS
+        // ✅ CHAMPS LICENCES
         if (pricing_model !== undefined) { updates.push(`pricing_model = $${paramIndex++}`); values.push(pricing_model); }
         if (license_count !== undefined) { updates.push(`license_count = $${paramIndex++}`); values.push(license_count); }
         if (licenses_used !== undefined) { updates.push(`licenses_used = $${paramIndex++}`); values.push(licenses_used); }
         if (unit_cost !== undefined) { updates.push(`unit_cost = $${paramIndex++}`); values.push(unit_cost); }
+        if (real_users !== undefined) { updates.push(`real_users = $${paramIndex++}`); values.push(real_users); } // ✨ NOUVEAU
 
         if (updates.length === 0) {
             return res.status(400).json({ error: 'Aucun champ à mettre à jour fourni.' });
@@ -309,7 +312,7 @@ const getProviders = async (req, res) => {
     }
 };
 
-// 6. EXPORTER LES CONTRATS EN CSV (✅ AVEC LICENCES)
+// 6. EXPORTER LES CONTRATS EN CSV (✅ AVEC real_users)
 const exportContracts = async (req, res) => {
     const userId = req.user;
     
@@ -355,9 +358,9 @@ const exportContracts = async (req, res) => {
 
         const whereClause = whereConditions.join(' AND ');
 
-        // ✅ AJOUT DES COLONNES LICENCES
+        // ✅ AJOUT COLONNE real_users
         let queryText = 'SELECT id, name, provider, monthly_cost, renewal_date, notice_period_days, status, ';
-        queryText += 'pricing_model, license_count, licenses_used, unit_cost ';
+        queryText += 'pricing_model, license_count, licenses_used, unit_cost, real_users ';
         queryText += 'FROM contracts ';
         queryText += 'WHERE ' + whereClause + ' ';
         queryText += 'ORDER BY ' + sortBy + ' ' + sortOrder;
@@ -367,8 +370,8 @@ const exportContracts = async (req, res) => {
         
         const result = await db.query(queryText, queryParams);
 
-        // ✅ CSV AVEC LICENCES
-        const csvHeaders = 'ID,Nom,Fournisseur,Coût Mensuel (€),Date de Renouvellement,Préavis (Jours),Statut,Type Tarification,Licences,Licences Utilisées,Coût Unitaire (€)\n';
+        // ✅ CSV AVEC real_users
+        const csvHeaders = 'ID,Nom,Fournisseur,Coût Mensuel (€),Date de Renouvellement,Préavis (Jours),Statut,Type Tarification,Licences,Licences Utilisées,Coût Unitaire (€),Utilisateurs Réels\n';
         
         const csvRows = result.rows.map(contract => {
             const escapeCsvField = (field) => {
@@ -391,7 +394,8 @@ const exportContracts = async (req, res) => {
                 escapeCsvField(contract.pricing_model || 'fixed'),
                 contract.license_count || '',
                 contract.licenses_used || '',
-                contract.unit_cost ? parseFloat(contract.unit_cost).toFixed(2) : ''
+                contract.unit_cost ? parseFloat(contract.unit_cost).toFixed(2) : '',
+                contract.real_users || ''
             ].join(',');
         }).join('\n');
 

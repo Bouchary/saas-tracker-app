@@ -13,6 +13,7 @@ const createContractValidation = [
         .withMessage('Le coût doit être un nombre positif'),
     
     body('renewal_date')
+        .optional()
         .isISO8601()
         .withMessage('Date invalide'),
     
@@ -21,10 +22,9 @@ const createContractValidation = [
         .isInt({ min: 0 })
         .withMessage('Le délai de préavis doit être un entier positif'),
     
-    // ✅ NOUVEAUX CHAMPS LICENCES
     body('pricing_model')
         .optional()
-        .isIn(['fixed', 'per_user', 'per_seat', 'tiered'])
+        .isIn(['fixed', 'per_user', 'usage_based'])
         .withMessage('Type de tarification invalide'),
     
     body('license_count')
@@ -35,13 +35,13 @@ const createContractValidation = [
     body('licenses_used')
         .optional()
         .isInt({ min: 0 })
-        .withMessage('Le nombre de licences utilisées doit être un entier positif')
-        .custom((value, { req }) => {
-            if (value && req.body.license_count && value > req.body.license_count) {
-                throw new Error('Les licences utilisées ne peuvent pas dépasser les licences achetées');
-            }
-            return true;
-        }),
+        .withMessage('Le nombre de licences utilisées doit être un entier positif'),
+    
+    // ✅ NOUVEAU : Validation pour real_users
+    body('real_users')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('Le nombre d\'utilisateurs réels doit être un entier positif'),
     
     body('unit_cost')
         .optional()
@@ -72,13 +72,12 @@ const updateContractValidation = [
     
     body('status')
         .optional()
-        .isIn(['active', 'expired', 'cancelled'])
+        .isIn(['active', 'inactive', 'cancelled'])
         .withMessage('Statut invalide'),
     
-    // ✅ NOUVEAUX CHAMPS LICENCES
     body('pricing_model')
         .optional()
-        .isIn(['fixed', 'per_user', 'per_seat', 'tiered'])
+        .isIn(['fixed', 'per_user', 'usage_based'])
         .withMessage('Type de tarification invalide'),
     
     body('license_count')
@@ -89,13 +88,13 @@ const updateContractValidation = [
     body('licenses_used')
         .optional()
         .isInt({ min: 0 })
-        .withMessage('Le nombre de licences utilisées doit être un entier positif')
-        .custom((value, { req }) => {
-            if (value && req.body.license_count && value > req.body.license_count) {
-                throw new Error('Les licences utilisées ne peuvent pas dépasser les licences achetées');
-            }
-            return true;
-        }),
+        .withMessage('Le nombre de licences utilisées doit être un entier positif'),
+    
+    // ✅ NOUVEAU : Validation pour real_users
+    body('real_users')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('Le nombre d\'utilisateurs réels doit être un entier positif'),
     
     body('unit_cost')
         .optional()
