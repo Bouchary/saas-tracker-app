@@ -1,5 +1,5 @@
 // client/src/pages/LoginPage.jsx
-// Version moderne avec photo paysage + validation mot de passe en temps réel
+// ✅ VERSION CORRIGÉE avec stockage explicite du token
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -86,6 +86,12 @@ const LoginPage = () => {
         id: data.id,
         email: data.email,
       };
+      
+      // ✅ CORRECTION : STOCKER LE TOKEN EXPLICITEMENT DANS LOCALSTORAGE
+      console.log('🔐 Stockage du token:', data.token.substring(0, 30) + '...');
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(userPayload));
+      console.log('✅ Token stocké avec succès');
       
       login(userPayload, data.token);
       navigate('/contracts'); // Redirige vers la liste des contrats après connexion
