@@ -22,6 +22,17 @@ const emailScheduler = require('./src/jobs/emailScheduler');
 const app = express();
 const port = process.env.PORT || 5000; 
 
+// 🔍 ROUTE DE DIAGNOSTIC - TEST VERSION DÉPLOYÉE
+app.get('/api/diagnostic', (req, res) => {
+  res.json({
+    message: 'Backend Render VERSION TEST 2024-12-13 17h30',
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV,
+    nodeVersion: process.version,
+    platform: process.platform
+  });
+});
+
 // Middlewares
 app.use(cors()); 
 app.use(express.json());
