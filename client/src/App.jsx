@@ -17,7 +17,17 @@ import MentionsLegales from './pages/MentionsLegales';
 import CGU from './pages/CGU';
 import Privacy from './pages/Privacy';
 import Cookies from './pages/Cookies';
-import OptimizationPage from './pages/OptimizationPage'; // ✅ NOUVEAU
+import OptimizationPage from './pages/OptimizationPage';
+
+// 🆕 MODULE EMPLOYÉS (Phase 9)
+import EmployeesPage from './pages/EmployeesPage';
+import EmployeeDetailPage from './pages/EmployeeDetailPage';
+import EmployeeFormPage from './pages/EmployeeFormPage';
+
+// 🆕 MODULE MATÉRIEL (Phase 10) - AJOUTÉ LE 13/12/2024
+import AssetsPage from './pages/AssetsPage';
+import AssetDetailPage from './pages/AssetDetailPage';
+import AssetFormPage from './pages/AssetFormPage';
 
 // Importation des composants de structure
 import Header from './components/Header';
@@ -99,12 +109,80 @@ const App = () => {
                         }
                     />
                     
-                    {/* ✅ NOUVELLE ROUTE : Page Optimisation */}
+                    {/* Route : Page Optimisation */}
                     <Route
                         path="/optimization"
                         element={
                             <ProtectedRoute>
                                 <OptimizationPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    
+                    {/* 🆕 ROUTES EMPLOYÉS (Phase 9) */}
+                    <Route
+                        path="/employees"
+                        element={
+                            <ProtectedRoute>
+                                <EmployeesPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/employees/new"
+                        element={
+                            <ProtectedRoute>
+                                <EmployeeFormPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/employees/:id"
+                        element={
+                            <ProtectedRoute>
+                                <EmployeeDetailPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/employees/:id/edit"
+                        element={
+                            <ProtectedRoute>
+                                <EmployeeFormPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    
+                    {/* 🆕 ROUTES ASSETS (Phase 10) - AJOUTÉ LE 13/12/2024 */}
+                    <Route
+                        path="/assets"
+                        element={
+                            <ProtectedRoute>
+                                <AssetsPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/assets/new"
+                        element={
+                            <ProtectedRoute>
+                                <AssetFormPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/assets/:id"
+                        element={
+                            <ProtectedRoute>
+                                <AssetDetailPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/assets/:id/edit"
+                        element={
+                            <ProtectedRoute>
+                                <AssetFormPage />
                             </ProtectedRoute>
                         }
                     />

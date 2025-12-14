@@ -1,10 +1,9 @@
 // client/src/components/Header.jsx
-// Version avec lien Optimisation (optionnel)
 
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { LayoutDashboard, User, Lightbulb } from 'lucide-react';
+import { LayoutDashboard, User, Lightbulb, Users, Package } from 'lucide-react';
 import Notifications from './Notifications';
 
 const Header = ({ onNotificationClick }) => {
@@ -46,6 +45,26 @@ const Header = ({ onNotificationClick }) => {
               >
                 <Lightbulb className="w-4 h-4" />
                 Optimisation
+              </Link>
+            </li>
+            {/* 🆕 LIEN EMPLOYÉS (Phase 9) */}
+            <li>
+              <Link 
+                to="/employees" 
+                className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
+              >
+                <Users className="w-4 h-4" />
+                Employés
+              </Link>
+            </li>
+            {/* 🆕 LIEN MATÉRIEL (Phase 10) - AJOUTÉ LE 13/12/2024 */}
+            <li>
+              <Link 
+                to="/assets" 
+                className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
+              >
+                <Package className="w-4 h-4" />
+                Matériel
               </Link>
             </li>
             {isAuthenticated && (

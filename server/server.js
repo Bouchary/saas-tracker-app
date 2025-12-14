@@ -16,22 +16,17 @@ const profileRoutes = require('./src/routes/profile.js');
 const documentsRoutes = require('./src/routes/documents.js');
 const passwordResetRoutes = require('./src/routes/password-reset.js');
 
+// 🆕 MODULE EMPLOYÉS (Phase 9) - Ajouté le 13 décembre 2024
+const employeesRoutes = require('./src/employees.routes.js');
+
+// 🆕 MODULE MATÉRIEL (Phase 10) - Ajouté le 13 décembre 2024
+const assetsRoutes = require('./src/assets.routes.js');
+
 // 📧 Import du planificateur d'emails
 const emailScheduler = require('./src/jobs/emailScheduler');
 
 const app = express();
 const port = process.env.PORT || 5000; 
-
-// 🔍 ROUTE DE DIAGNOSTIC - TEST VERSION DÉPLOYÉE
-app.get('/api/diagnostic', (req, res) => {
-  res.json({
-    message: 'Backend Render VERSION TEST 2024-12-13 17h30',
-    timestamp: new Date().toISOString(),
-    env: process.env.NODE_ENV,
-    nodeVersion: process.version,
-    platform: process.platform
-  });
-});
 
 // Middlewares
 app.use(cors()); 
@@ -45,6 +40,12 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/contracts', documentsRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/auth', passwordResetRoutes);
+
+// 🆕 Routes Employés (Phase 9)
+app.use('/api/employees', employeesRoutes);
+
+// 🆕 Routes Assets (Phase 10)
+app.use('/api/assets', assetsRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: "SaaS Tracker API est opérationnelle!" });
@@ -65,6 +66,10 @@ app.listen(port, () => {
     console.log('ℹ️  Planificateur d\'emails désactivé en développement');
     console.log('   Utilisez POST /api/emails/test pour tester les emails');
   }
+  
+  // 🆕 Confirmation modules chargés
+  console.log('✅ Module Employés chargé : /api/employees');
+  console.log('✅ Module Matériel chargé : /api/assets');
 });
 
 // 🛑 Gérer l'arrêt propre du serveur
