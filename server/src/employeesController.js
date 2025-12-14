@@ -1,5 +1,5 @@
 // ============================================================================
-// EMPLOYEES CONTROLLER - VERSION SIMPLIFIÉE
+// EMPLOYEES CONTROLLER - VERSION COMPLÈTE
 // ============================================================================
 
 const pool = require('./db'); // ADAPTEZ CE CHEMIN SELON VOTRE STRUCTURE
@@ -274,6 +274,96 @@ const getEmployeeStats = async (req, res) => {
 };
 
 // ============================================================================
+// 🆕 GET /api/employees/:id/assets - Assets assignés à un employé
+// ============================================================================
+// PHASE 10 - JOUR 4 : INTÉGRATION EMPLOYÉS ↔ MATÉRIEL
+// ============================================================================
+
+const getEmployeeAssets = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Vérifier que l'employé existe
+    const employeeCheck = await pool.query(
+      'SELECT id, first_name, last_name FROM employees WHERE id = $1',
+      [id]
+    );
+
+    if (employeeCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Employé non trouvé' });
+    }
+
+    const employee = employeeCheck.rows[0];
+
+    // Récupérer les assets actuellement assignés
+    const currentAssetsResult = await pool.query(
+      `SELECT 
+        a.*,
+        aa.assigned_date,
+        aa.purpose,
+        aa.condition_on_assignment
+      FROM assets a
+      JOIN asset_assignments aa ON a.id = aa.asset_id
+      WHERE aa.employee_id = $1 
+        AND aa.status = 'active'
+      ORDER BY aa.assigned_date DESC`,
+      [id]
+    );
+
+    // Récupérer l'historique complet
+    const historyResult = await pool.query(
+      `SELECT 
+        a.id,
+        a.asset_tag,
+        a.name,
+        a.asset_type,
+        aa.assigned_date,
+        aa.actual_return_date,
+        aa.status,
+        aa.purpose,
+        aa.condition_on_assignment,
+        aa.condition_on_return,
+        aa.assignment_notes,
+        aa.return_notes
+      FROM asset_assignments aa
+      JOIN assets a ON aa.asset_id = a.id
+      WHERE aa.employee_id = $1
+      ORDER BY aa.assigned_date DESC`,
+      [id]
+    );
+
+    // Calculer des statistiques
+    const stats = {
+      total_current: currentAssetsResult.rows.length,
+      total_history: historyResult.rows.length,
+      by_type: {}
+    };
+
+    // Compter par type (assets actuels)
+    currentAssetsResult.rows.forEach(asset => {
+      stats.by_type[asset.asset_type] = (stats.by_type[asset.asset_type] || 0) + 1;
+    });
+
+    res.json({
+      employee: {
+        id: employee.id,
+        name: `${employee.first_name} ${employee.last_name}`
+      },
+      current_assets: currentAssetsResult.rows,
+      history: historyResult.rows,
+      stats
+    });
+
+  } catch (error) {
+    console.error('Error fetching employee assets:', error);
+    res.status(500).json({ 
+      error: 'Erreur lors de la récupération des assets',
+      details: error.message 
+    });
+  }
+};
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -283,5 +373,6 @@ module.exports = {
   createEmployee,
   updateEmployee,
   deleteEmployee,
-  getEmployeeStats
+  getEmployeeStats,
+  getEmployeeAssets  // 🆕 AJOUTÉ POUR PHASE 10 - JOUR 4
 };

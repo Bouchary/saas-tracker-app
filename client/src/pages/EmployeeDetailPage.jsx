@@ -1,10 +1,12 @@
 // ============================================================================
-// EMPLOYEE DETAIL PAGE - Vue 360° d'un employé
+// EMPLOYEE DETAIL PAGE - Vue 360° d'un employé avec Matériel
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Package } from 'lucide-react'; // 🆕 AJOUT POUR ONGLET MATÉRIEL
 import employeesApi from '../services/employeesApi';
+import EmployeeAssets from '../components/EmployeeAssets'; // 🆕 AJOUT COMPOSANT MATÉRIEL
 
 const EmployeeDetailPage = () => {
   const { id } = useParams();
@@ -194,12 +196,16 @@ const EmployeeDetailPage = () => {
         >
           Informations
         </button>
+        
+        {/* 🆕 ONGLET MATÉRIEL MODIFIÉ - Maintenant opérationnel avec icône lucide */}
         <button
           className={`tab ${activeTab === 'assets' ? 'active' : ''}`}
           onClick={() => setActiveTab('assets')}
         >
-          Matériel (À venir)
+          <Package className="w-4 h-4 inline mr-1" />
+          Matériel
         </button>
+        
         <button
           className={`tab ${activeTab === 'workflows' ? 'active' : ''}`}
           onClick={() => setActiveTab('workflows')}
@@ -307,10 +313,12 @@ const EmployeeDetailPage = () => {
           </div>
         )}
 
+        {/* 🆕 ONGLET MATÉRIEL - Maintenant avec composant EmployeeAssets */}
         {activeTab === 'assets' && (
-          <div className="placeholder">
-            <p>🚧 Module Matériel à venir (Phase 2)</p>
-          </div>
+          <EmployeeAssets 
+            employeeId={id} 
+            employeeName={`${employee.first_name} ${employee.last_name}`}
+          />
         )}
 
         {activeTab === 'workflows' && (

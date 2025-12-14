@@ -1154,3 +1154,359 @@ body {
 }
 
 /* ========== FIN MODULE MATÉRIEL ========== */
+
+
+/* ============================================================================
+   MODULE EMPLOYEE ASSETS - CSS (Intégration Employés ↔ Matériel)
+   ============================================================================
+   Intégré le 14 décembre 2024 (Phase 10 - Jour 4)
+   Design moderne avec icônes lucide-react
+   ============================================================================ */
+
+/* ========== EMPLOYEE ASSETS SECTION ========== */
+
+.employee-assets-section {
+  margin-top: 2rem;
+}
+
+/* ========== ASSETS HEADER ========== */
+
+.assets-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.assets-stats-mini {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+}
+
+.stat-mini {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stat-mini svg {
+  color: #4299e1;
+}
+
+.stat-mini-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #2d3748;
+  line-height: 1;
+}
+
+.stat-mini-label {
+  font-size: 0.875rem;
+  color: #718096;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-mini-breakdown {
+  display: flex;
+  gap: 1rem;
+  padding-left: 2rem;
+  border-left: 2px solid #e2e8f0;
+}
+
+.stat-mini-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #4a5568;
+  font-weight: 500;
+}
+
+.stat-mini-item svg {
+  color: #718096;
+}
+
+/* ========== CURRENT ASSETS ========== */
+
+.current-assets {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0 0 1.5rem 0;
+}
+
+.section-title svg {
+  color: #4299e1;
+}
+
+/* ========== ASSETS GRID ========== */
+
+.assets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.asset-card-mini {
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.2s;
+}
+
+.asset-card-mini:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-color: #cbd5e0;
+}
+
+.asset-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.asset-icon-type {
+  width: 48px;
+  height: 48px;
+  background: white;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4299e1;
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.asset-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.asset-card-name {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #2d3748;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.asset-card-name:hover {
+  color: #4299e1;
+}
+
+.asset-card-tag {
+  margin: 0;
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  color: #718096;
+}
+
+.asset-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.asset-card-detail {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #4a5568;
+}
+
+.asset-card-detail svg {
+  color: #718096;
+  flex-shrink: 0;
+}
+
+.asset-card-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+/* ========== HISTORY ========== */
+
+.history-toggle {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.assets-history {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+}
+
+.history-item-mini {
+  padding: 1.25rem;
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  transition: all 0.2s;
+}
+
+.history-item-mini:last-child {
+  margin-bottom: 0;
+}
+
+.history-item-mini:hover {
+  border-color: #cbd5e0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.history-item-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.history-item-icon {
+  width: 40px;
+  height: 40px;
+  background: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4299e1;
+  flex-shrink: 0;
+}
+
+.history-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-item-info h4 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.history-item-info p {
+  margin: 0;
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  color: #718096;
+}
+
+.history-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.history-status.active {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.history-status.returned {
+  background: #e2e8f0;
+  color: #4a5568;
+}
+
+.history-item-dates {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #4a5568;
+  margin-bottom: 0.5rem;
+}
+
+.history-item-dates svg {
+  width: 1rem;
+  height: 1rem;
+  color: #718096;
+}
+
+.history-item-purpose {
+  font-size: 0.875rem;
+  color: #718096;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* ========== RESPONSIVE EMPLOYEE ASSETS ========== */
+
+@media (max-width: 1024px) {
+  .assets-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+
+  .assets-stats-mini {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .stat-mini-breakdown {
+    padding-left: 0;
+    border-left: none;
+    padding-top: 1rem;
+    border-top: 2px solid #e2e8f0;
+  }
+}
+
+@media (max-width: 768px) {
+  .assets-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .assets-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .asset-card-actions {
+    flex-direction: column;
+  }
+
+  .asset-card-actions .btn {
+    width: 100%;
+  }
+}
+
+/* ========== FIN MODULE EMPLOYEE ASSETS ========== */

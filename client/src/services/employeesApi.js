@@ -1,7 +1,7 @@
 // ============================================================================
-// EMPLOYEES API SERVICE
+// EMPLOYEES API SERVICE - VERSION COMPLÈTE AVEC ASSETS
 // ============================================================================
-// Module : Employés (Phase 9)
+// Module : Employés (Phase 9 + Phase 10 Jour 4)
 // Description : Service pour communiquer avec l'API employés
 // Adapté pour VITE (utilise import.meta.env)
 // ============================================================================
@@ -57,6 +57,17 @@ export const employeesApi = {
   // GET /api/employees/:id - Détails d'un employé
   getById: async (id) => {
     const response = await fetch(`${API_URL}/api/employees/${id}`, {
+      method: 'GET',
+      headers: getHeaders()
+    });
+    
+    return handleResponse(response);
+  },
+  
+  // 🆕 GET /api/employees/:id/assets - Assets assignés à l'employé
+  // PHASE 10 - JOUR 4 : INTÉGRATION EMPLOYÉS ↔ MATÉRIEL
+  getEmployeeAssets: async (employeeId) => {
+    const response = await fetch(`${API_URL}/api/employees/${employeeId}/assets`, {
       method: 'GET',
       headers: getHeaders()
     });
