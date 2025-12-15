@@ -15,7 +15,7 @@ const getAllContracts = async (req, res) => {
 
     // Paramètres de pagination
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 1000;
     const offset = (page - 1) * limit;
 
     // Paramètres de recherche et filtres
@@ -26,7 +26,7 @@ const getAllContracts = async (req, res) => {
     const sortOrder = req.query.sortOrder === 'desc' ? 'DESC' : 'ASC';
 
     // Validation des paramètres
-    if (page < 1 || limit < 1 || limit > 100) {
+    if (page < 1 || limit < 1 || limit > 10000) {
         return res.status(400).json({ 
             error: 'Paramètres de pagination invalides. Page >= 1, Limit entre 1 et 100.' 
         });

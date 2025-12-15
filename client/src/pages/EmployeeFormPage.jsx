@@ -1,9 +1,13 @@
 // ============================================================================
-// EMPLOYEE FORM PAGE - Création/Édition d'un employé
+// EMPLOYEE FORM PAGE - Création/Édition AVEC ICÔNES LUCIDE-REACT
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { 
+  ArrowLeft, Edit, Plus, Save, User, Briefcase, 
+  Calendar, MapPin, FileText, XCircle
+} from 'lucide-react';
 import employeesApi from '../services/employeesApi';
 
 const EmployeeFormPage = () => {
@@ -163,21 +167,38 @@ const EmployeeFormPage = () => {
     <div className="employee-form-page">
       <div className="form-header">
         <button onClick={() => navigate('/employees')} className="btn-back">
-          ← Retour
+          <ArrowLeft className="w-4 h-4 inline mr-1" />
+          Retour
         </button>
-        <h1>{isEditMode ? '✏️ Modifier l\'employé' : '➕ Nouvel employé'}</h1>
+        <h1>
+          {isEditMode ? (
+            <>
+              <Edit className="w-6 h-6 inline mr-2" />
+              Modifier l'employé
+            </>
+          ) : (
+            <>
+              <Plus className="w-6 h-6 inline mr-2" />
+              Nouvel employé
+            </>
+          )}
+        </h1>
       </div>
 
       {error && (
         <div className="error-message">
-          ❌ {error}
+          <XCircle className="w-5 h-5 inline mr-2" />
+          {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="employee-form">
         {/* Informations personnelles */}
         <div className="form-section">
-          <h2>👤 Informations personnelles</h2>
+          <h2>
+            <User className="w-5 h-5 inline mr-2" />
+            Informations personnelles
+          </h2>
           
           <div className="form-row">
             <div className="form-group">
@@ -254,7 +275,10 @@ const EmployeeFormPage = () => {
 
         {/* Informations professionnelles */}
         <div className="form-section">
-          <h2>💼 Informations professionnelles</h2>
+          <h2>
+            <Briefcase className="w-5 h-5 inline mr-2" />
+            Informations professionnelles
+          </h2>
 
           <div className="form-row">
             <div className="form-group">
@@ -345,7 +369,10 @@ const EmployeeFormPage = () => {
 
         {/* Dates */}
         <div className="form-section">
-          <h2>📅 Dates</h2>
+          <h2>
+            <Calendar className="w-5 h-5 inline mr-2" />
+            Dates
+          </h2>
 
           <div className="form-row">
             <div className="form-group">
@@ -382,7 +409,10 @@ const EmployeeFormPage = () => {
 
         {/* Localisation */}
         <div className="form-section">
-          <h2>📍 Localisation</h2>
+          <h2>
+            <MapPin className="w-5 h-5 inline mr-2" />
+            Localisation
+          </h2>
 
           <div className="form-row">
             <div className="form-group">
@@ -440,7 +470,10 @@ const EmployeeFormPage = () => {
 
         {/* Notes */}
         <div className="form-section">
-          <h2>📝 Notes</h2>
+          <h2>
+            <FileText className="w-5 h-5 inline mr-2" />
+            Notes
+          </h2>
 
           <div className="form-group">
             <label htmlFor="notes">Notes</label>
@@ -463,6 +496,7 @@ const EmployeeFormPage = () => {
             className="btn btn-secondary"
             disabled={loading}
           >
+            <ArrowLeft className="w-4 h-4 inline mr-1" />
             Annuler
           </button>
           <button
@@ -470,6 +504,7 @@ const EmployeeFormPage = () => {
             className="btn btn-primary"
             disabled={loading}
           >
+            <Save className="w-4 h-4 inline mr-1" />
             {loading ? 'Enregistrement...' : (isEditMode ? 'Mettre à jour' : 'Créer')}
           </button>
         </div>

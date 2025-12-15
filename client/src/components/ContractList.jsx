@@ -1,28 +1,53 @@
 // client/src/components/ContractList.jsx
-// Version FINALE avec real_users pour détection surconsommation
+// ✅ VERSION FINALE : Pagination toujours visible + auto-reload
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { Pencil, Trash2, Search, Filter, Download, AlertTriangle, CheckCircle, Clock, Users, TrendingUp, ShieldAlert } from 'lucide-react';
+import { Pencil, Trash2, Search, Filter, Download, AlertTriangle, CheckCircle, Clock, Users, TrendingUp, ShieldAlert, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import ContractForm from './ContractForm';
 import API_URL from '../config/api';
 
+// ✅ FONCTIONS UTILITAIRES
+const getDaysUntilRenewal = (renewalDate) => {
+    if (!renewalDate) return null;
+    const today = new Date();
+    const renewal = new Date(renewalDate);
+    const diffTime = renewal - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+};
+
 const ContractList = () => {
+    const navigate = useNavigate();
+    const location = useLocation(); // ✅ AJOUT : Pour détecter changements de route
+    const { token, logout } = useAuth();
+    
     const [contracts, setContracts] = useState([]);
     const [filteredContracts, setFilteredContracts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    
+    // États recherche et filtres
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+    const [filterExpiringSoon, setFilterExpiringSoon] = useState(false);
+    const [filterExpensive, setFilterExpensive] = useState(false);
+    
+    // États formulaire
     const [showForm, setShowForm] = useState(false);
     const [editingContract, setEditingContract] = useState(null);
-    const { token, logout } = useAuth();
+    
+    // États pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
-    const fetchContracts = async () => {
+    const fetchContracts = useCallback(async () => {
         if (!token) return;
 
         try {
-            const response = await fetch(`${API_URL}/api/contracts?limit=100`, {
+            const response = await fetch(`${API_URL}/api/contracts`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -47,15 +72,18 @@ const ContractList = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [token, logout]);
 
+    // ✅ AJOUT : Reload quand on revient sur la page
     useEffect(() => {
         fetchContracts();
-    }, [token]);
+    }, [fetchContracts, location]);
 
+    // Filtrage
     useEffect(() => {
         let filtered = contracts;
 
+        // Recherche
         if (searchTerm) {
             filtered = filtered.filter(contract =>
                 contract.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -63,12 +91,34 @@ const ContractList = () => {
             );
         }
 
+        // Filtre statut
         if (statusFilter !== 'all') {
             filtered = filtered.filter(contract => contract.status === statusFilter);
         }
 
+        // Filtre "Expire bientôt"
+        if (filterExpiringSoon) {
+            filtered = filtered.filter(contract => {
+                const days = getDaysUntilRenewal(contract.renewal_date);
+                return days !== null && days >= 0 && days <= 30;
+            });
+        }
+
+        // Filtre "Coûteux"
+        if (filterExpensive) {
+            const avgCost = contracts.reduce((sum, c) => sum + (parseFloat(c.monthly_cost) || 0), 0) / contracts.length;
+            filtered = filtered.filter(contract => (parseFloat(contract.monthly_cost) || 0) > avgCost);
+        }
+
         setFilteredContracts(filtered);
-    }, [searchTerm, statusFilter, contracts]);
+        setCurrentPage(1);
+    }, [searchTerm, statusFilter, filterExpiringSoon, filterExpensive, contracts]);
+
+    // Pagination
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentContracts = filteredContracts.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(filteredContracts.length / itemsPerPage);
 
     const handleDelete = async (id) => {
         if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce contrat ?')) return;
@@ -153,13 +203,12 @@ const ContractList = () => {
         );
     };
 
-    // ✨ CALCUL UTILISATION LICENCES avec real_users
     const getLicenseUsage = (licenseCount, licensesUsed, realUsers) => {
         if (!licenseCount) return null;
         
         const total = parseInt(licenseCount) || 0;
         const used = parseInt(licensesUsed) || 0;
-        const real = parseInt(realUsers) || used; // Si pas de real_users, utiliser licensesUsed
+        const real = parseInt(realUsers) || used;
         const rate = total > 0 ? (real / total) * 100 : 0;
         const isOverconsumed = real > total;
         const overused = isOverconsumed ? real - total : 0;
@@ -197,15 +246,6 @@ const ContractList = () => {
             isOverconsumed,
             overused
         };
-    };
-
-    const getDaysUntilRenewal = (renewalDate) => {
-        if (!renewalDate) return null;
-        const today = new Date();
-        const renewal = new Date(renewalDate);
-        const diffTime = renewal - today;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays;
     };
 
     const getRenewalBadge = (renewalDate) => {
@@ -296,6 +336,18 @@ const ContractList = () => {
                         </div>
 
                         <button
+                            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                            className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                                showAdvancedFilters 
+                                    ? 'bg-indigo-600 text-white' 
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            <Filter className="w-5 h-5" />
+                            Filtres avancés
+                        </button>
+
+                        <button
                             onClick={exportToCSV}
                             className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-semibold transition-all hover:scale-105 flex items-center gap-2 shadow-lg"
                         >
@@ -305,16 +357,54 @@ const ContractList = () => {
                     </div>
                 </div>
 
+                {/* Filtres avancés */}
+                {showAdvancedFilters && (
+                    <div className="mt-4 p-4 bg-gray-50 rounded-xl border-2 border-gray-200">
+                        <div className="flex flex-wrap gap-3">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={filterExpiringSoon}
+                                    onChange={(e) => setFilterExpiringSoon(e.target.checked)}
+                                    className="w-4 h-4 text-indigo-600 rounded"
+                                />
+                                <span className="text-sm font-medium text-gray-700">
+                                    <Clock className="w-4 h-4 inline mr-1" />
+                                    Expire bientôt (≤30j)
+                                </span>
+                            </label>
+
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={filterExpensive}
+                                    onChange={(e) => setFilterExpensive(e.target.checked)}
+                                    className="w-4 h-4 text-indigo-600 rounded"
+                                />
+                                <span className="text-sm font-medium text-gray-700">
+                                    <TrendingUp className="w-4 h-4 inline mr-1" />
+                                    Coûteux ({'>'} moyenne)
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                )}
+
                 <div className="mt-4 flex items-center justify-between text-sm">
                     <p className="text-gray-600">
                         <span className="font-semibold text-indigo-600">{filteredContracts.length}</span> contrat(s) trouvé(s)
                     </p>
-                    {searchTerm && (
+                    {(searchTerm || statusFilter !== 'all' || filterExpiringSoon || filterExpensive) && (
                         <button
-                            onClick={() => setSearchTerm('')}
+                            onClick={() => {
+                                setSearchTerm('');
+                                setStatusFilter('all');
+                                setFilterExpiringSoon(false);
+                                setFilterExpensive(false);
+                            }}
                             className="text-indigo-600 hover:text-indigo-800 font-semibold"
                         >
-                            Réinitialiser la recherche
+                            Réinitialiser tous les filtres
                         </button>
                     )}
                 </div>
@@ -328,11 +418,11 @@ const ContractList = () => {
                     </div>
                     <h3 className="text-2xl font-bold text-gray-900 mb-2">Aucun contrat trouvé</h3>
                     <p className="text-gray-600 mb-6">
-                        {searchTerm || statusFilter !== 'all' 
+                        {searchTerm || statusFilter !== 'all' || filterExpiringSoon || filterExpensive
                             ? 'Essayez de modifier vos critères de recherche'
                             : 'Commencez par créer votre premier contrat'}
                     </p>
-                    {!searchTerm && statusFilter === 'all' && (
+                    {!searchTerm && statusFilter === 'all' && !filterExpiringSoon && !filterExpensive && (
                         <button
                             onClick={() => setShowForm(true)}
                             className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all hover:scale-105"
@@ -342,116 +432,137 @@ const ContractList = () => {
                     )}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 gap-6">
-                    {filteredContracts.map((contract) => {
-                        const licenseUsage = getLicenseUsage(contract.license_count, contract.licenses_used, contract.real_users);
-                        
-                        return (
-                            <div
-                                key={contract.id}
-                                className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all p-6 border-2 border-gray-100 hover:border-indigo-200"
-                            >
-                                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                                    {/* Info principale */}
-                                    <div className="flex-1">
-                                        <div className="flex items-start gap-4 mb-3">
-                                            <div className="flex-1">
-                                                <h3 className="text-xl font-bold text-gray-900 mb-1">{contract.name}</h3>
-                                                {contract.provider && (
-                                                    <p className="text-sm text-gray-600">{contract.provider}</p>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-2">
-                                                {getStatusBadge(contract.status)}
-                                                {licenseUsage?.isOverconsumed && (
-                                                    <span className="px-3 py-1 bg-red-600 text-white rounded-full text-xs font-bold border-2 border-red-700 flex items-center gap-1 animate-pulse">
-                                                        <ShieldAlert className="w-3 h-3" />
-                                                        SURCHARGE
-                                                    </span>
-                                                )}
-                                            </div>
+                <>
+                    <div className="grid grid-cols-1 gap-6">
+                        {currentContracts.map((contract) => {
+                            const licenseUsage = getLicenseUsage(contract.license_count, contract.licenses_used, contract.real_users);
+                            
+                            return (
+                                <div
+                                    key={contract.id}
+                                    className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 hover:border-indigo-200 transition-all hover:shadow-2xl p-6"
+                                >
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className="flex-1">
+                                            <h3 className="text-2xl font-bold text-gray-900 mb-2">{contract.name}</h3>
+                                            {contract.provider && (
+                                                <p className="text-gray-600 font-medium">{contract.provider}</p>
+                                            )}
                                         </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            {/* Coût */}
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                                                    <TrendingUp className="w-5 h-5 text-white" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-gray-600">Coût mensuel</p>
-                                                    <p className="text-lg font-bold text-gray-900">{parseFloat(contract.monthly_cost).toFixed(2)} €</p>
-                                                </div>
-                                            </div>
-
-                                            {/* Renouvellement */}
-                                            {contract.renewal_date && (
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
-                                                        <Clock className="w-5 h-5 text-white" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs text-gray-600">Renouvellement</p>
-                                                        <div className="mt-1">{getRenewalBadge(contract.renewal_date)}</div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Licences */}
-                                            {licenseUsage && (
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`w-10 h-10 ${licenseUsage.bgColor} rounded-lg flex items-center justify-center border-2 ${licenseUsage.borderColor}`}>
-                                                        <Users className={`w-5 h-5 ${licenseUsage.color}`} />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs text-gray-600">
-                                                            {licenseUsage.isOverconsumed ? 'Surconsommation' : 'Utilisation'}
-                                                        </p>
-                                                        <div className="flex items-center gap-2">
-                                                            <p className={`text-lg font-bold ${licenseUsage.color}`}>
-                                                                {licenseUsage.real}/{licenseUsage.total}
-                                                            </p>
-                                                            {licenseUsage.isOverconsumed ? (
-                                                                <span className="text-xs font-semibold text-red-700 bg-red-100 px-2 py-0.5 rounded">
-                                                                    +{licenseUsage.overused}
-                                                                </span>
-                                                            ) : (
-                                                                <span className={`text-xs font-semibold ${licenseUsage.color}`}>
-                                                                    ({licenseUsage.rate.toFixed(0)}%)
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
+                                        <div className="flex flex-col items-end gap-2">
+                                            {getStatusBadge(contract.status)}
+                                            {getRenewalBadge(contract.renewal_date)}
                                         </div>
                                     </div>
 
-                                    {/* Actions */}
-                                    <div className="flex lg:flex-col gap-2">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-100">
+                                            <p className="text-sm text-gray-600 mb-1">Coût mensuel</p>
+                                            <p className="text-2xl font-bold text-green-700">
+                                                {parseFloat(contract.monthly_cost).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                                            </p>
+                                        </div>
+
+                                        {licenseUsage && (
+                                            <div className={`rounded-xl p-4 border-2 ${licenseUsage.bgColor} ${licenseUsage.borderColor}`}>
+                                                <p className="text-sm text-gray-600 mb-1">Licences</p>
+                                                <p className={`text-2xl font-bold ${licenseUsage.color}`}>
+                                                    {licenseUsage.real}/{licenseUsage.total}
+                                                    {licenseUsage.isOverconsumed && (
+                                                        <span className="text-sm ml-1">
+                                                            (+{licenseUsage.overused})
+                                                        </span>
+                                                    )}
+                                                </p>
+                                                <p className="text-xs text-gray-600 mt-1">
+                                                    {licenseUsage.rate.toFixed(0)}% utilisé
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex gap-3">
                                         <button
                                             onClick={() => handleEdit(contract)}
-                                            className="flex-1 lg:flex-none px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all hover:scale-105 flex items-center justify-center gap-2"
+                                            className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-all hover:scale-105 flex items-center justify-center gap-2"
                                         >
                                             <Pencil className="w-4 h-4" />
                                             Modifier
                                         </button>
+                                        
+                                        <button
+                                            onClick={() => navigate(`/contracts/${contract.id}/documents`)}
+                                            className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all hover:scale-105 flex items-center justify-center gap-2"
+                                        >
+                                            <FileText className="w-4 h-4" />
+                                            Documents
+                                        </button>
+
                                         <button
                                             onClick={() => handleDelete(contract.id)}
-                                            className="flex-1 lg:flex-none px-6 py-3 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white rounded-xl font-semibold transition-all hover:scale-105 flex items-center justify-center gap-2"
+                                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-all hover:scale-105"
                                         >
                                             <Trash2 className="w-4 h-4" />
-                                            Supprimer
                                         </button>
                                     </div>
                                 </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* ✅ MODIFICATION : Pagination toujours visible */}
+                    {filteredContracts.length > 0 && (
+                        <div className="mt-6 bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-600">Afficher</span>
+                                <select
+                                    value={itemsPerPage}
+                                    onChange={(e) => {
+                                        setItemsPerPage(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                    className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all outline-none bg-white"
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={20}>20</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                                <span className="text-sm text-gray-600">par page</span>
                             </div>
-                        );
-                    })}
-                </div>
+
+                            {/* Boutons navigation seulement si > 1 page */}
+                            {totalPages > 1 && (
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                        disabled={currentPage === 1}
+                                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold transition-all flex items-center gap-2"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                        Précédent
+                                    </button>
+
+                                    <span className="px-4 py-2 text-sm font-medium text-gray-700">
+                                        Page {currentPage} sur {totalPages}
+                                    </span>
+
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                        disabled={currentPage === totalPages}
+                                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold transition-all flex items-center gap-2"
+                                    >
+                                        Suivant
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </>
             )}
 
-            {/* Modal Formulaire */}
+            {/* Modal formulaire */}
             {showForm && (
                 <ContractForm
                     contract={editingContract}

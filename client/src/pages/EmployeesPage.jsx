@@ -1,9 +1,10 @@
 // ============================================================================
-// EMPLOYEES PAGE - Liste des employés
+// EMPLOYEES PAGE - Liste AVEC ICÔNES LUCIDE-REACT
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Users, Plus, Search, Edit, XCircle } from 'lucide-react';
 import employeesApi from '../services/employeesApi';
 
 const EmployeesPage = () => {
@@ -95,7 +96,10 @@ const EmployeesPage = () => {
       {/* Header */}
       <div className="page-header">
         <div className="header-left">
-          <h1>👥 Employés</h1>
+          <h1>
+            <Users className="w-8 h-8 inline mr-2" />
+            Employés
+          </h1>
           <p className="subtitle">{pagination.total} employé{pagination.total > 1 ? 's' : ''}</p>
         </div>
         <div className="header-right">
@@ -103,7 +107,8 @@ const EmployeesPage = () => {
             className="btn btn-primary"
             onClick={() => navigate('/employees/new')}
           >
-            + Nouvel employé
+            <Plus className="w-4 h-4 inline mr-1" />
+            Nouvel employé
           </button>
         </div>
       </div>
@@ -113,11 +118,12 @@ const EmployeesPage = () => {
         <div className="search-box">
           <input
             type="text"
-            placeholder="🔍 Rechercher un employé..."
+            placeholder="Rechercher un employé..."
             value={filters.search}
             onChange={handleSearch}
             className="search-input"
           />
+          <Search className="w-5 h-5 absolute right-3 top-3 text-gray-400" style={{position: 'absolute', right: '0.75rem', top: '0.75rem', pointerEvents: 'none'}} />
         </div>
         
         <select
@@ -154,11 +160,15 @@ const EmployeesPage = () => {
         </div>
       ) : error ? (
         <div className="error-message">
-          <p>❌ {error}</p>
+          <p>
+            <XCircle className="w-5 h-5 inline mr-2" />
+            {error}
+          </p>
           <button onClick={loadEmployees}>Réessayer</button>
         </div>
       ) : employees.length === 0 ? (
         <div className="empty-state">
+          <Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
           <p>Aucun employé trouvé</p>
           {(filters.search || filters.department || filters.status) && (
             <button 
@@ -221,7 +231,7 @@ const EmployeesPage = () => {
                         className="btn-icon"
                         title="Modifier"
                       >
-                        ✏️
+                        <Edit className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>

@@ -1,12 +1,15 @@
 // ============================================================================
-// EMPLOYEE DETAIL PAGE - Vue 360° d'un employé avec Matériel
+// EMPLOYEE DETAIL PAGE - ULTRA-COMPLET avec Matériel et Icônes Modernes
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Package } from 'lucide-react'; // 🆕 AJOUT POUR ONGLET MATÉRIEL
+import { 
+  Package, ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Briefcase, 
+  Calendar, User, FileText, Building, Home, Shuffle, XCircle
+} from 'lucide-react';
 import employeesApi from '../services/employeesApi';
-import EmployeeAssets from '../components/EmployeeAssets'; // 🆕 AJOUT COMPOSANT MATÉRIEL
+import EmployeeAssets from '../components/EmployeeAssets';
 
 const EmployeeDetailPage = () => {
   const { id } = useParams();
@@ -56,17 +59,17 @@ const EmployeeDetailPage = () => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      active: { label: 'Actif', className: 'status-active', icon: '✅' },
-      onboarding: { label: 'Onboarding', className: 'status-onboarding', icon: '🚀' },
-      offboarding: { label: 'Offboarding', className: 'status-offboarding', icon: '👋' },
-      on_leave: { label: 'En congé', className: 'status-leave', icon: '🏖️' },
-      exited: { label: 'Sorti', className: 'status-exited', icon: '❌' }
+      active: { label: 'Actif', className: 'status-active' },
+      onboarding: { label: 'Onboarding', className: 'status-onboarding' },
+      offboarding: { label: 'Offboarding', className: 'status-offboarding' },
+      on_leave: { label: 'En congé', className: 'status-leave' },
+      exited: { label: 'Sorti', className: 'status-exited' }
     };
     
-    const config = statusConfig[status] || { label: status, className: '', icon: '' };
+    const config = statusConfig[status] || { label: status, className: '' };
     return (
       <span className={`status-badge-large ${config.className}`}>
-        {config.icon} {config.label}
+        {config.label}
       </span>
     );
   };
@@ -83,7 +86,10 @@ const EmployeeDetailPage = () => {
   if (error) {
     return (
       <div className="error-page">
-        <h2>❌ Erreur</h2>
+        <h2>
+          <XCircle className="w-8 h-8 inline mr-2" />
+          Erreur
+        </h2>
         <p>{error}</p>
         <button onClick={() => navigate('/employees')}>Retour à la liste</button>
       </div>
@@ -104,7 +110,8 @@ const EmployeeDetailPage = () => {
       {/* Header */}
       <div className="detail-header">
         <button onClick={() => navigate('/employees')} className="btn-back">
-          ← Retour
+          <ArrowLeft className="w-4 h-4 inline mr-1" />
+          Retour
         </button>
         
         <div className="header-actions">
@@ -112,13 +119,15 @@ const EmployeeDetailPage = () => {
             onClick={() => navigate(`/employees/${id}/edit`)}
             className="btn btn-secondary"
           >
-            ✏️ Modifier
+            <Edit className="w-4 h-4 inline mr-1" />
+            Modifier
           </button>
           <button 
             onClick={handleDelete}
             className="btn btn-danger"
           >
-            🗑️ Marquer comme sorti
+            <Trash2 className="w-4 h-4 inline mr-1" />
+            Marquer comme sorti
           </button>
         </div>
       </div>
@@ -149,7 +158,10 @@ const EmployeeDetailPage = () => {
 
         <div className="employee-meta">
           <div className="meta-item">
-            <span className="meta-label">📧 Email</span>
+            <span className="meta-label">
+              <Mail className="w-4 h-4 inline mr-1" />
+              Email
+            </span>
             <span className="meta-value">
               <a href={`mailto:${employee.email}`}>{employee.email}</a>
             </span>
@@ -157,32 +169,60 @@ const EmployeeDetailPage = () => {
           
           {employee.phone && (
             <div className="meta-item">
-              <span className="meta-label">📞 Téléphone</span>
+              <span className="meta-label">
+                <Phone className="w-4 h-4 inline mr-1" />
+                Téléphone
+              </span>
               <span className="meta-value">{employee.phone}</span>
             </div>
           )}
           
           <div className="meta-item">
-            <span className="meta-label">🏢 Département</span>
+            <span className="meta-label">
+              <Building className="w-4 h-4 inline mr-1" />
+              Département
+            </span>
             <span className="meta-value">{employee.department}</span>
           </div>
           
           <div className="meta-item">
-            <span className="meta-label">📍 Localisation</span>
+            <span className="meta-label">
+              <MapPin className="w-4 h-4 inline mr-1" />
+              Localisation
+            </span>
             <span className="meta-value">{employee.office_location || '-'}</span>
           </div>
           
           <div className="meta-item">
-            <span className="meta-label">💼 Mode de travail</span>
+            <span className="meta-label">
+              <Briefcase className="w-4 h-4 inline mr-1" />
+              Mode de travail
+            </span>
             <span className="meta-value">
-              {employee.work_mode === 'remote' ? '🏠 Remote' :
-               employee.work_mode === 'hybrid' ? '🔀 Hybride' :
-               '🏢 Sur site'}
+              {employee.work_mode === 'remote' ? (
+                <>
+                  <Home className="w-4 h-4 inline mr-1" />
+                  Remote
+                </>
+              ) : employee.work_mode === 'hybrid' ? (
+                <>
+                  <Shuffle className="w-4 h-4 inline mr-1" />
+                  Hybride
+                </>
+              ) : (
+                <>
+                  <Building className="w-4 h-4 inline mr-1" />
+                  Sur site
+                </>
+              )}
             </span>
           </div>
           
           <div className="meta-item">
-            <span className="meta-label">📅 Date de début</span>
+            <span className="meta-label">
+              <Calendar className="w-4 h-4 inline mr-1" />
+              Date de début
+            </span>
             <span className="meta-value">{formatDate(employee.start_date)}</span>
           </div>
         </div>
@@ -197,7 +237,6 @@ const EmployeeDetailPage = () => {
           Informations
         </button>
         
-        {/* 🆕 ONGLET MATÉRIEL MODIFIÉ - Maintenant opérationnel avec icône lucide */}
         <button
           className={`tab ${activeTab === 'assets' ? 'active' : ''}`}
           onClick={() => setActiveTab('assets')}
@@ -219,7 +258,10 @@ const EmployeeDetailPage = () => {
         {activeTab === 'infos' && (
           <div className="info-grid">
             <div className="info-section">
-              <h3>📋 Informations générales</h3>
+              <h3>
+                <FileText className="w-5 h-5 inline mr-2" />
+                Informations générales
+              </h3>
               <div className="info-rows">
                 <div className="info-row">
                   <span className="label">Matricule</span>
@@ -253,7 +295,10 @@ const EmployeeDetailPage = () => {
             </div>
 
             <div className="info-section">
-              <h3>📅 Dates importantes</h3>
+              <h3>
+                <Calendar className="w-5 h-5 inline mr-2" />
+                Dates importantes
+              </h3>
               <div className="info-rows">
                 <div className="info-row">
                   <span className="label">Date d'embauche</span>
@@ -279,7 +324,10 @@ const EmployeeDetailPage = () => {
             </div>
 
             <div className="info-section">
-              <h3>📍 Localisation</h3>
+              <h3>
+                <MapPin className="w-5 h-5 inline mr-2" />
+                Localisation
+              </h3>
               <div className="info-rows">
                 <div className="info-row">
                   <span className="label">Bureau</span>
@@ -306,14 +354,16 @@ const EmployeeDetailPage = () => {
 
             {employee.notes && (
               <div className="info-section full-width">
-                <h3>📝 Notes</h3>
+                <h3>
+                  <FileText className="w-5 h-5 inline mr-2" />
+                  Notes
+                </h3>
                 <p className="notes">{employee.notes}</p>
               </div>
             )}
           </div>
         )}
 
-        {/* 🆕 ONGLET MATÉRIEL - Maintenant avec composant EmployeeAssets */}
         {activeTab === 'assets' && (
           <EmployeeAssets 
             employeeId={id} 
@@ -323,7 +373,7 @@ const EmployeeDetailPage = () => {
 
         {activeTab === 'workflows' && (
           <div className="placeholder">
-            <p>🚧 Module Workflows à venir (Phase 3)</p>
+            <p>Module Workflows à venir (Phase 3)</p>
           </div>
         )}
       </div>

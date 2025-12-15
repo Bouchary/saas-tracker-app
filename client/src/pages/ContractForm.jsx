@@ -1,7 +1,7 @@
 // client/src/pages/ContractForm.jsx
-// Version COMPLÈTE avec real_users pour surconsommation
+// ✅ VERSION FINALE - Sans erreur JSX + style inline
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { FileText, DollarSign, Calendar, Bell, CheckCircle2, X, AlertCircle, Users, Calculator, ShieldAlert } from 'lucide-react';
@@ -11,18 +11,16 @@ const ContractForm = () => {
     const { token } = useAuth();
     const navigate = useNavigate();
 
-    // ✅ ÉTATS FORMULAIRE
     const [formData, setFormData] = useState({
         name: '',
         provider: '',
         monthly_cost: '',
         renewal_date: '',
         notice_period_days: 0,
-        // ✨ CHAMPS LICENCES
         pricing_model: 'fixed',
         license_count: '',
         licenses_used: '',
-        real_users: '', // ✅ NOUVEAU CHAMP
+        real_users: '',
         unit_cost: '',
     });
 
@@ -30,12 +28,11 @@ const ContractForm = () => {
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
 
-    // ✨ CALCUL AUTOMATIQUE DU COÛT
+    // Calculs
     const calculatedCost = formData.pricing_model === 'per_user' && formData.license_count && formData.unit_cost
         ? (parseFloat(formData.license_count) * parseFloat(formData.unit_cost)).toFixed(2)
         : null;
 
-    // ✨ SURCONSOMMATION avec real_users
     const realUsers = formData.real_users ? parseInt(formData.real_users) : 0;
     const licenseCount = formData.license_count ? parseInt(formData.license_count) : 0;
     const isOverconsumed = formData.license_count && realUsers > licenseCount;
@@ -43,17 +40,14 @@ const ContractForm = () => {
     const unitCost = formData.unit_cost ? parseFloat(formData.unit_cost) : 0;
     const overconsumptionCost = missingLicenses * unitCost;
 
-    // ✨ TAUX D'UTILISATION (basé sur licenses_used, pas real_users)
     const usageRate = formData.license_count && formData.licenses_used
         ? ((parseFloat(formData.licenses_used) / parseFloat(formData.license_count)) * 100).toFixed(0)
         : null;
 
-    // ✨ LICENCES INUTILISÉES
     const unusedLicenses = formData.license_count && formData.licenses_used
         ? parseFloat(formData.license_count) - parseFloat(formData.licenses_used)
         : null;
 
-    // ✨ COÛT GASPILLÉ
     const wastedCost = unusedLicenses && formData.unit_cost && unusedLicenses > 0
         ? (unusedLicenses * parseFloat(formData.unit_cost)).toFixed(2)
         : null;
@@ -72,14 +66,13 @@ const ContractForm = () => {
         setSuccess(false);
         setLoading(true);
 
-        // ✅ VALIDATION DE BASE
+        // Validation
         if (!formData.name || !formData.renewal_date) {
             setError('Veuillez remplir tous les champs obligatoires.');
             setLoading(false);
             return;
         }
 
-        // ✅ VALIDATION COÛT
         if (formData.pricing_model === 'fixed' && !formData.monthly_cost) {
             setError('Le coût mensuel est requis pour un prix fixe.');
             setLoading(false);
@@ -92,22 +85,30 @@ const ContractForm = () => {
             return;
         }
 
+        // ✅ Construction conditionnelle
         const dataToSend = {
-            name: formData.name,
-            provider: formData.provider || null,
-            renewal_date: formData.renewal_date,
-            notice_period_days: parseInt(formData.notice_period_days) || 0,
+            name: formData.name.trim(),
+            provider: formData.provider ? formData.provider.trim() : null,
+            renewal_date: formData.renewal_date || null,
+            notice_period_days: formData.notice_period_days && formData.notice_period_days !== '' ? parseInt(formData.notice_period_days) : null,
             pricing_model: formData.pricing_model,
-            // ✨ CALCUL AUTO OU MANUEL
-            monthly_cost: formData.pricing_model === 'per_user' 
-                ? parseFloat(calculatedCost)
-                : parseFloat(formData.monthly_cost) || 0,
-            // ✨ LICENCES avec real_users
-            license_count: formData.license_count ? parseInt(formData.license_count) : null,
-            licenses_used: formData.licenses_used ? parseInt(formData.licenses_used) : null,
-            real_users: formData.real_users ? parseInt(formData.real_users) : null, // ✅ ENVOI
-            unit_cost: formData.unit_cost ? parseFloat(formData.unit_cost) : null,
+            status: 'active' // ✅ AJOUT : Statut par défaut
         };
+
+        // Ajouter monthly_cost selon le modèle
+        if (formData.pricing_model === 'per_user') {
+            dataToSend.monthly_cost = parseFloat(calculatedCost);
+        } else {
+            dataToSend.monthly_cost = formData.monthly_cost && formData.monthly_cost !== '' ? parseFloat(formData.monthly_cost) : null;
+        }
+
+        // ✅ N'envoyer les champs licences QUE si pricing_model = "per_user"
+        if (formData.pricing_model === 'per_user') {
+            dataToSend.license_count = formData.license_count && formData.license_count !== '' ? parseInt(formData.license_count) : null;
+            dataToSend.licenses_used = formData.licenses_used && formData.licenses_used !== '' ? parseInt(formData.licenses_used) : null;
+            dataToSend.real_users = formData.real_users && formData.real_users !== '' ? parseInt(formData.real_users) : null;
+            dataToSend.unit_cost = formData.unit_cost && formData.unit_cost !== '' ? parseFloat(formData.unit_cost) : null;
+        }
 
         try {
             const response = await fetch(`${API_URL}/api/contracts`, {
@@ -129,8 +130,9 @@ const ContractForm = () => {
             
             setSuccess(true);
             
+            // ✅ Redirection avec reload forcé
             setTimeout(() => {
-                navigate('/contracts');
+                window.location.href = '/contracts'; // Force reload
             }, 1500);
 
         } catch (err) {
@@ -163,7 +165,7 @@ const ContractForm = () => {
                 <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-8 md:p-10 -mt-16">
                     {/* MESSAGES */}
                     {error && (
-                        <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl flex items-start gap-3 animate-shake">
+                        <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl flex items-start gap-3" style={{animation: 'shake 0.5s ease-out'}}>
                             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                             <div>
                                 <p className="font-semibold text-red-900 text-sm">Erreur</p>
@@ -173,7 +175,7 @@ const ContractForm = () => {
                     )}
 
                     {success && (
-                        <div className="mb-6 p-4 bg-green-50 border-2 border-green-200 rounded-xl flex items-start gap-3 animate-slide-down">
+                        <div className="mb-6 p-4 bg-green-50 border-2 border-green-200 rounded-xl flex items-start gap-3" style={{animation: 'slideDown 0.3s ease-out'}}>
                             <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                             <div>
                                 <p className="font-semibold text-green-900 text-sm">Succès !</p>
@@ -182,7 +184,7 @@ const ContractForm = () => {
                         </div>
                     )}
 
-                    {/* ✨ ALERTE SURCONSOMMATION EN HAUT */}
+                    {/* ALERTE SURCONSOMMATION */}
                     {isOverconsumed && (
                         <div className="mb-6 bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-300 rounded-xl p-5 animate-pulse">
                             <div className="flex items-start gap-3">
@@ -263,7 +265,7 @@ const ContractForm = () => {
                             </div>
                         </div>
 
-                        {/* ✨ TYPE DE TARIFICATION */}
+                        {/* TYPE DE TARIFICATION */}
                         <div>
                             <label htmlFor="pricing_model" className="block text-sm font-semibold text-gray-700 mb-2">
                                 Type de tarification <span className="text-red-500">*</span>
@@ -298,7 +300,7 @@ const ContractForm = () => {
                             </div>
                         </div>
 
-                        {/* ✨ SI PRIX FIXE → COÛT MENSUEL */}
+                        {/* SI PRIX FIXE → COÛT MENSUEL */}
                         {formData.pricing_model === 'fixed' && (
                             <div>
                                 <label htmlFor="monthly_cost" className="block text-sm font-semibold text-gray-700 mb-2">
@@ -334,7 +336,7 @@ const ContractForm = () => {
                             </div>
                         )}
 
-                        {/* ✨ SI PAR UTILISATEUR → LICENCES avec REAL_USERS */}
+                        {/* SI PAR UTILISATEUR → LICENCES */}
                         {formData.pricing_model === 'per_user' && (
                             <div className="space-y-6 p-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border-2 border-indigo-100">
                                 <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -405,7 +407,7 @@ const ContractForm = () => {
                                     <p className="text-xs text-gray-600 mt-1">👥 Licences assignées légalement (max {formData.license_count || '—'})</p>
                                 </div>
 
-                                {/* ✅ NOUVEAU CHAMP : Utilisateurs réels */}
+                                {/* Utilisateurs réels */}
                                 <div>
                                     <label htmlFor="real_users" className="block text-sm font-semibold text-gray-700 mb-2">
                                         Utilisateurs réels <span className="text-gray-500 font-normal">(optionnel)</span>
@@ -424,7 +426,7 @@ const ContractForm = () => {
                                     <p className="text-xs text-gray-600 mt-1">🔍 Nombre réel d'utilisateurs connectés (peut dépasser les licences achetées)</p>
                                 </div>
 
-                                {/* ✨ CALCUL AUTOMATIQUE */}
+                                {/* CALCUL AUTOMATIQUE */}
                                 {calculatedCost && (
                                     <div className="p-4 bg-white rounded-xl border-2 border-indigo-200">
                                         <div className="flex items-center justify-between mb-2">
@@ -442,7 +444,7 @@ const ContractForm = () => {
                                     </div>
                                 )}
 
-                                {/* ✨ ANALYSE UTILISATION */}
+                                {/* ANALYSE UTILISATION */}
                                 {usageRate && (
                                     <div className="space-y-3">
                                         <div className="p-4 bg-white rounded-xl border-2 border-gray-200">
@@ -609,34 +611,6 @@ const ContractForm = () => {
                     </form>
                 </div>
             </div>
-
-            {/* STYLES */}
-            <style jsx>{`
-                @keyframes shake {
-                    0%, 100% { transform: translateX(0); }
-                    25% { transform: translateX(-10px); }
-                    75% { transform: translateX(10px); }
-                }
-
-                @keyframes slide-down {
-                    from {
-                        opacity: 0;
-                        transform: translateY(-20px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
-                }
-
-                .animate-shake {
-                    animation: shake 0.5s ease-out;
-                }
-
-                .animate-slide-down {
-                    animation: slide-down 0.3s ease-out;
-                }
-            `}</style>
         </div>
     );
 };

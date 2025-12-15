@@ -76,19 +76,24 @@ const ContractForm = ({ contract, onClose, onSave }) => {
             // ✨ SUPPRESSION validation bloquante licenses_used > license_count
             // On accepte maintenant la surconsommation via real_users
 
+            // ✅ CORRECTION : Ne PAS envoyer les champs licences si pricing_model = "fixed"
             const dataToSend = {
                 name: formData.name.trim(),
-                provider: formData.provider.trim(),
-                monthly_cost: parseFloat(formData.monthly_cost),
+                provider: formData.provider ? formData.provider.trim() : null,
+                monthly_cost: formData.monthly_cost && formData.monthly_cost !== '' ? parseFloat(formData.monthly_cost) : null,
                 renewal_date: formData.renewal_date || null,
-                notice_period_days: formData.notice_period_days ? parseInt(formData.notice_period_days) : null,
+                notice_period_days: formData.notice_period_days && formData.notice_period_days !== '' ? parseInt(formData.notice_period_days) : null,
                 status: formData.status,
-                pricing_model: formData.pricing_model,
-                license_count: formData.license_count ? parseInt(formData.license_count) : null,
-                licenses_used: formData.licenses_used ? parseInt(formData.licenses_used) : null,
-                real_users: formData.real_users ? parseInt(formData.real_users) : null, // ✨ ENVOI
-                unit_cost: formData.unit_cost ? parseFloat(formData.unit_cost) : null
+                pricing_model: formData.pricing_model
             };
+
+            // ✅ NOUVEAU : N'envoyer les champs licences QUE si pricing_model = "per_user"
+            if (formData.pricing_model === 'per_user') {
+                dataToSend.license_count = formData.license_count && formData.license_count !== '' ? parseInt(formData.license_count) : null;
+                dataToSend.licenses_used = formData.licenses_used && formData.licenses_used !== '' ? parseInt(formData.licenses_used) : null;
+                dataToSend.real_users = formData.real_users && formData.real_users !== '' ? parseInt(formData.real_users) : null;
+                dataToSend.unit_cost = formData.unit_cost && formData.unit_cost !== '' ? parseFloat(formData.unit_cost) : null;
+            }
 
             const url = contract 
                 ? `${API_URL}/api/contracts/${contract.id}`

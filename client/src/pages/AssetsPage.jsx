@@ -1,9 +1,25 @@
 // ============================================================================
-// ASSETS PAGE - Liste des assets
+// ASSETS PAGE - Liste des assets AVEC ICÔNES LUCIDE-REACT
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { 
+  Package, 
+  Laptop, 
+  Smartphone, 
+  Monitor, 
+  Tablet, 
+  Keyboard,
+  Box,
+  Plus,
+  Search,
+  Edit,
+  BarChart3,
+  CheckCircle,
+  User,
+  Wrench
+} from 'lucide-react';
 import assetsApi from '../services/assetsApi';
 
 const AssetsPage = () => {
@@ -95,17 +111,25 @@ const AssetsPage = () => {
     return <span className={`status-badge ${config.className}`}>{config.label}</span>;
   };
 
-  // Formater le type pour l'affichage
+  // Icônes modernes par type
   const getTypeIcon = (type) => {
-    const icons = {
-      laptop: '💻',
-      phone: '📱',
-      monitor: '🖥️',
-      tablet: '📱',
-      accessory: '⌨️',
-      other: '📦'
-    };
-    return icons[type] || '📦';
+    const iconProps = { className: "w-5 h-5", strokeWidth: 2 };
+    
+    switch (type) {
+      case 'laptop':
+        return <Laptop {...iconProps} />;
+      case 'phone':
+        return <Smartphone {...iconProps} />;
+      case 'monitor':
+        return <Monitor {...iconProps} />;
+      case 'tablet':
+        return <Tablet {...iconProps} />;
+      case 'accessory':
+        return <Keyboard {...iconProps} />;
+      case 'other':
+      default:
+        return <Box {...iconProps} />;
+    }
   };
 
   // Formater la date
@@ -120,7 +144,10 @@ const AssetsPage = () => {
       {/* Header */}
       <div className="page-header">
         <div className="header-left">
-          <h1>💻 Matériel IT</h1>
+          <h1>
+            <Package className="w-8 h-8 inline mr-2" />
+            Matériel IT
+          </h1>
           <p className="subtitle">{pagination.total} asset{pagination.total > 1 ? 's' : ''}</p>
         </div>
         <div className="header-right">
@@ -128,7 +155,8 @@ const AssetsPage = () => {
             className="btn btn-primary"
             onClick={() => navigate('/assets/new')}
           >
-            + Nouvel asset
+            <Plus className="w-4 h-4 inline mr-1" />
+            Nouvel asset
           </button>
         </div>
       </div>
@@ -137,28 +165,36 @@ const AssetsPage = () => {
       {stats && (
         <div className="stats-cards">
           <div className="stat-card">
-            <div className="stat-icon">📊</div>
+            <div className="stat-icon">
+              <BarChart3 className="w-10 h-10 text-blue-500" />
+            </div>
             <div className="stat-content">
               <div className="stat-value">{stats.total_assets}</div>
               <div className="stat-label">Total Assets</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">✅</div>
+            <div className="stat-icon">
+              <CheckCircle className="w-10 h-10 text-green-500" />
+            </div>
             <div className="stat-content">
               <div className="stat-value">{stats.by_status?.available || 0}</div>
               <div className="stat-label">Disponibles</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">👤</div>
+            <div className="stat-icon">
+              <User className="w-10 h-10 text-purple-500" />
+            </div>
             <div className="stat-content">
               <div className="stat-value">{stats.by_status?.assigned || 0}</div>
               <div className="stat-label">Assignés</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">🔧</div>
+            <div className="stat-icon">
+              <Wrench className="w-10 h-10 text-orange-500" />
+            </div>
             <div className="stat-content">
               <div className="stat-value">{stats.by_status?.maintenance || 0}</div>
               <div className="stat-label">En maintenance</div>
@@ -172,11 +208,12 @@ const AssetsPage = () => {
         <div className="search-box">
           <input
             type="text"
-            placeholder="🔍 Rechercher (tag, nom, modèle, série)..."
+            placeholder="Rechercher (tag, nom, modèle, série)..."
             value={filters.search}
             onChange={handleSearch}
             className="search-input"
           />
+          <Search className="w-5 h-5 absolute right-3 top-3 text-gray-400" style={{position: 'absolute', right: '0.75rem', top: '0.75rem', pointerEvents: 'none'}} />
         </div>
         
         <select
@@ -185,12 +222,12 @@ const AssetsPage = () => {
           className="filter-select"
         >
           <option value="">Tous les types</option>
-          <option value="laptop">💻 Laptop</option>
-          <option value="phone">📱 Phone</option>
-          <option value="monitor">🖥️ Monitor</option>
-          <option value="tablet">📱 Tablet</option>
-          <option value="accessory">⌨️ Accessory</option>
-          <option value="other">📦 Other</option>
+          <option value="laptop">Laptop</option>
+          <option value="phone">Phone</option>
+          <option value="monitor">Monitor</option>
+          <option value="tablet">Tablet</option>
+          <option value="accessory">Accessory</option>
+          <option value="other">Other</option>
         </select>
         
         <select
@@ -228,11 +265,12 @@ const AssetsPage = () => {
         </div>
       ) : error ? (
         <div className="error-message">
-          <p>❌ {error}</p>
+          <p>{error}</p>
           <button onClick={loadAssets}>Réessayer</button>
         </div>
       ) : assets.length === 0 ? (
         <div className="empty-state">
+          <Package className="w-12 h-12 mx-auto mb-4 text-gray-400" />
           <p>Aucun asset trouvé</p>
           {(filters.search || filters.asset_type || filters.status || filters.manufacturer) && (
             <button 
@@ -302,7 +340,7 @@ const AssetsPage = () => {
                         className="btn-icon"
                         title="Modifier"
                       >
-                        ✏️
+                        <Edit className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>

@@ -1,9 +1,15 @@
 // ============================================================================
-// ASSET DETAIL PAGE - Vue détaillée d'un asset
+// ASSET DETAIL PAGE - Vue détaillée AVEC ICÔNES LUCIDE-REACT
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { 
+  Package, Laptop, Smartphone, Monitor, Tablet, Keyboard, Box,
+  Plus, ArrowLeft, Edit, Trash2, User, Calendar, FileText,
+  CheckCircle, XCircle, Wrench, Archive, AlertCircle, DollarSign,
+  MapPin, ShoppingCart, Tag
+} from 'lucide-react';
 import assetsApi from '../services/assetsApi';
 import employeesApi from '../services/employeesApi';
 
@@ -129,31 +135,39 @@ const AssetDetailPage = () => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      available: { label: 'Disponible', className: 'asset-status-available', icon: '✅' },
-      assigned: { label: 'Assigné', className: 'asset-status-assigned', icon: '👤' },
-      maintenance: { label: 'Maintenance', className: 'asset-status-maintenance', icon: '🔧' },
-      retired: { label: 'Retiré', className: 'asset-status-retired', icon: '📦' },
-      lost: { label: 'Perdu', className: 'asset-status-lost', icon: '❌' }
+      available: { label: 'Disponible', className: 'asset-status-available' },
+      assigned: { label: 'Assigné', className: 'asset-status-assigned' },
+      maintenance: { label: 'Maintenance', className: 'asset-status-maintenance' },
+      retired: { label: 'Retiré', className: 'asset-status-retired' },
+      lost: { label: 'Perdu', className: 'asset-status-lost' }
     };
     
-    const config = statusConfig[status] || { label: status, className: '', icon: '' };
+    const config = statusConfig[status] || { label: status, className: '' };
     return (
       <span className={`status-badge-large ${config.className}`}>
-        {config.icon} {config.label}
+        {config.label}
       </span>
     );
   };
 
-  const getTypeIcon = (type) => {
-    const icons = {
-      laptop: '💻',
-      phone: '📱',
-      monitor: '🖥️',
-      tablet: '📱',
-      accessory: '⌨️',
-      other: '📦'
-    };
-    return icons[type] || '📦';
+  const getTypeIcon = (type, size = "w-12 h-12") => {
+    const iconProps = { className: size, strokeWidth: 2 };
+    
+    switch (type) {
+      case 'laptop':
+        return <Laptop {...iconProps} />;
+      case 'phone':
+        return <Smartphone {...iconProps} />;
+      case 'monitor':
+        return <Monitor {...iconProps} />;
+      case 'tablet':
+        return <Tablet {...iconProps} />;
+      case 'accessory':
+        return <Keyboard {...iconProps} />;
+      case 'other':
+      default:
+        return <Box {...iconProps} />;
+    }
   };
 
   if (loading) {
@@ -168,7 +182,10 @@ const AssetDetailPage = () => {
   if (error) {
     return (
       <div className="error-page">
-        <h2>❌ Erreur</h2>
+        <h2>
+          <XCircle className="w-8 h-8 inline mr-2" />
+          Erreur
+        </h2>
         <p>{error}</p>
         <button onClick={() => navigate('/assets')}>Retour à la liste</button>
       </div>
@@ -189,7 +206,8 @@ const AssetDetailPage = () => {
       {/* Header */}
       <div className="detail-header">
         <button onClick={() => navigate('/assets')} className="btn-back">
-          ← Retour
+          <ArrowLeft className="w-4 h-4 inline mr-1" />
+          Retour
         </button>
         
         <div className="header-actions">
@@ -197,7 +215,8 @@ const AssetDetailPage = () => {
             onClick={() => navigate(`/assets/${id}/edit`)}
             className="btn btn-secondary"
           >
-            ✏️ Modifier
+            <Edit className="w-4 h-4 inline mr-1" />
+            Modifier
           </button>
           
           {asset.status === 'available' && (
@@ -205,7 +224,8 @@ const AssetDetailPage = () => {
               onClick={() => setShowAssignModal(true)}
               className="btn btn-primary"
             >
-              👤 Assigner
+              <User className="w-4 h-4 inline mr-1" />
+              Assigner
             </button>
           )}
           
@@ -214,7 +234,8 @@ const AssetDetailPage = () => {
               onClick={() => setShowUnassignModal(true)}
               className="btn btn-warning"
             >
-              ↩️ Retourner
+              <ArrowLeft className="w-4 h-4 inline mr-1" />
+              Retourner
             </button>
           )}
           
@@ -222,7 +243,8 @@ const AssetDetailPage = () => {
             onClick={handleDelete}
             className="btn btn-danger"
           >
-            🗑️ Retirer
+            <Trash2 className="w-4 h-4 inline mr-1" />
+            Retirer
           </button>
         </div>
       </div>
@@ -248,14 +270,20 @@ const AssetDetailPage = () => {
         {/* Assignation actuelle */}
         {currentAssignment && (
           <div className="current-assignment">
-            <h3>📌 Assignation actuelle</h3>
+            <h3>
+              <MapPin className="w-5 h-5 inline mr-2" />
+              Assignation actuelle
+            </h3>
             <div className="assignment-info">
               <div className="assignment-employee">
                 <strong>{currentAssignment.employee_name}</strong>
                 <span>{currentAssignment.department}</span>
               </div>
               <div className="assignment-details">
-                <span>Depuis le {formatDate(currentAssignment.assigned_date)}</span>
+                <span>
+                  <Calendar className="w-4 h-4 inline mr-1" />
+                  Depuis le {formatDate(currentAssignment.assigned_date)}
+                </span>
                 <span>Objet : {currentAssignment.purpose}</span>
               </div>
             </div>
@@ -265,7 +293,10 @@ const AssetDetailPage = () => {
         <div className="asset-meta">
           <div className="meta-item">
             <span className="meta-label">Type</span>
-            <span className="meta-value">{getTypeIcon(asset.asset_type)} {asset.asset_type}</span>
+            <span className="meta-value">
+              {getTypeIcon(asset.asset_type, "w-5 h-5 inline mr-1")} 
+              {asset.asset_type}
+            </span>
           </div>
           
           <div className="meta-item">
@@ -306,7 +337,10 @@ const AssetDetailPage = () => {
         {activeTab === 'details' && (
           <div className="info-grid">
             <div className="info-section">
-              <h3>📋 Informations générales</h3>
+              <h3>
+                <FileText className="w-5 h-5 inline mr-2" />
+                Informations générales
+              </h3>
               <div className="info-rows">
                 <div className="info-row">
                   <span className="label">Asset Tag</span>
@@ -337,7 +371,10 @@ const AssetDetailPage = () => {
 
             {asset.specifications && (
               <div className="info-section">
-                <h3>🔧 Spécifications</h3>
+                <h3>
+                  <Wrench className="w-5 h-5 inline mr-2" />
+                  Spécifications
+                </h3>
                 <div className="info-rows">
                   {Object.entries(asset.specifications).map(([key, value]) => (
                     <div className="info-row" key={key}>
@@ -350,7 +387,10 @@ const AssetDetailPage = () => {
             )}
 
             <div className="info-section">
-              <h3>💰 Informations d'achat</h3>
+              <h3>
+                <ShoppingCart className="w-5 h-5 inline mr-2" />
+                Informations d'achat
+              </h3>
               <div className="info-rows">
                 <div className="info-row">
                   <span className="label">Date d'achat</span>
@@ -375,7 +415,10 @@ const AssetDetailPage = () => {
 
             {asset.notes && (
               <div className="info-section full-width">
-                <h3>📝 Notes</h3>
+                <h3>
+                  <FileText className="w-5 h-5 inline mr-2" />
+                  Notes
+                </h3>
                 <p className="notes">{asset.notes}</p>
               </div>
             )}
@@ -392,11 +435,23 @@ const AssetDetailPage = () => {
                   <div className="history-header">
                     <span className="history-employee">{assignment.employee_name}</span>
                     <span className={`history-status ${assignment.status}`}>
-                      {assignment.status === 'active' ? '✅ Actif' : '↩️ Retourné'}
+                      {assignment.status === 'active' ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 inline mr-1" />
+                          Actif
+                        </>
+                      ) : (
+                        <>
+                          <ArrowLeft className="w-4 h-4 inline mr-1" />
+                          Retourné
+                        </>
+                      )}
                     </span>
                   </div>
                   <div className="history-details">
-                    <p><strong>Période :</strong> {formatDate(assignment.assigned_date)} 
+                    <p>
+                      <Calendar className="w-4 h-4 inline mr-1" />
+                      <strong>Période :</strong> {formatDate(assignment.assigned_date)} 
                       {assignment.actual_return_date && ` → ${formatDate(assignment.actual_return_date)}`}
                     </p>
                     {assignment.purpose && <p><strong>Objet :</strong> {assignment.purpose}</p>}
@@ -417,7 +472,10 @@ const AssetDetailPage = () => {
       {showAssignModal && (
         <div className="modal-overlay" onClick={() => setShowAssignModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>👤 Assigner l'asset</h2>
+            <h2>
+              <User className="w-6 h-6 inline mr-2" />
+              Assigner l'asset
+            </h2>
             <form onSubmit={handleAssign}>
               <div className="form-group">
                 <label>Employé *</label>
@@ -474,6 +532,7 @@ const AssetDetailPage = () => {
                   Annuler
                 </button>
                 <button type="submit" className="btn btn-primary">
+                  <CheckCircle className="w-4 h-4 inline mr-1" />
                   Assigner
                 </button>
               </div>
@@ -486,7 +545,10 @@ const AssetDetailPage = () => {
       {showUnassignModal && (
         <div className="modal-overlay" onClick={() => setShowUnassignModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>↩️ Retourner l'asset</h2>
+            <h2>
+              <ArrowLeft className="w-6 h-6 inline mr-2" />
+              Retourner l'asset
+            </h2>
             <form onSubmit={handleUnassign}>
               <div className="form-group">
                 <label>Condition au retour</label>
@@ -517,6 +579,7 @@ const AssetDetailPage = () => {
                   Annuler
                 </button>
                 <button type="submit" className="btn btn-warning">
+                  <CheckCircle className="w-4 h-4 inline mr-1" />
                   Confirmer le retour
                 </button>
               </div>
