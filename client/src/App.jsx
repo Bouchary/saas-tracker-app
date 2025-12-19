@@ -1,4 +1,8 @@
-// client/src/App.jsx
+// ============================================================================
+// APP.JSX - COMPLET avec toutes les routes Workflows
+// ============================================================================
+// Fichier : client/src/App.jsx
+// ============================================================================
 
 import React, { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
@@ -19,15 +23,25 @@ import Privacy from './pages/Privacy';
 import Cookies from './pages/Cookies';
 import OptimizationPage from './pages/OptimizationPage';
 
+import Dashboard from './pages/Dashboard';
+import DashboardV2 from './pages/DashboardV2';
+
 // 🆕 MODULE EMPLOYÉS (Phase 9)
 import EmployeesPage from './pages/EmployeesPage';
 import EmployeeDetailPage from './pages/EmployeeDetailPage';
 import EmployeeFormPage from './pages/EmployeeFormPage';
 
-// 🆕 MODULE MATÉRIEL (Phase 10) - AJOUTÉ LE 13/12/2024
+// 🆕 MODULE MATÉRIEL (Phase 10)
 import AssetsPage from './pages/AssetsPage';
 import AssetDetailPage from './pages/AssetDetailPage';
 import AssetFormPage from './pages/AssetFormPage';
+
+// 🆕 MODULE WORKFLOWS (Phase 12) - COMPLET
+import MyTasksPage from './pages/workflows/MyTasksPage';
+import WorkflowsPage from './pages/workflows/WorkflowsPage';
+import WorkflowDetailPage from './pages/workflows/WorkflowDetailPage';
+import TemplatesPage from './pages/workflows/TemplatesPage';
+import TemplateFormPage from './pages/workflows/TemplateFormPage';
 
 // Importation des composants de structure
 import Header from './components/Header';
@@ -99,12 +113,21 @@ const App = () => {
                         }
                     />
                     
-                    {/* Route pour le dashboard analytique */}
+                    {/* Routes Dashboard */}
                     <Route
                         path="/dashboard"
                         element={
                             <ProtectedRoute>
-                                <DashboardPage />
+                                <Dashboard />
+                            </ProtectedRoute>
+                        }
+                    />
+                    
+                    <Route
+                        path="/dashboard-v2"
+                        element={
+                            <ProtectedRoute>
+                                <DashboardV2 />
                             </ProtectedRoute>
                         }
                     />
@@ -153,7 +176,7 @@ const App = () => {
                         }
                     />
                     
-                    {/* 🆕 ROUTES ASSETS (Phase 10) - AJOUTÉ LE 13/12/2024 */}
+                    {/* 🆕 ROUTES ASSETS (Phase 10) */}
                     <Route
                         path="/assets"
                         element={
@@ -183,6 +206,57 @@ const App = () => {
                         element={
                             <ProtectedRoute>
                                 <AssetFormPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    
+                    {/* 🆕 ROUTES WORKFLOWS (Phase 12) - COMPLET */}
+                    {/* Routes spécifiques AVANT les routes génériques */}
+                    <Route
+                        path="/workflows/my-tasks"
+                        element={
+                            <ProtectedRoute>
+                                <MyTasksPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/workflows/templates"
+                        element={
+                            <ProtectedRoute>
+                                <TemplatesPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/workflows/templates/new"
+                        element={
+                            <ProtectedRoute>
+                                <TemplateFormPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/workflows/templates/:id/edit"
+                        element={
+                            <ProtectedRoute>
+                                <TemplateFormPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/workflows/:id"
+                        element={
+                            <ProtectedRoute>
+                                <WorkflowDetailPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/workflows"
+                        element={
+                            <ProtectedRoute>
+                                <WorkflowsPage />
                             </ProtectedRoute>
                         }
                     />

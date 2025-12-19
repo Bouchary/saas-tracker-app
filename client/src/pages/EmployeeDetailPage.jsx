@@ -1,15 +1,20 @@
 // ============================================================================
-// EMPLOYEE DETAIL PAGE - ULTRA-COMPLET avec Matériel et Icônes Modernes
+// EMPLOYEE DETAIL PAGE - COMPLET avec Matériel, Workflows et Création Workflow
+// ============================================================================
+// Fichier : client/src/pages/EmployeeDetailPage.jsx
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Package, ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Briefcase, 
-  Calendar, User, FileText, Building, Home, Shuffle, XCircle
+  Calendar, User, FileText, Building, Home, Shuffle, XCircle, GitBranch,
+  Plus
 } from 'lucide-react';
 import employeesApi from '../services/employeesApi';
 import EmployeeAssets from '../components/EmployeeAssets';
+import EmployeeWorkflowsTab from '../components/employees/EmployeeWorkflowsTab';
+import CreateWorkflowModal from '../components/workflows/CreateWorkflowModal';
 
 const EmployeeDetailPage = () => {
   const { id } = useParams();
@@ -19,6 +24,7 @@ const EmployeeDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('infos');
+  const [showCreateWorkflowModal, setShowCreateWorkflowModal] = useState(false);
 
   useEffect(() => {
     loadEmployee();
@@ -52,6 +58,12 @@ const EmployeeDetailPage = () => {
     }
   };
 
+  const handleWorkflowCreated = () => {
+    // Refresh workflows tab
+    loadEmployee();
+    setActiveTab('workflows');
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('fr-FR');
@@ -77,306 +89,489 @@ const EmployeeDetailPage = () => {
   if (loading) {
     return (
       <div className="loading-page">
-        <div className="spinner"></div>
+        <div className="loading-spinner"></div>
         <p>Chargement...</p>
       </div>
     );
   }
 
-  if (error) {
+  if (error || !employee) {
     return (
       <div className="error-page">
-        <h2>
-          <XCircle className="w-8 h-8 inline mr-2" />
-          Erreur
-        </h2>
-        <p>{error}</p>
-        <button onClick={() => navigate('/employees')}>Retour à la liste</button>
-      </div>
-    );
-  }
-
-  if (!employee) {
-    return (
-      <div className="error-page">
-        <h2>Employé non trouvé</h2>
-        <button onClick={() => navigate('/employees')}>Retour à la liste</button>
+        <XCircle size={64} />
+        <h2>Erreur</h2>
+        <p>{error || 'Employé non trouvé'}</p>
+        <button onClick={() => navigate('/employees')} className="btn-primary">
+          <ArrowLeft size={18} />
+          Retour
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="employee-detail-page">
+    <div className="page-container">
       {/* Header */}
-      <div className="detail-header">
+      <div className="page-header">
         <button onClick={() => navigate('/employees')} className="btn-back">
-          <ArrowLeft className="w-4 h-4 inline mr-1" />
+          <ArrowLeft size={20} />
           Retour
         </button>
         
+        <div className="header-title">
+          <div className="flex items-center gap-4">
+            <div className="employee-avatar">
+              <User size={40} />
+            </div>
+            <div>
+              <h1 className="page-title">
+                {employee.first_name} {employee.last_name}
+              </h1>
+              <p className="text-gray-600">{employee.job_title || 'Poste non défini'}</p>
+            </div>
+          </div>
+          {getStatusBadge(employee.status)}
+        </div>
+
         <div className="header-actions">
           <button 
-            onClick={() => navigate(`/employees/${id}/edit`)}
-            className="btn btn-secondary"
+            onClick={() => setShowCreateWorkflowModal(true)}
+            className="btn-primary"
           >
-            <Edit className="w-4 h-4 inline mr-1" />
+            <Plus size={18} />
+            Créer un workflow
+          </button>
+          <button onClick={() => navigate(`/employees/${id}/edit`)} className="btn-secondary">
+            <Edit size={18} />
             Modifier
           </button>
-          <button 
-            onClick={handleDelete}
-            className="btn btn-danger"
-          >
-            <Trash2 className="w-4 h-4 inline mr-1" />
-            Marquer comme sorti
+          <button onClick={handleDelete} className="btn-danger">
+            <Trash2 size={18} />
+            Sortie
           </button>
-        </div>
-      </div>
-
-      {/* Carte employé */}
-      <div className="employee-card">
-        <div className="employee-header">
-          <div className="employee-avatar">
-            {employee.profile_photo_url ? (
-              <img src={employee.profile_photo_url} alt={employee.first_name} />
-            ) : (
-              <div className="avatar-placeholder">
-                {employee.first_name[0]}{employee.last_name[0]}
-              </div>
-            )}
-          </div>
-          
-          <div className="employee-info">
-            <h1>{employee.first_name} {employee.last_name}</h1>
-            <p className="job-title">{employee.job_title}</p>
-            <p className="employee-number">#{employee.employee_number}</p>
-          </div>
-          
-          <div className="employee-status">
-            {getStatusBadge(employee.status)}
-          </div>
-        </div>
-
-        <div className="employee-meta">
-          <div className="meta-item">
-            <span className="meta-label">
-              <Mail className="w-4 h-4 inline mr-1" />
-              Email
-            </span>
-            <span className="meta-value">
-              <a href={`mailto:${employee.email}`}>{employee.email}</a>
-            </span>
-          </div>
-          
-          {employee.phone && (
-            <div className="meta-item">
-              <span className="meta-label">
-                <Phone className="w-4 h-4 inline mr-1" />
-                Téléphone
-              </span>
-              <span className="meta-value">{employee.phone}</span>
-            </div>
-          )}
-          
-          <div className="meta-item">
-            <span className="meta-label">
-              <Building className="w-4 h-4 inline mr-1" />
-              Département
-            </span>
-            <span className="meta-value">{employee.department}</span>
-          </div>
-          
-          <div className="meta-item">
-            <span className="meta-label">
-              <MapPin className="w-4 h-4 inline mr-1" />
-              Localisation
-            </span>
-            <span className="meta-value">{employee.office_location || '-'}</span>
-          </div>
-          
-          <div className="meta-item">
-            <span className="meta-label">
-              <Briefcase className="w-4 h-4 inline mr-1" />
-              Mode de travail
-            </span>
-            <span className="meta-value">
-              {employee.work_mode === 'remote' ? (
-                <>
-                  <Home className="w-4 h-4 inline mr-1" />
-                  Remote
-                </>
-              ) : employee.work_mode === 'hybrid' ? (
-                <>
-                  <Shuffle className="w-4 h-4 inline mr-1" />
-                  Hybride
-                </>
-              ) : (
-                <>
-                  <Building className="w-4 h-4 inline mr-1" />
-                  Sur site
-                </>
-              )}
-            </span>
-          </div>
-          
-          <div className="meta-item">
-            <span className="meta-label">
-              <Calendar className="w-4 h-4 inline mr-1" />
-              Date de début
-            </span>
-            <span className="meta-value">{formatDate(employee.start_date)}</span>
-          </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="tabs">
+      <div className="tabs-container">
         <button
-          className={`tab ${activeTab === 'infos' ? 'active' : ''}`}
+          className={`tab-button ${activeTab === 'infos' ? 'active' : ''}`}
           onClick={() => setActiveTab('infos')}
         >
+          <User size={18} />
           Informations
         </button>
-        
         <button
-          className={`tab ${activeTab === 'assets' ? 'active' : ''}`}
-          onClick={() => setActiveTab('assets')}
+          className={`tab-button ${activeTab === 'equipment' ? 'active' : ''}`}
+          onClick={() => setActiveTab('equipment')}
         >
-          <Package className="w-4 h-4 inline mr-1" />
+          <Package size={18} />
           Matériel
         </button>
-        
         <button
-          className={`tab ${activeTab === 'workflows' ? 'active' : ''}`}
+          className={`tab-button ${activeTab === 'workflows' ? 'active' : ''}`}
           onClick={() => setActiveTab('workflows')}
         >
-          Workflows (À venir)
+          <GitBranch size={18} />
+          Workflows
         </button>
       </div>
 
-      {/* Contenu tabs */}
+      {/* Tab Content */}
       <div className="tab-content">
         {activeTab === 'infos' && (
           <div className="info-grid">
-            <div className="info-section">
-              <h3>
-                <FileText className="w-5 h-5 inline mr-2" />
-                Informations générales
+            {/* Contact Information */}
+            <div className="info-card">
+              <h3 className="info-card-title">
+                <Mail size={20} />
+                Informations de contact
               </h3>
-              <div className="info-rows">
-                <div className="info-row">
-                  <span className="label">Matricule</span>
-                  <span className="value">{employee.employee_number}</span>
-                </div>
-                <div className="info-row">
-                  <span className="label">Poste</span>
-                  <span className="value">{employee.job_title}</span>
-                </div>
-                <div className="info-row">
-                  <span className="label">Département</span>
-                  <span className="value">{employee.department}</span>
-                </div>
-                {employee.team && (
-                  <div className="info-row">
-                    <span className="label">Équipe</span>
-                    <span className="value">{employee.team}</span>
+              <div className="info-list">
+                <div className="info-item">
+                  <Mail size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Email</span>
+                    <span className="info-value">{employee.email || '-'}</span>
                   </div>
-                )}
-                <div className="info-row">
-                  <span className="label">Type de contrat</span>
-                  <span className="value">
-                    {employee.employment_type === 'full_time' ? 'Temps plein' :
-                     employee.employment_type === 'part_time' ? 'Temps partiel' :
-                     employee.employment_type === 'contractor' ? 'Contractant' :
-                     employee.employment_type === 'intern' ? 'Stagiaire' :
-                     employee.employment_type}
-                  </span>
+                </div>
+                <div className="info-item">
+                  <Phone size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Téléphone</span>
+                    <span className="info-value">{employee.phone || '-'}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="info-section">
-              <h3>
-                <Calendar className="w-5 h-5 inline mr-2" />
-                Dates importantes
+            {/* Professional Information */}
+            <div className="info-card">
+              <h3 className="info-card-title">
+                <Briefcase size={20} />
+                Informations professionnelles
               </h3>
-              <div className="info-rows">
-                <div className="info-row">
-                  <span className="label">Date d'embauche</span>
-                  <span className="value">{formatDate(employee.hire_date)}</span>
-                </div>
-                <div className="info-row">
-                  <span className="label">Date de début</span>
-                  <span className="value">{formatDate(employee.start_date)}</span>
-                </div>
-                {employee.probation_end_date && (
-                  <div className="info-row">
-                    <span className="label">Fin période d'essai</span>
-                    <span className="value">{formatDate(employee.probation_end_date)}</span>
+              <div className="info-list">
+                <div className="info-item">
+                  <FileText size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Poste</span>
+                    <span className="info-value">{employee.job_title || '-'}</span>
                   </div>
-                )}
-                {employee.end_date && (
-                  <div className="info-row">
-                    <span className="label">Date de fin</span>
-                    <span className="value">{formatDate(employee.end_date)}</span>
+                </div>
+                <div className="info-item">
+                  <Building size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Département</span>
+                    <span className="info-value">{employee.department || '-'}</span>
+                  </div>
+                </div>
+                <div className="info-item">
+                  <User size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Manager</span>
+                    <span className="info-value">{employee.manager_name || '-'}</span>
+                  </div>
+                </div>
+                <div className="info-item">
+                  <MapPin size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Localisation</span>
+                    <span className="info-value">{employee.location || '-'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Contract Information */}
+            <div className="info-card">
+              <h3 className="info-card-title">
+                <FileText size={20} />
+                Informations contractuelles
+              </h3>
+              <div className="info-list">
+                <div className="info-item">
+                  <Calendar size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Date d'embauche</span>
+                    <span className="info-value">{formatDate(employee.hire_date)}</span>
+                  </div>
+                </div>
+                <div className="info-item">
+                  <FileText size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Type de contrat</span>
+                    <span className="info-value">{employee.contract_type || '-'}</span>
+                  </div>
+                </div>
+                <div className="info-item">
+                  <Home size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Mode de travail</span>
+                    <span className="info-value">{employee.work_mode || '-'}</span>
+                  </div>
+                </div>
+                {employee.exit_date && (
+                  <div className="info-item">
+                    <Calendar size={16} className="info-icon" />
+                    <div>
+                      <span className="info-label">Date de sortie</span>
+                      <span className="info-value">{formatDate(employee.exit_date)}</span>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="info-section">
-              <h3>
-                <MapPin className="w-5 h-5 inline mr-2" />
-                Localisation
-              </h3>
-              <div className="info-rows">
-                <div className="info-row">
-                  <span className="label">Bureau</span>
-                  <span className="value">{employee.office_location || '-'}</span>
-                </div>
-                <div className="info-row">
-                  <span className="label">Ville</span>
-                  <span className="value">{employee.city || '-'}</span>
-                </div>
-                <div className="info-row">
-                  <span className="label">Pays</span>
-                  <span className="value">{employee.country || '-'}</span>
-                </div>
-                <div className="info-row">
-                  <span className="label">Mode de travail</span>
-                  <span className="value">
-                    {employee.work_mode === 'remote' ? 'Remote' :
-                     employee.work_mode === 'hybrid' ? 'Hybride' :
-                     'Sur site'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
+            {/* Additional Information */}
             {employee.notes && (
-              <div className="info-section full-width">
-                <h3>
-                  <FileText className="w-5 h-5 inline mr-2" />
+              <div className="info-card full-width">
+                <h3 className="info-card-title">
+                  <FileText size={20} />
                   Notes
                 </h3>
-                <p className="notes">{employee.notes}</p>
+                <p className="notes-text">{employee.notes}</p>
               </div>
             )}
           </div>
         )}
 
-        {activeTab === 'assets' && (
-          <EmployeeAssets 
-            employeeId={id} 
-            employeeName={`${employee.first_name} ${employee.last_name}`}
-          />
+        {activeTab === 'equipment' && (
+          <EmployeeAssets employeeId={id} employeeName={`${employee.first_name} ${employee.last_name}`} />
         )}
 
         {activeTab === 'workflows' && (
-          <div className="placeholder">
-            <p>Module Workflows à venir (Phase 3)</p>
-          </div>
+          <EmployeeWorkflowsTab employeeId={id} />
         )}
       </div>
+
+      {/* Create Workflow Modal */}
+      <CreateWorkflowModal
+        isOpen={showCreateWorkflowModal}
+        onClose={() => setShowCreateWorkflowModal(false)}
+        employeeId={id}
+        employeeName={`${employee.first_name} ${employee.last_name}`}
+        onSuccess={handleWorkflowCreated}
+      />
+
+      <style jsx>{`
+        .page-container {
+          max-width: 1400px;
+          margin: 0 auto;
+          padding: 2rem;
+        }
+
+        .page-header {
+          margin-bottom: 2rem;
+        }
+
+        .btn-back {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem 1rem;
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 0.5rem;
+          color: #6b7280;
+          cursor: pointer;
+          margin-bottom: 1rem;
+          transition: all 0.2s;
+        }
+
+        .btn-back:hover {
+          background: #f9fafb;
+          color: #111827;
+        }
+
+        .header-title {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1.5rem;
+        }
+
+        .employee-avatar {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+        }
+
+        .page-title {
+          font-size: 2rem;
+          font-weight: bold;
+          color: #111827;
+          margin: 0;
+        }
+
+        .status-badge-large {
+          padding: 0.5rem 1rem;
+          border-radius: 9999px;
+          font-size: 0.875rem;
+          font-weight: 600;
+        }
+
+        .status-active {
+          background: #d1fae5;
+          color: #065f46;
+        }
+
+        .status-onboarding {
+          background: #dbeafe;
+          color: #1e40af;
+        }
+
+        .status-offboarding {
+          background: #fed7aa;
+          color: #92400e;
+        }
+
+        .status-leave {
+          background: #fef3c7;
+          color: #92400e;
+        }
+
+        .status-exited {
+          background: #fee2e2;
+          color: #991b1b;
+        }
+
+        .header-actions {
+          display: flex;
+          gap: 0.75rem;
+        }
+
+        .btn-primary, .btn-secondary, .btn-danger {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.75rem 1.5rem;
+          border-radius: 0.5rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          border: none;
+        }
+
+        .btn-primary {
+          background: #3b82f6;
+          color: white;
+        }
+
+        .btn-primary:hover {
+          background: #2563eb;
+        }
+
+        .btn-secondary {
+          background: white;
+          color: #6b7280;
+          border: 1px solid #e5e7eb;
+        }
+
+        .btn-secondary:hover {
+          background: #f9fafb;
+        }
+
+        .btn-danger {
+          background: #ef4444;
+          color: white;
+        }
+
+        .btn-danger:hover {
+          background: #dc2626;
+        }
+
+        .tabs-container {
+          display: flex;
+          gap: 0.5rem;
+          border-bottom: 2px solid #e5e7eb;
+          margin-bottom: 2rem;
+        }
+
+        .tab-button {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 1rem 1.5rem;
+          background: none;
+          border: none;
+          color: #6b7280;
+          cursor: pointer;
+          font-weight: 500;
+          position: relative;
+          transition: all 0.2s;
+        }
+
+        .tab-button:hover {
+          color: #3b82f6;
+        }
+
+        .tab-button.active {
+          color: #3b82f6;
+        }
+
+        .tab-button.active::after {
+          content: '';
+          position: absolute;
+          bottom: -2px;
+          left: 0;
+          right: 0;
+          height: 2px;
+          background: #3b82f6;
+        }
+
+        .tab-content {
+          min-height: 400px;
+        }
+
+        .info-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+          gap: 1.5rem;
+        }
+
+        .info-card {
+          background: white;
+          border: 2px solid #e5e7eb;
+          border-radius: 0.75rem;
+          padding: 1.5rem;
+        }
+
+        .info-card.full-width {
+          grid-column: 1 / -1;
+        }
+
+        .info-card-title {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          font-size: 1.125rem;
+          font-weight: 600;
+          color: #111827;
+          margin-bottom: 1.5rem;
+        }
+
+        .info-list {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .info-item {
+          display: flex;
+          gap: 1rem;
+        }
+
+        .info-icon {
+          color: #6b7280;
+          flex-shrink: 0;
+        }
+
+        .info-label {
+          display: block;
+          font-size: 0.875rem;
+          color: #6b7280;
+          margin-bottom: 0.25rem;
+        }
+
+        .info-value {
+          display: block;
+          font-weight: 500;
+          color: #111827;
+        }
+
+        .notes-text {
+          color: #4b5563;
+          line-height: 1.6;
+        }
+
+        .loading-page, .error-page {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          min-height: 400px;
+          gap: 1rem;
+        }
+
+        .loading-spinner {
+          width: 64px;
+          height: 64px;
+          border: 4px solid #e5e7eb;
+          border-top-color: #3b82f6;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
