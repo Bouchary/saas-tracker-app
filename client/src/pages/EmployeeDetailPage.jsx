@@ -2,6 +2,7 @@
 // EMPLOYEE DETAIL PAGE - COMPLET avec Matériel, Workflows et Création Workflow
 // ============================================================================
 // Fichier : client/src/pages/EmployeeDetailPage.jsx
+// ✅ MODIFIÉ : Utilise CreateWorkflowWithAssignment pour assignation des tâches
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -14,7 +15,7 @@ import {
 import employeesApi from '../services/employeesApi';
 import EmployeeAssets from '../components/EmployeeAssets';
 import EmployeeWorkflowsTab from '../components/employees/EmployeeWorkflowsTab';
-import CreateWorkflowModal from '../components/workflows/CreateWorkflowModal';
+import CreateWorkflowWithAssignment from '../components/CreateWorkflowWithAssignment'; // ✅ MODIFIÉ
 
 const EmployeeDetailPage = () => {
   const { id } = useParams();
@@ -62,6 +63,7 @@ const EmployeeDetailPage = () => {
     // Refresh workflows tab
     loadEmployee();
     setActiveTab('workflows');
+    setShowCreateWorkflowModal(false); // ✅ AJOUTÉ
   };
 
   const formatDate = (dateString) => {
@@ -305,14 +307,14 @@ const EmployeeDetailPage = () => {
         )}
       </div>
 
-      {/* Create Workflow Modal */}
-      <CreateWorkflowModal
-        isOpen={showCreateWorkflowModal}
-        onClose={() => setShowCreateWorkflowModal(false)}
-        employeeId={id}
-        employeeName={`${employee.first_name} ${employee.last_name}`}
-        onSuccess={handleWorkflowCreated}
-      />
+      {/* ✅ MODIFIÉ : Nouveau modal avec assignation des tâches */}
+      {showCreateWorkflowModal && (
+        <CreateWorkflowWithAssignment
+          employee={employee}
+          onClose={() => setShowCreateWorkflowModal(false)}
+          onSuccess={handleWorkflowCreated}
+        />
+      )}
 
       <style jsx>{`
         .page-container {

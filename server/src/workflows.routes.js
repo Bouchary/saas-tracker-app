@@ -1,15 +1,16 @@
 // ============================================================================
-// ROUTES WORKFLOWS ONBOARDING/OFFBOARDING - VERSION CORRIGÉE
+// ROUTES WORKFLOWS ONBOARDING/OFFBOARDING - VERSION COMPLÈTE
 // ============================================================================
 // Fichier : server/src/workflows.routes.js
-// Date : 17 décembre 2024
-// Correction : firstname/lastname au lieu de first_name/last_name
+// Date : 20 décembre 2024
+// Features : Notifications email + Assignation des tâches
 // ============================================================================
 
 const express = require('express');
 const router = express.Router();
 const db = require('./db');
 const { protect } = require('./middlewares/authMiddleware');
+const emailService = require('./services/emailService');
 
 // Toutes les routes nécessitent authentication
 router.use(protect);
@@ -490,9 +491,98 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ============================================================================
+// ✅ NOUVEAU : ROUTE POUR RÉCUPÉRER LES UTILISATEURS (ASSIGNATION)
+// ============================================================================
+
+/**
+ * GET /api/workflows/users-for-assignment
+ * Liste des utilisateurs disponibles pour assignation de tâches
+ * Groupés par département
+ */
+router.get('/users-for-assignment', async (req, res) => {
+  try {
+    // Récupérer tous les utilisateurs
+    const usersResult = await db.query(`
+      SELECT 
+        id,
+        email,
+        created_at
+      FROM users
+      ORDER BY email ASC
+    `);
+    
+    const users = usersResult.rows.map(u => ({
+      id: u.id,
+      name: u.email,
+      email: u.email
+    }));
+    
+    // Récupérer les employés (qui ont un user_id et peuvent être assignés)
+    const employeesResult = await db.query(`
+      SELECT 
+        e.id,
+        e.first_name,
+        e.last_name,
+        e.email,
+        e.department,
+        e.user_id
+      FROM employees e
+      WHERE e.status = 'active'
+      ORDER BY e.department, e.first_name, e.last_name
+    `);
+    
+    // Grouper par département
+    const byDepartment = {
+      IT: [],
+      HR: [],
+      Finance: [],
+      Manager: [],
+      Other: []
+    };
+    
+    employeesResult.rows.forEach(emp => {
+      const fullName = `${emp.first_name} ${emp.last_name}`;
+      const dept = emp.department || 'Other';
+      
+      // Si l'employé a un user_id, il peut être assigné
+      if (emp.user_id) {
+        const entry = {
+          id: emp.user_id,
+          name: fullName,
+          email: emp.email,
+          department: dept,
+          employeeId: emp.id
+        };
+        
+        if (byDepartment[dept]) {
+          byDepartment[dept].push(entry);
+        } else {
+          byDepartment.Other.push(entry);
+        }
+      }
+    });
+    
+    res.status(200).json({
+      users,
+      byDepartment,
+      message: 'Users available for task assignment'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching users for assignment:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// ============================================================================
+// ✅ MODIFIÉ : ROUTE POST AVEC ASSIGNATION DES TÂCHES
+// ============================================================================
+
 /**
  * POST /api/workflows
  * Créer un nouveau workflow depuis un template
+ * AVEC ASSIGNATION DES TÂCHES
  */
 router.post('/', async (req, res) => {
   try {
@@ -500,7 +590,8 @@ router.post('/', async (req, res) => {
       employee_id,
       template_id,
       workflow_type,
-      target_date
+      target_date,
+      task_assignments // ✅ NOUVEAU
     } = req.body;
 
     // Validation
@@ -518,6 +609,44 @@ router.post('/', async (req, res) => {
 
     const workflowId = result.rows[0].workflow_id;
 
+    // ============================================================================
+    // ✅ NOUVEAU : APPLIQUER LES ASSIGNATIONS DE TÂCHES
+    // ============================================================================
+    
+    if (task_assignments && Array.isArray(task_assignments) && task_assignments.length > 0) {
+      console.log('📋 Application des assignations de tâches...');
+      
+      for (const assignment of task_assignments) {
+        const { task_template_id, assigned_to } = assignment;
+        
+        if (task_template_id && assigned_to) {
+          // Trouver la tâche du workflow correspondant au template
+          const taskResult = await db.query(`
+            SELECT ewt.id
+            FROM employee_workflow_tasks ewt
+            JOIN workflow_tasks wt ON ewt.task_id = wt.id
+            WHERE ewt.workflow_id = $1 
+              AND wt.id = $2
+          `, [workflowId, task_template_id]);
+          
+          if (taskResult.rows.length > 0) {
+            const employeeTaskId = taskResult.rows[0].id;
+            
+            // Assigner l'utilisateur à cette tâche
+            await db.query(`
+              UPDATE employee_workflow_tasks
+              SET assigned_to = $1
+              WHERE id = $2
+            `, [assigned_to, employeeTaskId]);
+            
+            console.log(`✅ Tâche ${task_template_id} assignée à user ${assigned_to}`);
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+
     // Fetch the created workflow
     const workflowResult = await db.query(`
       SELECT 
@@ -526,6 +655,7 @@ router.post('/', async (req, res) => {
           'id', e.id,
           'first_name', e.first_name,
           'last_name', e.last_name,
+          'email', e.email,
           'job_title', e.job_title,
           'department', e.department
         ) as employee,
@@ -539,9 +669,97 @@ router.post('/', async (req, res) => {
       WHERE ew.id = $1
     `, [workflowId]);
 
+    const workflow = workflowResult.rows[0];
+
+    // ============================================================================
+    // ENVOYER LES NOTIFICATIONS PAR EMAIL
+    // ============================================================================
+    
+    try {
+      // Récupérer les tâches du workflow (avec les assignations)
+      const tasksResult = await db.query(`
+        SELECT 
+          wt.id,
+          wt.title,
+          wt.description,
+          wt.responsible_team,
+          wt.is_mandatory,
+          wt.is_automated,
+          wt.checklist_items,
+          ewt.due_date,
+          ewt.assigned_to,
+          u.email as assigned_user_email
+        FROM employee_workflow_tasks ewt
+        JOIN workflow_tasks wt ON ewt.task_id = wt.id
+        LEFT JOIN users u ON ewt.assigned_to = u.id
+        WHERE ewt.workflow_id = $1
+        ORDER BY wt.task_order ASC
+      `, [workflowId]);
+      
+      const tasks = tasksResult.rows;
+      
+      // 1. Envoyer email "Workflow créé" au propriétaire
+      const ownerResult = await db.query(
+        'SELECT email FROM users WHERE id = $1',
+        [req.user]
+      );
+      
+      if (ownerResult.rows.length > 0 && ownerResult.rows[0].email) {
+        const ownerEmail = ownerResult.rows[0].email;
+        
+        await emailService.sendWorkflowCreatedEmail(
+          ownerEmail,
+          {
+            id: workflow.id,
+            workflow_type: workflow.workflow_type,
+            target_date: workflow.target_date
+          },
+          workflow.employee,
+          tasks.map(t => ({
+            title: t.title,
+            description: t.description,
+            due_date: t.due_date,
+            responsible_team: t.responsible_team
+          }))
+        );
+        
+        console.log('✅ Email "Workflow créé" envoyé à:', ownerEmail);
+      }
+      
+      // 2. Envoyer email "Tâche assignée" à chaque utilisateur assigné
+      for (const task of tasks) {
+        if (task.assigned_to && task.assigned_user_email) {
+          await emailService.sendTaskAssignedEmail(
+            task.assigned_user_email,
+            {
+              title: task.title,
+              description: task.description,
+              due_date: task.due_date,
+              responsible_team: task.responsible_team,
+              is_mandatory: task.is_mandatory,
+              checklist_items: task.checklist_items
+            },
+            {
+              id: workflow.id,
+              workflow_type: workflow.workflow_type
+            },
+            workflow.employee
+          );
+          
+          console.log('✅ Email "Tâche assignée" envoyé à:', task.assigned_user_email);
+        }
+      }
+      
+    } catch (emailError) {
+      // Ne pas bloquer la création du workflow si l'email échoue
+      console.error('❌ Erreur envoi emails workflow:', emailError);
+    }
+    
+    // ============================================================================
+
     res.status(201).json({
       message: 'Workflow created successfully',
-      workflow: workflowResult.rows[0]
+      workflow: workflow
     });
 
   } catch (error) {
@@ -873,6 +1091,64 @@ router.put('/:id/tasks/:taskId', async (req, res) => {
       FROM employee_workflows
       WHERE id = $1
     `, [id]);
+    
+    // ============================================================================
+    // ENVOYER EMAIL SI WORKFLOW COMPLÉTÉ
+    // ============================================================================
+    
+    if (status === 'completed') {
+      try {
+        const workflowInfo = workflowResult.rows[0];
+        
+        // Vérifier si le workflow est maintenant complété à 100%
+        if (workflowInfo.status === 'completed') {
+          // Récupérer les infos complètes du workflow
+          const fullWorkflowResult = await db.query(`
+            SELECT 
+              ew.*,
+              json_build_object(
+                'id', e.id,
+                'first_name', e.first_name,
+                'last_name', e.last_name,
+                'email', e.email,
+                'job_title', e.job_title,
+                'department', e.department
+              ) as employee
+            FROM employee_workflows ew
+            JOIN employees e ON ew.employee_id = e.id
+            WHERE ew.id = $1
+          `, [id]);
+          
+          const fullWorkflow = fullWorkflowResult.rows[0];
+          
+          // Envoyer email "Workflow complété" au propriétaire
+          const ownerResult = await db.query(
+            'SELECT email FROM users WHERE id = $1',
+            [req.user]
+          );
+          
+          if (ownerResult.rows.length > 0 && ownerResult.rows[0].email) {
+            await emailService.sendWorkflowCompletedEmail(
+              ownerResult.rows[0].email,
+              {
+                ...fullWorkflow,
+                completed_tasks: workflowInfo.completed_tasks,
+                total_tasks: workflowInfo.total_tasks,
+                completion_percentage: workflowInfo.completion_percentage
+              },
+              fullWorkflow.employee
+            );
+            
+            console.log('✅ Email "Workflow complété" envoyé à:', ownerResult.rows[0].email);
+          }
+        }
+        
+      } catch (emailError) {
+        console.error('❌ Erreur envoi email workflow complété:', emailError);
+      }
+    }
+    
+    // ============================================================================
     
     res.status(200).json({
       task: taskResult.rows[0],
