@@ -1,18 +1,24 @@
 // ============================================================================
-// ASSETS CONTROLLER - VERSION CORRIGÉE (sans pool.connect)
+// ASSETS CONTROLLER - VERSION CORRIGÉE MULTI-TENANT (created_by)
 // ============================================================================
-// Module : Matériel IT (Phase 10)
-// Description : Controller pour gérer les assets et assignations
+// ✅ FIX CRITIQUE : Filtre created_by = req.user sur toutes les opérations
+// ✅ FIX CRITIQUE : JOIN employees tenant-safe
+// ✅ FIX CRITIQUE : Vérifs ownership sur :id + assign/unassign/history
 // ============================================================================
 
-const pool = require('./db'); // ADAPTEZ CE CHEMIN SELON VOTRE STRUCTURE
+const pool = require('./db');
 
 // ============================================================================
-// GET /api/assets - Liste des assets avec filtres
+// GET /api/assets - Liste des assets avec filtres (multi-tenant)
 // ============================================================================
 
 const getAllAssets = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const {
       page = 1,
       limit = 20,
@@ -20,25 +26,27 @@ const getAllAssets = async (req, res) => {
       status,
       manufacturer,
       search,
-      assigned_to, // Filter by employee
+      assigned_to,
       sort = 'asset_tag',
       order = 'ASC'
     } = req.query;
 
-    // Requête de base
+    // ✅ Base multi-tenant (a.created_by = $1)
     let query = `
       SELECT 
         a.*,
         e.first_name || ' ' || e.last_name AS assigned_to_name,
         e.department AS assigned_to_department
       FROM assets a
-      LEFT JOIN employees e ON a.currently_assigned_to = e.id
-      WHERE 1=1
+      LEFT JOIN employees e 
+        ON a.currently_assigned_to = e.id 
+       AND e.created_by = $1
+      WHERE a.created_by = $1
     `;
-    const params = [];
-    let paramIndex = 1;
 
-    // Filtres
+    const params = [userId];
+    let paramIndex = 2;
+
     if (asset_type) {
       query += ` AND a.asset_type = $${paramIndex}`;
       params.push(asset_type);
@@ -74,23 +82,20 @@ const getAllAssets = async (req, res) => {
       paramIndex++;
     }
 
-    // Compter le total
     const countQuery = `SELECT COUNT(*) FROM (${query}) as count_query`;
     const countResult = await pool.query(countQuery, params);
     const total = parseInt(countResult.rows[0].count);
 
-    // Tri et pagination
     const validSortFields = ['asset_tag', 'name', 'asset_type', 'status', 'manufacturer', 'purchase_date'];
     const sortField = validSortFields.includes(sort) ? sort : 'asset_tag';
     const sortOrder = order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-    
+
     query += ` ORDER BY a.${sortField} ${sortOrder}`;
-    
+
     const offset = (parseInt(page) - 1) * parseInt(limit);
     query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(parseInt(limit), offset);
 
-    // Exécuter
     const result = await pool.query(query, params);
 
     res.json({
@@ -105,70 +110,79 @@ const getAllAssets = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching assets:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Erreur lors de la récupération des assets',
-      details: error.message 
+      details: error.message
     });
   }
 };
 
 // ============================================================================
-// GET /api/assets/stats - Statistiques assets
+// GET /api/assets/stats - Statistiques assets (multi-tenant)
 // ============================================================================
 
 const getAssetStats = async (req, res) => {
   try {
-    // Total assets
-    const totalResult = await pool.query('SELECT COUNT(*) FROM assets');
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
+    const totalResult = await pool.query(
+      'SELECT COUNT(*) FROM assets WHERE created_by = $1',
+      [userId]
+    );
     const total = parseInt(totalResult.rows[0].count);
 
-    // Par type
-    const typeResult = await pool.query(`
-      SELECT asset_type, COUNT(*) as count
-      FROM assets
-      GROUP BY asset_type
-      ORDER BY count DESC
-    `);
+    const typeResult = await pool.query(
+      `SELECT asset_type, COUNT(*) as count
+       FROM assets
+       WHERE created_by = $1
+       GROUP BY asset_type
+       ORDER BY count DESC`,
+      [userId]
+    );
     const byType = {};
     typeResult.rows.forEach(row => {
       byType[row.asset_type] = parseInt(row.count);
     });
 
-    // Par statut
-    const statusResult = await pool.query(`
-      SELECT status, COUNT(*) as count
-      FROM assets
-      GROUP BY status
-      ORDER BY count DESC
-    `);
+    const statusResult = await pool.query(
+      `SELECT status, COUNT(*) as count
+       FROM assets
+       WHERE created_by = $1
+       GROUP BY status
+       ORDER BY count DESC`,
+      [userId]
+    );
     const byStatus = {};
     statusResult.rows.forEach(row => {
       byStatus[row.status] = parseInt(row.count);
     });
 
-    // Par fabricant (top 5)
-    const manufacturerResult = await pool.query(`
-      SELECT manufacturer, COUNT(*) as count
-      FROM assets
-      WHERE manufacturer IS NOT NULL
-      GROUP BY manufacturer
-      ORDER BY count DESC
-      LIMIT 5
-    `);
+    const manufacturerResult = await pool.query(
+      `SELECT manufacturer, COUNT(*) as count
+       FROM assets
+       WHERE created_by = $1 AND manufacturer IS NOT NULL
+       GROUP BY manufacturer
+       ORDER BY count DESC
+       LIMIT 5`,
+      [userId]
+    );
     const byManufacturer = {};
     manufacturerResult.rows.forEach(row => {
       byManufacturer[row.manufacturer] = parseInt(row.count);
     });
 
-    // Valeur totale
-    const valueResult = await pool.query(`
-      SELECT 
+    const valueResult = await pool.query(
+      `SELECT 
         SUM(purchase_price) as total_value,
         currency
       FROM assets
-      WHERE purchase_price IS NOT NULL
-      GROUP BY currency
-    `);
+      WHERE created_by = $1 AND purchase_price IS NOT NULL
+      GROUP BY currency`,
+      [userId]
+    );
 
     res.json({
       total_assets: total,
@@ -180,22 +194,26 @@ const getAssetStats = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching stats:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Erreur lors de la récupération des statistiques',
-      details: error.message 
+      details: error.message
     });
   }
 };
 
 // ============================================================================
-// GET /api/assets/:id - Détails d'un asset
+// GET /api/assets/:id - Détails d'un asset (multi-tenant)
 // ============================================================================
 
 const getAssetById = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const { id } = req.params;
 
-    // Asset avec infos employé assigné
     const assetResult = await pool.query(`
       SELECT 
         a.*,
@@ -205,9 +223,11 @@ const getAssetById = async (req, res) => {
         e.department AS assigned_to_department,
         e.job_title AS assigned_to_job_title
       FROM assets a
-      LEFT JOIN employees e ON a.currently_assigned_to = e.id
-      WHERE a.id = $1
-    `, [id]);
+      LEFT JOIN employees e 
+        ON a.currently_assigned_to = e.id
+       AND e.created_by = $2
+      WHERE a.id = $1 AND a.created_by = $2
+    `, [id, userId]);
 
     if (assetResult.rows.length === 0) {
       return res.status(404).json({ error: 'Asset non trouvé' });
@@ -215,7 +235,6 @@ const getAssetById = async (req, res) => {
 
     const asset = assetResult.rows[0];
 
-    // Assignation actuelle (détails complets)
     let currentAssignment = null;
     if (asset.currently_assigned_to) {
       const assignmentResult = await pool.query(`
@@ -225,29 +244,32 @@ const getAssetById = async (req, res) => {
           e.email AS employee_email,
           e.department
         FROM asset_assignments aa
-        JOIN employees e ON aa.employee_id = e.id
-        WHERE aa.asset_id = $1 AND aa.status = $2
+        JOIN employees e 
+          ON aa.employee_id = e.id
+         AND e.created_by = $2
+        WHERE aa.asset_id = $1 AND aa.status = $3
         ORDER BY aa.assigned_date DESC
         LIMIT 1
-      `, [id, 'active']);
-      
+      `, [id, userId, 'active']);
+
       if (assignmentResult.rows.length > 0) {
         currentAssignment = assignmentResult.rows[0];
       }
     }
 
-    // Historique des assignations (5 dernières)
     const historyResult = await pool.query(`
       SELECT 
         aa.*,
         e.first_name || ' ' || e.last_name AS employee_name,
         e.department
       FROM asset_assignments aa
-      JOIN employees e ON aa.employee_id = e.id
+      JOIN employees e 
+        ON aa.employee_id = e.id
+       AND e.created_by = $2
       WHERE aa.asset_id = $1
       ORDER BY aa.assigned_date DESC
       LIMIT 5
-    `, [id]);
+    `, [id, userId]);
 
     res.json({
       asset,
@@ -257,9 +279,9 @@ const getAssetById = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching asset:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Erreur lors de la récupération de l\'asset',
-      details: error.message 
+      details: error.message
     });
   }
 };
@@ -270,6 +292,11 @@ const getAssetById = async (req, res) => {
 
 const createAsset = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const {
       asset_tag,
       name,
@@ -291,7 +318,7 @@ const createAsset = async (req, res) => {
       notes
     } = req.body;
 
-    // Vérifier asset_tag unique
+    // ⚠️ On conserve les checks d'unicité globaux (cf. explication employeesController).
     const checkTag = await pool.query(
       'SELECT id FROM assets WHERE asset_tag = $1',
       [asset_tag]
@@ -301,7 +328,6 @@ const createAsset = async (req, res) => {
       return res.status(409).json({ error: 'Asset tag déjà utilisé' });
     }
 
-    // Vérifier serial_number unique (si fourni)
     if (serial_number) {
       const checkSerial = await pool.query(
         'SELECT id FROM assets WHERE serial_number = $1',
@@ -313,20 +339,23 @@ const createAsset = async (req, res) => {
       }
     }
 
-    // Insérer
     const result = await pool.query(
       `INSERT INTO assets (
         asset_tag, name, asset_type, manufacturer, model, serial_number,
         specifications, status, condition, purchase_date, purchase_price,
-        currency, warranty_end_date, supplier, location, room, image_url, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        currency, warranty_end_date, supplier, location, room, image_url, notes,
+        created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *`,
       [
         asset_tag, name, asset_type, manufacturer, model, serial_number,
         specifications, status, condition, purchase_date, purchase_price,
-        currency, warranty_end_date, supplier, location, room, image_url, notes
+        currency, warranty_end_date, supplier, location, room, image_url, notes,
+        userId
       ]
     );
+
+    console.log(`✅ Asset créé par user ${userId}: ${result.rows[0].asset_tag}`);
 
     res.status(201).json({
       message: 'Asset créé avec succès',
@@ -335,29 +364,35 @@ const createAsset = async (req, res) => {
 
   } catch (error) {
     console.error('Error creating asset:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Erreur lors de la création de l\'asset',
-      details: error.message 
+      details: error.message
     });
   }
 };
 
 // ============================================================================
-// PUT /api/assets/:id - Mettre à jour un asset
+// PUT /api/assets/:id - Mettre à jour un asset (multi-tenant)
 // ============================================================================
 
 const updateAsset = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const { id } = req.params;
     const updates = req.body;
 
-    // Vérifier que l'asset existe
-    const check = await pool.query('SELECT id FROM assets WHERE id = $1', [id]);
+    const check = await pool.query(
+      'SELECT id FROM assets WHERE id = $1 AND created_by = $2',
+      [id, userId]
+    );
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Asset non trouvé' });
     }
 
-    // Construire UPDATE dynamiquement
     const allowedFields = [
       'name', 'asset_type', 'manufacturer', 'model', 'serial_number',
       'specifications', 'status', 'condition', 'purchase_date', 'purchase_price',
@@ -382,11 +417,12 @@ const updateAsset = async (req, res) => {
     }
 
     values.push(id);
+    values.push(userId);
 
     const query = `
       UPDATE assets 
       SET ${fields.join(', ')}
-      WHERE id = $${paramIndex}
+      WHERE id = $${paramIndex} AND created_by = $${paramIndex + 1}
       RETURNING *
     `;
 
@@ -399,45 +435,53 @@ const updateAsset = async (req, res) => {
 
   } catch (error) {
     console.error('Error updating asset:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Erreur lors de la mise à jour de l\'asset',
-      details: error.message 
+      details: error.message
     });
   }
 };
 
 // ============================================================================
-// DELETE /api/assets/:id - Supprimer un asset
+// DELETE /api/assets/:id - Supprimer un asset (retired) (multi-tenant)
 // ============================================================================
 
 const deleteAsset = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const { id } = req.params;
 
-    // Vérifier que l'asset n'est pas assigné
+    // ✅ Vérifier ownership
+    const assetCheck = await pool.query(
+      'SELECT id FROM assets WHERE id = $1 AND created_by = $2',
+      [id, userId]
+    );
+    if (assetCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Asset non trouvé' });
+    }
+
     const checkAssignment = await pool.query(
       'SELECT id FROM asset_assignments WHERE asset_id = $1 AND status = $2',
       [id, 'active']
     );
 
     if (checkAssignment.rows.length > 0) {
-      return res.status(400).json({ 
-        error: 'Impossible de supprimer un asset assigné. Retournez-le d\'abord.' 
+      return res.status(400).json({
+        error: 'Impossible de supprimer un asset assigné. Retournez-le d\'abord.'
       });
     }
 
-    // Marquer comme retired au lieu de supprimer
     const result = await pool.query(
       `UPDATE assets 
        SET status = 'retired'
-       WHERE id = $1
+       WHERE id = $1 AND created_by = $2
        RETURNING *`,
-      [id]
+      [id, userId]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Asset non trouvé' });
-    }
 
     res.json({
       message: 'Asset marqué comme retiré',
@@ -446,22 +490,26 @@ const deleteAsset = async (req, res) => {
 
   } catch (error) {
     console.error('Error deleting asset:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Erreur lors de la suppression de l\'asset',
-      details: error.message 
+      details: error.message
     });
   }
 };
 
 // ============================================================================
-// POST /api/assets/:id/assign - Assigner un asset à un employé
-// ============================================================================
-// VERSION SANS TRANSACTION (compatible avec toutes les configs db.js)
+// POST /api/assets/:id/assign - Assigner un asset à un employé (multi-tenant)
 // ============================================================================
 
 const assignAsset = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const { id } = req.params;
+
     const {
       employee_id,
       purpose,
@@ -469,10 +517,10 @@ const assignAsset = async (req, res) => {
       assignment_notes
     } = req.body;
 
-    // Vérifier que l'asset existe et est disponible
+    // ✅ Asset appartient au tenant
     const assetResult = await pool.query(
-      'SELECT * FROM assets WHERE id = $1',
-      [id]
+      'SELECT * FROM assets WHERE id = $1 AND created_by = $2',
+      [id, userId]
     );
 
     if (assetResult.rows.length === 0) {
@@ -482,22 +530,22 @@ const assignAsset = async (req, res) => {
     const asset = assetResult.rows[0];
 
     if (asset.status === 'assigned') {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Asset déjà assigné',
         current_assignment: asset.currently_assigned_to
       });
     }
 
     if (!['available', 'maintenance'].includes(asset.status)) {
-      return res.status(400).json({ 
-        error: `Impossible d'assigner un asset avec le statut: ${asset.status}` 
+      return res.status(400).json({
+        error: `Impossible d'assigner un asset avec le statut: ${asset.status}`
       });
     }
 
-    // Vérifier que l'employé existe
+    // ✅ Employé appartient au tenant
     const employeeResult = await pool.query(
-      'SELECT id, first_name, last_name FROM employees WHERE id = $1',
-      [employee_id]
+      'SELECT id, first_name, last_name FROM employees WHERE id = $1 AND created_by = $2',
+      [employee_id, userId]
     );
 
     if (employeeResult.rows.length === 0) {
@@ -506,23 +554,23 @@ const assignAsset = async (req, res) => {
 
     const employee = employeeResult.rows[0];
 
-    // Créer l'assignation
     const assignmentResult = await pool.query(
       `INSERT INTO asset_assignments (
         asset_id, employee_id, assigned_date, status,
-        condition_on_assignment, purpose, assignment_notes
-      ) VALUES ($1, $2, CURRENT_DATE, 'active', $3, $4, $5)
+        condition_on_assignment, purpose, assignment_notes, created_by
+      ) VALUES ($1, $2, CURRENT_DATE, 'active', $3, $4, $5, $6)
       RETURNING *`,
-      [id, employee_id, condition_on_assignment, purpose, assignment_notes]
+      [id, employee_id, condition_on_assignment, purpose, assignment_notes, userId]
     );
 
-    // Mettre à jour l'asset
     await pool.query(
       `UPDATE assets 
        SET status = 'assigned', currently_assigned_to = $1
-       WHERE id = $2`,
-      [employee_id, id]
+       WHERE id = $2 AND created_by = $3`,
+      [employee_id, id, userId]
     );
+
+    console.log(`✅ Asset ${id} assigné à employé ${employee_id} par user ${userId}`);
 
     res.status(201).json({
       message: `Asset assigné à ${employee.first_name} ${employee.last_name}`,
@@ -531,31 +579,30 @@ const assignAsset = async (req, res) => {
 
   } catch (error) {
     console.error('Error assigning asset:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Erreur lors de l\'assignation',
-      details: error.message 
+      details: error.message
     });
   }
 };
 
 // ============================================================================
-// POST /api/assets/:id/unassign - Retourner un asset
-// ============================================================================
-// VERSION SANS TRANSACTION (compatible avec toutes les configs db.js)
+// POST /api/assets/:id/unassign - Retourner un asset (multi-tenant)
 // ============================================================================
 
 const unassignAsset = async (req, res) => {
   try {
-    const { id } = req.params;
-    const {
-      condition_on_return = 'good',
-      return_notes
-    } = req.body;
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
 
-    // Vérifier que l'asset existe et est assigné
+    const { id } = req.params;
+    const { condition_on_return = 'good', return_notes } = req.body;
+
     const assetResult = await pool.query(
-      'SELECT * FROM assets WHERE id = $1',
-      [id]
+      'SELECT * FROM assets WHERE id = $1 AND created_by = $2',
+      [id, userId]
     );
 
     if (assetResult.rows.length === 0) {
@@ -565,12 +612,11 @@ const unassignAsset = async (req, res) => {
     const asset = assetResult.rows[0];
 
     if (asset.status !== 'assigned') {
-      return res.status(400).json({ 
-        error: 'Asset non assigné, rien à retourner' 
+      return res.status(400).json({
+        error: 'Asset non assigné, rien à retourner'
       });
     }
 
-    // Trouver l'assignation active
     const assignmentResult = await pool.query(
       `SELECT * FROM asset_assignments 
        WHERE asset_id = $1 AND status = 'active'
@@ -580,14 +626,13 @@ const unassignAsset = async (req, res) => {
     );
 
     if (assignmentResult.rows.length === 0) {
-      return res.status(400).json({ 
-        error: 'Aucune assignation active trouvée' 
+      return res.status(400).json({
+        error: 'Aucune assignation active trouvée'
       });
     }
 
     const assignment = assignmentResult.rows[0];
 
-    // Mettre à jour l'assignation
     await pool.query(
       `UPDATE asset_assignments
        SET status = 'returned',
@@ -598,14 +643,13 @@ const unassignAsset = async (req, res) => {
       [condition_on_return, return_notes, assignment.id]
     );
 
-    // Mettre à jour l'asset
     await pool.query(
       `UPDATE assets 
        SET status = 'available', 
            currently_assigned_to = NULL,
            condition = $1
-       WHERE id = $2`,
-      [condition_on_return, id]
+       WHERE id = $2 AND created_by = $3`,
+      [condition_on_return, id, userId]
     );
 
     res.json({
@@ -620,32 +664,35 @@ const unassignAsset = async (req, res) => {
 
   } catch (error) {
     console.error('Error unassigning asset:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Erreur lors du retour',
-      details: error.message 
+      details: error.message
     });
   }
 };
 
 // ============================================================================
-// GET /api/assets/:id/history - Historique des assignations
+// GET /api/assets/:id/history - Historique des assignations (multi-tenant)
 // ============================================================================
 
 const getAssetHistory = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const { id } = req.params;
 
-    // Vérifier que l'asset existe
     const assetCheck = await pool.query(
-      'SELECT id, asset_tag, name FROM assets WHERE id = $1',
-      [id]
+      'SELECT id, asset_tag, name FROM assets WHERE id = $1 AND created_by = $2',
+      [id, userId]
     );
 
     if (assetCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Asset non trouvé' });
     }
 
-    // Récupérer l'historique
     const result = await pool.query(
       `SELECT 
         aa.*,
@@ -654,10 +701,15 @@ const getAssetHistory = async (req, res) => {
         e.department,
         e.job_title
       FROM asset_assignments aa
-      JOIN employees e ON aa.employee_id = e.id
+      JOIN employees e 
+        ON aa.employee_id = e.id
+       AND e.created_by = $2
+      JOIN assets a
+        ON aa.asset_id = a.id
+       AND a.created_by = $2
       WHERE aa.asset_id = $1
       ORDER BY aa.assigned_date DESC`,
-      [id]
+      [id, userId]
     );
 
     res.json({
@@ -667,9 +719,9 @@ const getAssetHistory = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching history:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Erreur lors de la récupération de l\'historique',
-      details: error.message 
+      details: error.message
     });
   }
 };

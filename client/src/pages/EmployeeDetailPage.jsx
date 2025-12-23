@@ -1,8 +1,6 @@
 // ============================================================================
 // EMPLOYEE DETAIL PAGE - COMPLET avec Matériel, Workflows et Création Workflow
-// ============================================================================
-// Fichier : client/src/pages/EmployeeDetailPage.jsx
-// ✅ MODIFIÉ : Utilise CreateWorkflowWithAssignment pour assignation des tâches
+// ✅ CORRIGÉ : Noms de champs (office_location, employment_type, manager)
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -10,12 +8,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Package, ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Briefcase, 
   Calendar, User, FileText, Building, Home, Shuffle, XCircle, GitBranch,
-  Plus
+  Plus, Users
 } from 'lucide-react';
 import employeesApi from '../services/employeesApi';
 import EmployeeAssets from '../components/EmployeeAssets';
 import EmployeeWorkflowsTab from '../components/employees/EmployeeWorkflowsTab';
-import CreateWorkflowWithAssignment from '../components/CreateWorkflowWithAssignment'; // ✅ MODIFIÉ
+import CreateWorkflowWithAssignment from '../components/CreateWorkflowWithAssignment';
 
 const EmployeeDetailPage = () => {
   const { id } = useParams();
@@ -26,6 +24,22 @@ const EmployeeDetailPage = () => {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('infos');
   const [showCreateWorkflowModal, setShowCreateWorkflowModal] = useState(false);
+
+  // ✅ AJOUTÉ : Labels pour employment_type
+  const employmentTypeLabels = {
+    'full_time': 'Temps plein',
+    'part_time': 'Temps partiel',
+    'contractor': 'Contractant',
+    'intern': 'Stagiaire',
+    'temporary': 'Temporaire'
+  };
+
+  // ✅ AJOUTÉ : Labels pour work_mode
+  const workModeLabels = {
+    'on_site': 'Sur site',
+    'remote': 'Remote',
+    'hybrid': 'Hybride'
+  };
 
   useEffect(() => {
     loadEmployee();
@@ -60,10 +74,9 @@ const EmployeeDetailPage = () => {
   };
 
   const handleWorkflowCreated = () => {
-    // Refresh workflows tab
     loadEmployee();
     setActiveTab('workflows');
-    setShowCreateWorkflowModal(false); // ✅ AJOUTÉ
+    setShowCreateWorkflowModal(false);
   };
 
   const formatDate = (dateString) => {
@@ -193,8 +206,15 @@ const EmployeeDetailPage = () => {
                 <div className="info-item">
                   <Mail size={16} className="info-icon" />
                   <div>
-                    <span className="info-label">Email</span>
+                    <span className="info-label">Email professionnel</span>
                     <span className="info-value">{employee.email || '-'}</span>
+                  </div>
+                </div>
+                <div className="info-item">
+                  <Mail size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Email personnel</span>
+                    <span className="info-value">{employee.personal_email || '-'}</span>
                   </div>
                 </div>
                 <div className="info-item">
@@ -229,17 +249,57 @@ const EmployeeDetailPage = () => {
                   </div>
                 </div>
                 <div className="info-item">
+                  <Users size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Équipe</span>
+                    <span className="info-value">{employee.team || '-'}</span>
+                  </div>
+                </div>
+                <div className="info-item">
                   <User size={16} className="info-icon" />
                   <div>
                     <span className="info-label">Manager</span>
                     <span className="info-value">{employee.manager_name || '-'}</span>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Localisation */}
+            <div className="info-card">
+              <h3 className="info-card-title">
+                <MapPin size={20} />
+                Localisation
+              </h3>
+              <div className="info-list">
+                <div className="info-item">
+                  <Building size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Bureau</span>
+                    <span className="info-value">{employee.office_location || '-'}</span>
+                  </div>
+                </div>
                 <div className="info-item">
                   <MapPin size={16} className="info-icon" />
                   <div>
-                    <span className="info-label">Localisation</span>
-                    <span className="info-value">{employee.location || '-'}</span>
+                    <span className="info-label">Ville</span>
+                    <span className="info-value">{employee.city || '-'}</span>
+                  </div>
+                </div>
+                <div className="info-item">
+                  <MapPin size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Pays</span>
+                    <span className="info-value">{employee.country || '-'}</span>
+                  </div>
+                </div>
+                <div className="info-item">
+                  <Home size={16} className="info-icon" />
+                  <div>
+                    <span className="info-label">Mode de travail</span>
+                    <span className="info-value">
+                      {employee.work_mode ? workModeLabels[employee.work_mode] : '-'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -260,25 +320,27 @@ const EmployeeDetailPage = () => {
                   </div>
                 </div>
                 <div className="info-item">
-                  <FileText size={16} className="info-icon" />
+                  <Calendar size={16} className="info-icon" />
                   <div>
-                    <span className="info-label">Type de contrat</span>
-                    <span className="info-value">{employee.contract_type || '-'}</span>
+                    <span className="info-label">Date de début</span>
+                    <span className="info-value">{formatDate(employee.start_date)}</span>
                   </div>
                 </div>
                 <div className="info-item">
-                  <Home size={16} className="info-icon" />
+                  <FileText size={16} className="info-icon" />
                   <div>
-                    <span className="info-label">Mode de travail</span>
-                    <span className="info-value">{employee.work_mode || '-'}</span>
+                    <span className="info-label">Type de contrat</span>
+                    <span className="info-value">
+                      {employee.employment_type ? employmentTypeLabels[employee.employment_type] : '-'}
+                    </span>
                   </div>
                 </div>
-                {employee.exit_date && (
+                {employee.end_date && (
                   <div className="info-item">
                     <Calendar size={16} className="info-icon" />
                     <div>
                       <span className="info-label">Date de sortie</span>
-                      <span className="info-value">{formatDate(employee.exit_date)}</span>
+                      <span className="info-value">{formatDate(employee.end_date)}</span>
                     </div>
                   </div>
                 )}
@@ -307,7 +369,6 @@ const EmployeeDetailPage = () => {
         )}
       </div>
 
-      {/* ✅ MODIFIÉ : Nouveau modal avec assignation des tâches */}
       {showCreateWorkflowModal && (
         <CreateWorkflowWithAssignment
           employee={employee}

@@ -1,9 +1,9 @@
 // ============================================================================
-// ROUTES WORKFLOWS ONBOARDING/OFFBOARDING - VERSION COMPLÈTE
+// ROUTES WORKFLOWS ONBOARDING/OFFBOARDING - VERSION COMPLÈTE CORRIGÉE
 // ============================================================================
 // Fichier : server/src/workflows.routes.js
-// Date : 20 décembre 2024
-// Features : Notifications email + Assignation des tâches
+// Date : 21 décembre 2024
+// ✅ CORRECTION : Ajout filtre created_by dans route /stats (ligne 1034)
 // ============================================================================
 
 const express = require('express');
@@ -877,9 +877,12 @@ router.get('/my-tasks', async (req, res) => {
 /**
  * GET /api/workflows/stats
  * Statistiques globales des workflows
+ * ✅ CORRIGÉ : Ajout filtre created_by pour l'utilisateur connecté
  */
 router.get('/stats', async (req, res) => {
   try {
+    const userId = req.user; // ✅ AJOUTÉ
+    
     const stats = await db.query(`
       SELECT
         COUNT(*) FILTER (WHERE status IN ('pending', 'in_progress')) as active_workflows,
@@ -894,9 +897,11 @@ router.get('/stats', async (req, res) => {
           WHERE ewt.status NOT IN ('completed', 'skipped')
             AND ewt.due_date < CURRENT_DATE
             AND ew.status IN ('pending', 'in_progress')
+            AND ew.created_by = $1 -- ✅ AJOUTÉ
         ) as tasks_overdue
       FROM employee_workflows
-    `);
+      WHERE created_by = $1 -- ✅ AJOUTÉ
+    `, [userId]); // ✅ AJOUTÉ
     
     res.status(200).json({
       stats: stats.rows[0]

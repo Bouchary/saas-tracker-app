@@ -1,15 +1,23 @@
 // ============================================================================
-// EMPLOYEES CONTROLLER - VERSION COMPLÈTE
+// EMPLOYEES CONTROLLER - VERSION CORRIGÉE MULTI-TENANT (created_by)
+// ============================================================================
+// ✅ FIX CRITIQUE : Toutes les lectures/écritures filtrées par created_by = req.user
+// ✅ FIX CRITIQUE : Contrôles d'accès sur :id (lecture/update/delete/assets)
 // ============================================================================
 
-const pool = require('./db'); // ADAPTEZ CE CHEMIN SELON VOTRE STRUCTURE
+const pool = require('./db');
 
 // ============================================================================
-// GET /api/employees - Liste tous les employés
+// GET /api/employees - Liste tous les employés (multi-tenant)
 // ============================================================================
 
 const getAllEmployees = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const {
       page = 1,
       limit = 20,
@@ -18,10 +26,10 @@ const getAllEmployees = async (req, res) => {
       search
     } = req.query;
 
-    // Requête de base
-    let query = 'SELECT * FROM employees WHERE 1=1';
-    const params = [];
-    let paramIndex = 1;
+    // ✅ Base multi-tenant
+    let query = 'SELECT * FROM employees WHERE created_by = $1';
+    const params = [userId];
+    let paramIndex = 2;
 
     // Filtres
     if (status) {
@@ -42,7 +50,7 @@ const getAllEmployees = async (req, res) => {
       paramIndex++;
     }
 
-    // Compter le total
+    // Compter le total (déjà filtré tenant)
     const countQuery = `SELECT COUNT(*) FROM (${query}) as count_query`;
     const countResult = await pool.query(countQuery, params);
     const total = parseInt(countResult.rows[0].count);
@@ -53,7 +61,6 @@ const getAllEmployees = async (req, res) => {
     query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(parseInt(limit), offset);
 
-    // Exécuter
     const result = await pool.query(query, params);
 
     res.json({
@@ -73,16 +80,21 @@ const getAllEmployees = async (req, res) => {
 };
 
 // ============================================================================
-// GET /api/employees/:id - Détails d'un employé
+// GET /api/employees/:id - Détails d'un employé (multi-tenant)
 // ============================================================================
 
 const getEmployeeById = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const { id } = req.params;
 
     const result = await pool.query(
-      'SELECT * FROM employees WHERE id = $1',
-      [id]
+      'SELECT * FROM employees WHERE id = $1 AND created_by = $2',
+      [id, userId]
     );
 
     if (result.rows.length === 0) {
@@ -103,18 +115,34 @@ const getEmployeeById = async (req, res) => {
 
 const createEmployee = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const {
       first_name,
       last_name,
       email,
+      personal_email,
+      phone,
       job_title,
       department,
+      team,
+      manager_id,
       hire_date,
       start_date,
+      employment_type,
+      office_location,
+      work_mode,
+      country,
+      city,
+      notes,
       status = 'active'
     } = req.body;
 
-    // Vérifier email unique
+    // ⚠️ On conserve l'unicité email telle que ton code original (globale),
+    // car on n'a pas le schéma DB employees (risque de contrainte unique globale).
     const checkEmail = await pool.query(
       'SELECT id FROM employees WHERE email = $1',
       [email]
@@ -124,19 +152,27 @@ const createEmployee = async (req, res) => {
       return res.status(409).json({ error: 'Email déjà utilisé' });
     }
 
-    // Générer employee_number
+    // Générer employee_number (on garde logique existante, globale)
     const countResult = await pool.query('SELECT COUNT(*) FROM employees');
     const count = parseInt(countResult.rows[0].count) + 1;
     const employee_number = `EMP-${String(count).padStart(3, '0')}`;
 
-    // Insérer
     const result = await pool.query(
       `INSERT INTO employees 
-       (first_name, last_name, email, employee_number, job_title, department, hire_date, start_date, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       (first_name, last_name, email, personal_email, phone, employee_number, 
+        job_title, department, team, manager_id, hire_date, start_date, 
+        employment_type, office_location, work_mode, country, city, notes, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
        RETURNING *`,
-      [first_name, last_name, email, employee_number, job_title, department, hire_date, start_date, status]
+      [
+        first_name, last_name, email, personal_email, phone, employee_number,
+        job_title, department, team, manager_id, hire_date, start_date,
+        employment_type, office_location, work_mode, country, city, notes, status,
+        userId
+      ]
     );
+
+    console.log(`✅ Employé créé par user ${userId}: ${result.rows[0].employee_number}`);
 
     res.status(201).json({
       message: 'Employé créé',
@@ -150,16 +186,24 @@ const createEmployee = async (req, res) => {
 };
 
 // ============================================================================
-// PUT /api/employees/:id - Mettre à jour un employé
+// PUT /api/employees/:id - Mettre à jour un employé (multi-tenant)
 // ============================================================================
 
 const updateEmployee = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const { id } = req.params;
     const updates = req.body;
 
-    // Vérifier que l'employé existe
-    const check = await pool.query('SELECT id FROM employees WHERE id = $1', [id]);
+    // ✅ Vérifier que l'employé existe ET appartient au user
+    const check = await pool.query(
+      'SELECT id FROM employees WHERE id = $1 AND created_by = $2',
+      [id, userId]
+    );
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Employé non trouvé' });
     }
@@ -175,12 +219,18 @@ const updateEmployee = async (req, res) => {
       paramIndex++;
     });
 
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'Aucun champ à mettre à jour' });
+    }
+
+    // WHERE id + created_by (tenant)
     values.push(id);
+    values.push(userId);
 
     const query = `
       UPDATE employees 
       SET ${fields.join(', ')}
-      WHERE id = $${paramIndex}
+      WHERE id = $${paramIndex} AND created_by = $${paramIndex + 1}
       RETURNING *
     `;
 
@@ -198,19 +248,24 @@ const updateEmployee = async (req, res) => {
 };
 
 // ============================================================================
-// DELETE /api/employees/:id - Supprimer (soft delete)
+// DELETE /api/employees/:id - Supprimer (soft delete) (multi-tenant)
 // ============================================================================
 
 const deleteEmployee = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const { id } = req.params;
 
     const result = await pool.query(
       `UPDATE employees 
        SET status = 'exited', end_date = CURRENT_DATE
-       WHERE id = $1
+       WHERE id = $1 AND created_by = $2
        RETURNING *`,
-      [id]
+      [id, userId]
     );
 
     if (result.rows.length === 0) {
@@ -229,33 +284,45 @@ const deleteEmployee = async (req, res) => {
 };
 
 // ============================================================================
-// GET /api/employees/stats - Statistiques
+// GET /api/employees/stats - Statistiques (multi-tenant)
 // ============================================================================
 
 const getEmployeeStats = async (req, res) => {
   try {
-    // Total
-    const totalResult = await pool.query('SELECT COUNT(*) FROM employees');
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
+    // Total (tenant)
+    const totalResult = await pool.query(
+      'SELECT COUNT(*) FROM employees WHERE created_by = $1',
+      [userId]
+    );
     const total = parseInt(totalResult.rows[0].count);
 
-    // Par statut
-    const statusResult = await pool.query(`
-      SELECT status, COUNT(*) as count
-      FROM employees
-      GROUP BY status
-    `);
+    // Par statut (tenant)
+    const statusResult = await pool.query(
+      `SELECT status, COUNT(*) as count
+       FROM employees
+       WHERE created_by = $1
+       GROUP BY status`,
+      [userId]
+    );
     const byStatus = {};
     statusResult.rows.forEach(row => {
       byStatus[row.status] = parseInt(row.count);
     });
 
-    // Par département
-    const deptResult = await pool.query(`
-      SELECT department, COUNT(*) as count
-      FROM employees
-      GROUP BY department
-      ORDER BY count DESC
-    `);
+    // Par département (tenant)
+    const deptResult = await pool.query(
+      `SELECT department, COUNT(*) as count
+       FROM employees
+       WHERE created_by = $1
+       GROUP BY department
+       ORDER BY count DESC`,
+      [userId]
+    );
     const byDepartment = {};
     deptResult.rows.forEach(row => {
       byDepartment[row.department] = parseInt(row.count);
@@ -274,19 +341,22 @@ const getEmployeeStats = async (req, res) => {
 };
 
 // ============================================================================
-// 🆕 GET /api/employees/:id/assets - Assets assignés à un employé
-// ============================================================================
-// PHASE 10 - JOUR 4 : INTÉGRATION EMPLOYÉS ↔ MATÉRIEL
+// GET /api/employees/:id/assets - Assets assignés à un employé (multi-tenant)
 // ============================================================================
 
 const getEmployeeAssets = async (req, res) => {
   try {
+    const userId = req.user;
+    if (!userId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+
     const { id } = req.params;
 
-    // Vérifier que l'employé existe
+    // ✅ Vérifier que l'employé existe ET appartient au tenant
     const employeeCheck = await pool.query(
-      'SELECT id, first_name, last_name FROM employees WHERE id = $1',
-      [id]
+      'SELECT id, first_name, last_name FROM employees WHERE id = $1 AND created_by = $2',
+      [id, userId]
     );
 
     if (employeeCheck.rows.length === 0) {
@@ -295,7 +365,7 @@ const getEmployeeAssets = async (req, res) => {
 
     const employee = employeeCheck.rows[0];
 
-    // Récupérer les assets actuellement assignés
+    // ✅ Assets actuellement assignés (tenant-safe via a.created_by)
     const currentAssetsResult = await pool.query(
       `SELECT 
         a.*,
@@ -306,11 +376,12 @@ const getEmployeeAssets = async (req, res) => {
       JOIN asset_assignments aa ON a.id = aa.asset_id
       WHERE aa.employee_id = $1 
         AND aa.status = 'active'
+        AND a.created_by = $2
       ORDER BY aa.assigned_date DESC`,
-      [id]
+      [id, userId]
     );
 
-    // Récupérer l'historique complet
+    // ✅ Historique complet (tenant-safe)
     const historyResult = await pool.query(
       `SELECT 
         a.id,
@@ -328,18 +399,17 @@ const getEmployeeAssets = async (req, res) => {
       FROM asset_assignments aa
       JOIN assets a ON aa.asset_id = a.id
       WHERE aa.employee_id = $1
+        AND a.created_by = $2
       ORDER BY aa.assigned_date DESC`,
-      [id]
+      [id, userId]
     );
 
-    // Calculer des statistiques
     const stats = {
       total_current: currentAssetsResult.rows.length,
       total_history: historyResult.rows.length,
       by_type: {}
     };
 
-    // Compter par type (assets actuels)
     currentAssetsResult.rows.forEach(asset => {
       stats.by_type[asset.asset_type] = (stats.by_type[asset.asset_type] || 0) + 1;
     });
@@ -356,9 +426,9 @@ const getEmployeeAssets = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching employee assets:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Erreur lors de la récupération des assets',
-      details: error.message 
+      details: error.message
     });
   }
 };
@@ -374,5 +444,5 @@ module.exports = {
   updateEmployee,
   deleteEmployee,
   getEmployeeStats,
-  getEmployeeAssets  // 🆕 AJOUTÉ POUR PHASE 10 - JOUR 4
+  getEmployeeAssets
 };

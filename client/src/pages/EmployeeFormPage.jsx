@@ -1,12 +1,13 @@
 // ============================================================================
 // EMPLOYEE FORM PAGE - Création/Édition AVEC ICÔNES LUCIDE-REACT
+// ✅ CORRIGÉ : Ajout du champ manager_id
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Edit, Plus, Save, User, Briefcase, 
-  Calendar, MapPin, FileText, XCircle
+  Calendar, MapPin, FileText, XCircle, Users
 } from 'lucide-react';
 import employeesApi from '../services/employeesApi';
 
@@ -24,6 +25,7 @@ const EmployeeFormPage = () => {
     job_title: '',
     department: '',
     team: '',
+    manager_id: '', // ✅ AJOUTÉ
     hire_date: '',
     start_date: '',
     status: 'active',
@@ -38,13 +40,27 @@ const EmployeeFormPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [errors, setErrors] = useState({});
+  const [managers, setManagers] = useState([]); // ✅ AJOUTÉ
 
   // Charger l'employé si mode édition
   useEffect(() => {
+    loadManagers(); // ✅ AJOUTÉ
     if (isEditMode) {
       loadEmployee();
     }
   }, [id]);
+
+  // ✅ NOUVELLE FONCTION : Charger la liste des managers potentiels
+  const loadManagers = async () => {
+    try {
+      const data = await employeesApi.getAll({ status: 'active', limit: 1000 });
+      // Exclure l'employé en cours d'édition de la liste des managers
+      const managersList = data.employees.filter(emp => emp.id !== parseInt(id));
+      setManagers(managersList);
+    } catch (err) {
+      console.error('Erreur chargement managers:', err);
+    }
+  };
 
   const loadEmployee = async () => {
     try {
@@ -62,6 +78,7 @@ const EmployeeFormPage = () => {
         job_title: emp.job_title || '',
         department: emp.department || '',
         team: emp.team || '',
+        manager_id: emp.manager_id || '', // ✅ AJOUTÉ
         hire_date: emp.hire_date ? emp.hire_date.split('T')[0] : '',
         start_date: emp.start_date ? emp.start_date.split('T')[0] : '',
         status: emp.status || 'active',
@@ -146,11 +163,17 @@ const EmployeeFormPage = () => {
       setLoading(true);
       setError(null);
 
+      // Préparer les données (convertir manager_id vide en null)
+      const dataToSend = {
+        ...formData,
+        manager_id: formData.manager_id ? parseInt(formData.manager_id) : null
+      };
+
       if (isEditMode) {
-        await employeesApi.update(id, formData);
+        await employeesApi.update(id, dataToSend);
         alert('Employé mis à jour avec succès !');
       } else {
-        await employeesApi.create(formData);
+        await employeesApi.create(dataToSend);
         alert('Employé créé avec succès !');
       }
 
@@ -321,16 +344,39 @@ const EmployeeFormPage = () => {
             </div>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="team">Équipe</label>
-            <input
-              type="text"
-              id="team"
-              name="team"
-              value={formData.team}
-              onChange={handleChange}
-              placeholder="Ex: Frontend Team"
-            />
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="team">Équipe</label>
+              <input
+                type="text"
+                id="team"
+                name="team"
+                value={formData.team}
+                onChange={handleChange}
+                placeholder="Ex: Frontend Team"
+              />
+            </div>
+
+            {/* ✅ NOUVEAU CHAMP : Manager */}
+            <div className="form-group">
+              <label htmlFor="manager_id">
+                <Users className="w-4 h-4 inline mr-1" />
+                Manager
+              </label>
+              <select
+                id="manager_id"
+                name="manager_id"
+                value={formData.manager_id}
+                onChange={handleChange}
+              >
+                <option value="">Aucun manager</option>
+                {managers.map(manager => (
+                  <option key={manager.id} value={manager.id}>
+                    {manager.first_name} {manager.last_name} - {manager.job_title || 'Sans poste'}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="form-row">
