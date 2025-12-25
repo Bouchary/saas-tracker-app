@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../AuthContext';
 import { 
   Users, Filter, Search, CheckCircle2, Clock, AlertCircle, 
   TrendingUp, Rocket, LogOut, Calendar, User, Building,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 
 const WorkflowsPage = () => {
+  const { token: authToken } = useAuth();
   const [workflows, setWorkflows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,7 +32,7 @@ const WorkflowsPage = () => {
   const fetchWorkflows = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = authToken || localStorage.getItem('userToken') || localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       
       const params = new URLSearchParams();

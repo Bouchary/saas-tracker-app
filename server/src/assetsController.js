@@ -4,9 +4,10 @@
 // ✅ FIX CRITIQUE : Filtre created_by = req.user sur toutes les opérations
 // ✅ FIX CRITIQUE : JOIN employees tenant-safe
 // ✅ FIX CRITIQUE : Vérifs ownership sur :id + assign/unassign/history
+// ✅ CORRECTION #2 : Harmonisation pool → db
 // ============================================================================
 
-const pool = require('./db');
+const db = require('./db');
 
 // ============================================================================
 // GET /api/assets - Liste des assets avec filtres (multi-tenant)
@@ -83,7 +84,7 @@ const getAllAssets = async (req, res) => {
     }
 
     const countQuery = `SELECT COUNT(*) FROM (${query}) as count_query`;
-    const countResult = await pool.query(countQuery, params);
+    const countResult = await db.query(countQuery, params);
     const total = parseInt(countResult.rows[0].count);
 
     const validSortFields = ['asset_tag', 'name', 'asset_type', 'status', 'manufacturer', 'purchase_date'];
@@ -96,7 +97,7 @@ const getAllAssets = async (req, res) => {
     query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(parseInt(limit), offset);
 
-    const result = await pool.query(query, params);
+    const result = await db.query(query, params);
 
     res.json({
       assets: result.rows,
@@ -128,13 +129,13 @@ const getAssetStats = async (req, res) => {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
-    const totalResult = await pool.query(
+    const totalResult = await db.query(
       'SELECT COUNT(*) FROM assets WHERE created_by = $1',
       [userId]
     );
     const total = parseInt(totalResult.rows[0].count);
 
-    const typeResult = await pool.query(
+    const typeResult = await db.query(
       `SELECT asset_type, COUNT(*) as count
        FROM assets
        WHERE created_by = $1
@@ -147,7 +148,7 @@ const getAssetStats = async (req, res) => {
       byType[row.asset_type] = parseInt(row.count);
     });
 
-    const statusResult = await pool.query(
+    const statusResult = await db.query(
       `SELECT status, COUNT(*) as count
        FROM assets
        WHERE created_by = $1
@@ -160,7 +161,7 @@ const getAssetStats = async (req, res) => {
       byStatus[row.status] = parseInt(row.count);
     });
 
-    const manufacturerResult = await pool.query(
+    const manufacturerResult = await db.query(
       `SELECT manufacturer, COUNT(*) as count
        FROM assets
        WHERE created_by = $1 AND manufacturer IS NOT NULL
@@ -174,7 +175,7 @@ const getAssetStats = async (req, res) => {
       byManufacturer[row.manufacturer] = parseInt(row.count);
     });
 
-    const valueResult = await pool.query(
+    const valueResult = await db.query(
       `SELECT 
         SUM(purchase_price) as total_value,
         currency
@@ -214,7 +215,7 @@ const getAssetById = async (req, res) => {
 
     const { id } = req.params;
 
-    const assetResult = await pool.query(`
+    const assetResult = await db.query(`
       SELECT 
         a.*,
         e.id AS assigned_to_id,
@@ -237,7 +238,7 @@ const getAssetById = async (req, res) => {
 
     let currentAssignment = null;
     if (asset.currently_assigned_to) {
-      const assignmentResult = await pool.query(`
+      const assignmentResult = await db.query(`
         SELECT 
           aa.*,
           e.first_name || ' ' || e.last_name AS employee_name,
@@ -257,7 +258,7 @@ const getAssetById = async (req, res) => {
       }
     }
 
-    const historyResult = await pool.query(`
+    const historyResult = await db.query(`
       SELECT 
         aa.*,
         e.first_name || ' ' || e.last_name AS employee_name,
@@ -319,7 +320,7 @@ const createAsset = async (req, res) => {
     } = req.body;
 
     // ⚠️ On conserve les checks d'unicité globaux (cf. explication employeesController).
-    const checkTag = await pool.query(
+    const checkTag = await db.query(
       'SELECT id FROM assets WHERE asset_tag = $1',
       [asset_tag]
     );
@@ -329,7 +330,7 @@ const createAsset = async (req, res) => {
     }
 
     if (serial_number) {
-      const checkSerial = await pool.query(
+      const checkSerial = await db.query(
         'SELECT id FROM assets WHERE serial_number = $1',
         [serial_number]
       );
@@ -339,7 +340,7 @@ const createAsset = async (req, res) => {
       }
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `INSERT INTO assets (
         asset_tag, name, asset_type, manufacturer, model, serial_number,
         specifications, status, condition, purchase_date, purchase_price,
@@ -385,7 +386,7 @@ const updateAsset = async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
 
-    const check = await pool.query(
+    const check = await db.query(
       'SELECT id FROM assets WHERE id = $1 AND created_by = $2',
       [id, userId]
     );
@@ -426,7 +427,7 @@ const updateAsset = async (req, res) => {
       RETURNING *
     `;
 
-    const result = await pool.query(query, values);
+    const result = await db.query(query, values);
 
     res.json({
       message: 'Asset mis à jour',
@@ -456,7 +457,7 @@ const deleteAsset = async (req, res) => {
     const { id } = req.params;
 
     // ✅ Vérifier ownership
-    const assetCheck = await pool.query(
+    const assetCheck = await db.query(
       'SELECT id FROM assets WHERE id = $1 AND created_by = $2',
       [id, userId]
     );
@@ -464,7 +465,7 @@ const deleteAsset = async (req, res) => {
       return res.status(404).json({ error: 'Asset non trouvé' });
     }
 
-    const checkAssignment = await pool.query(
+    const checkAssignment = await db.query(
       'SELECT id FROM asset_assignments WHERE asset_id = $1 AND status = $2',
       [id, 'active']
     );
@@ -475,7 +476,7 @@ const deleteAsset = async (req, res) => {
       });
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `UPDATE assets 
        SET status = 'retired'
        WHERE id = $1 AND created_by = $2
@@ -518,7 +519,7 @@ const assignAsset = async (req, res) => {
     } = req.body;
 
     // ✅ Asset appartient au tenant
-    const assetResult = await pool.query(
+    const assetResult = await db.query(
       'SELECT * FROM assets WHERE id = $1 AND created_by = $2',
       [id, userId]
     );
@@ -543,7 +544,7 @@ const assignAsset = async (req, res) => {
     }
 
     // ✅ Employé appartient au tenant
-    const employeeResult = await pool.query(
+    const employeeResult = await db.query(
       'SELECT id, first_name, last_name FROM employees WHERE id = $1 AND created_by = $2',
       [employee_id, userId]
     );
@@ -554,7 +555,7 @@ const assignAsset = async (req, res) => {
 
     const employee = employeeResult.rows[0];
 
-    const assignmentResult = await pool.query(
+    const assignmentResult = await db.query(
       `INSERT INTO asset_assignments (
         asset_id, employee_id, assigned_date, status,
         condition_on_assignment, purpose, assignment_notes, created_by
@@ -563,7 +564,7 @@ const assignAsset = async (req, res) => {
       [id, employee_id, condition_on_assignment, purpose, assignment_notes, userId]
     );
 
-    await pool.query(
+    await db.query(
       `UPDATE assets 
        SET status = 'assigned', currently_assigned_to = $1
        WHERE id = $2 AND created_by = $3`,
@@ -600,7 +601,7 @@ const unassignAsset = async (req, res) => {
     const { id } = req.params;
     const { condition_on_return = 'good', return_notes } = req.body;
 
-    const assetResult = await pool.query(
+    const assetResult = await db.query(
       'SELECT * FROM assets WHERE id = $1 AND created_by = $2',
       [id, userId]
     );
@@ -617,12 +618,17 @@ const unassignAsset = async (req, res) => {
       });
     }
 
-    const assignmentResult = await pool.query(
-      `SELECT * FROM asset_assignments 
-       WHERE asset_id = $1 AND status = 'active'
-       ORDER BY assigned_date DESC
+    // ✅ CORRECTION #6 : Vérification tenant sur assignment
+    const assignmentResult = await db.query(
+      `SELECT aa.* 
+       FROM asset_assignments aa
+       JOIN assets a ON aa.asset_id = a.id
+       WHERE aa.asset_id = $1 
+         AND aa.status = 'active'
+         AND a.created_by = $2
+       ORDER BY aa.assigned_date DESC
        LIMIT 1`,
-      [id]
+      [id, userId]
     );
 
     if (assignmentResult.rows.length === 0) {
@@ -633,7 +639,7 @@ const unassignAsset = async (req, res) => {
 
     const assignment = assignmentResult.rows[0];
 
-    await pool.query(
+    await db.query(
       `UPDATE asset_assignments
        SET status = 'returned',
            actual_return_date = CURRENT_DATE,
@@ -643,7 +649,7 @@ const unassignAsset = async (req, res) => {
       [condition_on_return, return_notes, assignment.id]
     );
 
-    await pool.query(
+    await db.query(
       `UPDATE assets 
        SET status = 'available', 
            currently_assigned_to = NULL,
@@ -684,7 +690,7 @@ const getAssetHistory = async (req, res) => {
 
     const { id } = req.params;
 
-    const assetCheck = await pool.query(
+    const assetCheck = await db.query(
       'SELECT id, asset_tag, name FROM assets WHERE id = $1 AND created_by = $2',
       [id, userId]
     );
@@ -693,7 +699,7 @@ const getAssetHistory = async (req, res) => {
       return res.status(404).json({ error: 'Asset non trouvé' });
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT 
         aa.*,
         e.first_name || ' ' || e.last_name AS employee_name,

@@ -1,4 +1,6 @@
 // server/src/contractsController.js
+// ✅ CORRECTION #7 : Limite par défaut 20 (au lieu de 1000)
+// ✅ CORRECTION #8 : Message validation cohérent avec le code
 
 const db = require('./db');
 const { sanitizeString } = require('./middlewares/validation');
@@ -15,7 +17,7 @@ const getAllContracts = async (req, res) => {
 
     // Paramètres de pagination
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 1000;
+    const limit = parseInt(req.query.limit) || 20; // ✅ CORRECTION #7 : 20 au lieu de 1000
     const offset = (page - 1) * limit;
 
     // Paramètres de recherche et filtres
@@ -25,10 +27,11 @@ const getAllContracts = async (req, res) => {
     const sortBy = req.query.sortBy || 'renewal_date';
     const sortOrder = req.query.sortOrder === 'desc' ? 'DESC' : 'ASC';
 
-    // Validation des paramètres
-    if (page < 1 || limit < 1 || limit > 10000) {
+    // ✅ CORRECTION #8 : Validation cohérente (max 100)
+    const maxLimit = 100;
+    if (page < 1 || limit < 1 || limit > maxLimit) {
         return res.status(400).json({ 
-            error: 'Paramètres de pagination invalides. Page >= 1, Limit entre 1 et 100.' 
+            error: `Paramètres de pagination invalides. Page >= 1, Limit entre 1 et ${maxLimit}.` 
         });
     }
 
@@ -135,6 +138,14 @@ const createContract = async (req, res) => {
     const unit_cost = req.body.unit_cost ? parseFloat(req.body.unit_cost) : null;
     const real_users = req.body.real_users ? parseInt(req.body.real_users) : null; // ✨ NOUVEAU
 
+    // ✅ CORRECTION #10 : Validation pricing_model
+    const validPricingModels = ['fixed', 'per_user', 'usage_based'];
+    if (!validPricingModels.includes(pricing_model)) {
+        return res.status(400).json({ 
+            error: `Type de tarification invalide. Valeurs autorisées: ${validPricingModels.join(', ')}` 
+        });
+    }
+
     // ✅ CALCUL AUTOMATIQUE DU COÛT
     let monthly_cost = req.body.monthly_cost ? parseFloat(req.body.monthly_cost) : null;
     
@@ -209,6 +220,14 @@ const updateContract = async (req, res) => {
         const licenses_used = req.body.licenses_used !== undefined ? (req.body.licenses_used ? parseInt(req.body.licenses_used) : null) : undefined;
         const unit_cost = req.body.unit_cost !== undefined ? (req.body.unit_cost ? parseFloat(req.body.unit_cost) : null) : undefined;
         const real_users = req.body.real_users !== undefined ? (req.body.real_users ? parseInt(req.body.real_users) : null) : undefined; // ✨ NOUVEAU
+
+        // ✅ CORRECTION #10 : Validation pricing_model si fourni
+        const validPricingModels = ['fixed', 'per_user', 'usage_based'];
+        if (pricing_model !== undefined && !validPricingModels.includes(pricing_model)) {
+            return res.status(400).json({ 
+                error: `Type de tarification invalide. Valeurs autorisées: ${validPricingModels.join(', ')}` 
+            });
+        }
 
         // ✅ CALCUL AUTOMATIQUE DU COÛT
         let monthly_cost = req.body.monthly_cost !== undefined ? parseFloat(req.body.monthly_cost) : undefined;

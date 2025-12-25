@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../AuthContext';
 import {
   CheckCircle2, Clock, AlertCircle, User, Building, Calendar,
   FileText, List, Filter, RefreshCw, ChevronDown, ChevronUp,
@@ -14,6 +15,8 @@ import {
 } from 'lucide-react';
 
 const MyTasksPage = () => {
+  const { token: authToken } = useAuth();
+
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,25 +31,25 @@ const MyTasksPage = () => {
   const fetchMyTasks = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = authToken || localStorage.getItem('userToken') || localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       let url = `${apiUrl}/api/workflows/my-tasks`;
-      
+
       const params = new URLSearchParams();
       if (filter === 'overdue') params.append('overdue', 'true');
       if (filter === 'due_soon') params.append('due_soon', 'true');
       if (teamFilter !== 'all') params.append('team', teamFilter);
-      
+
       if (params.toString()) url += `?${params.toString()}`;
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!response.ok) throw new Error('Failed to fetch tasks');
-      
+
       const data = await response.json();
       setTasks(data.tasks || []);
       setError(null);
@@ -60,9 +63,9 @@ const MyTasksPage = () => {
 
   const handleCompleteTask = async (workflowId, taskId) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = authToken || localStorage.getItem('userToken') || localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      
+
       const response = await fetch(
         `${apiUrl}/api/workflows/${workflowId}/tasks/${taskId}`,
         {
@@ -77,9 +80,9 @@ const MyTasksPage = () => {
           })
         }
       );
-      
+
       if (!response.ok) throw new Error('Failed to complete task');
-      
+
       fetchMyTasks();
     } catch (err) {
       console.error('Error completing task:', err);
@@ -90,11 +93,11 @@ const MyTasksPage = () => {
   const handleSkipTask = async (workflowId, taskId) => {
     const reason = prompt('Raison de l\'ignoré (optionnel):');
     if (reason === null) return;
-    
+
     try {
-      const token = localStorage.getItem('token');
+      const token = authToken || localStorage.getItem('userToken') || localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      
+
       const response = await fetch(
         `${apiUrl}/api/workflows/${workflowId}/tasks/${taskId}/skip`,
         {
@@ -108,9 +111,9 @@ const MyTasksPage = () => {
           })
         }
       );
-      
+
       if (!response.ok) throw new Error('Failed to skip task');
-      
+
       fetchMyTasks();
     } catch (err) {
       console.error('Error skipping task:', err);
@@ -161,9 +164,9 @@ const MyTasksPage = () => {
       Legal: { icon: '⚖️', color: 'bg-red-100 text-red-800 border-red-200' },
       Admin: { icon: '📋', color: 'bg-gray-100 text-gray-800 border-gray-200' }
     };
-    
+
     const config = teamConfig[team] || { icon: '📌', color: 'bg-gray-100 text-gray-800 border-gray-200' };
-    
+
     return (
       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${config.color}`}>
         <span className="mr-1">{config.icon}</span>
@@ -233,7 +236,7 @@ const MyTasksPage = () => {
               </div>
               <p className="text-3xl font-bold text-gray-900">{formatNumber(tasks.length)}</p>
             </div>
-            
+
             <div className="bg-red-50 rounded-lg shadow-sm border-2 border-red-200 p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-red-600">En retard</p>
@@ -241,7 +244,7 @@ const MyTasksPage = () => {
               </div>
               <p className="text-3xl font-bold text-red-700">{formatNumber(overdueTasks.length)}</p>
             </div>
-            
+
             <div className="bg-orange-50 rounded-lg shadow-sm border-2 border-orange-200 p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-orange-600">Urgentes</p>
@@ -249,7 +252,7 @@ const MyTasksPage = () => {
               </div>
               <p className="text-3xl font-bold text-orange-700">{formatNumber(dueSoonTasks.length)}</p>
             </div>
-            
+
             <div className="bg-green-50 rounded-lg shadow-sm border-2 border-green-200 p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-green-600">Normales</p>
@@ -442,11 +445,11 @@ const MyTasksPage = () => {
 // TASK CARD COMPONENT
 // ============================================================================
 
-const TaskCard = ({ 
-  task, 
-  expanded, 
-  onToggle, 
-  onComplete, 
+const TaskCard = ({
+  task,
+  expanded,
+  onToggle,
+  onComplete,
   onSkip,
   getUrgencyBadge,
   getTeamBadge,

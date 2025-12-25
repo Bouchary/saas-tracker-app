@@ -25,8 +25,9 @@ router.use(protect);
  */
 router.get('/templates', async (req, res) => {
   try {
+    const userId = req.user;
     const { type, department, is_active } = req.query;
-    
+
     let query = `
       SELECT 
         t.id,
@@ -49,38 +50,36 @@ router.get('/templates', async (req, res) => {
         t.updated_at
       FROM workflow_templates t
       LEFT JOIN workflow_tasks wt ON t.id = wt.template_id
-      WHERE 1=1
+      WHERE t.created_by = $1
     `;
-    
-    const params = [];
-    let paramIndex = 1;
-    
+
+    const params = [userId];
+    let paramIndex = 2;
+
     if (type) {
       query += ` AND t.type = $${paramIndex++}`;
       params.push(type);
     }
-    
+
     if (department) {
       query += ` AND t.department = $${paramIndex++}`;
       params.push(department);
     }
-    
+
     if (is_active !== undefined) {
       query += ` AND t.is_active = $${paramIndex++}`;
       params.push(is_active === 'true');
     }
-    
+
     query += `
       GROUP BY t.id
       ORDER BY t.is_default DESC, t.created_at DESC
     `;
-    
+
     const result = await db.query(query, params);
-    
-    res.status(200).json({
-      templates: result.rows
-    });
-    
+
+    res.status(200).json({ templates: result.rows });
+
   } catch (error) {
     console.error('❌ Error fetching templates:', error);
     res.status(500).json({ error: 'Failed to fetch templates' });
@@ -93,19 +92,22 @@ router.get('/templates', async (req, res) => {
  */
 router.get('/templates/:id', async (req, res) => {
   try {
+    const userId = req.user;
     const { id } = req.params;
-    
-    // Récupérer le template
+
+    // Récupérer le template (multi-tenant)
     const templateResult = await db.query(`
-      SELECT * FROM workflow_templates WHERE id = $1
-    `, [id]);
-    
+      SELECT * 
+      FROM workflow_templates 
+      WHERE id = $1 AND created_by = $2
+    `, [id, userId]);
+
     if (templateResult.rows.length === 0) {
       return res.status(404).json({ error: 'Template not found' });
     }
-    
+
     const template = templateResult.rows[0];
-    
+
     // Récupérer les tâches
     const tasksResult = await db.query(`
       SELECT 
@@ -127,11 +129,11 @@ router.get('/templates/:id', async (req, res) => {
       WHERE template_id = $1
       ORDER BY task_order ASC
     `, [id]);
-    
+
     template.tasks = tasksResult.rows;
-    
+
     res.status(200).json({ template });
-    
+
   } catch (error) {
     console.error('❌ Error fetching template:', error);
     res.status(500).json({ error: 'Failed to fetch template' });
@@ -144,6 +146,7 @@ router.get('/templates/:id', async (req, res) => {
  */
 router.post('/templates', async (req, res) => {
   try {
+    const userId = req.user;
     const {
       name,
       description,
@@ -164,23 +167,20 @@ router.post('/templates', async (req, res) => {
       return res.status(400).json({ error: 'Invalid type' });
     }
 
-    // Start transaction
     await db.query('BEGIN');
 
     try {
-      // Create template
       const templateResult = await db.query(`
         INSERT INTO workflow_templates (
           name, description, type, department, job_title, 
-          is_default, is_active
+          is_default, is_active, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
         RETURNING *
-      `, [name, description, type, department, job_title, is_default, is_active]);
+      `, [name, description, type, department, job_title, is_default, is_active, userId]);
 
       const template = templateResult.rows[0];
 
-      // Create tasks if provided
       if (tasks && tasks.length > 0) {
         for (const task of tasks) {
           await db.query(`
@@ -230,6 +230,7 @@ router.post('/templates', async (req, res) => {
  */
 router.put('/templates/:id', async (req, res) => {
   try {
+    const userId = req.user;
     const { id } = req.params;
     const {
       name,
@@ -242,16 +243,13 @@ router.put('/templates/:id', async (req, res) => {
       tasks
     } = req.body;
 
-    // Validation
     if (!name || !type) {
       return res.status(400).json({ error: 'Name and type are required' });
     }
 
-    // Start transaction
     await db.query('BEGIN');
 
     try {
-      // Update template
       const templateResult = await db.query(`
         UPDATE workflow_templates
         SET 
@@ -262,10 +260,11 @@ router.put('/templates/:id', async (req, res) => {
           job_title = $5,
           is_default = $6,
           is_active = $7,
-          updated_at = NOW()
-        WHERE id = $8
+          updated_at = NOW(),
+          updated_by = $8
+        WHERE id = $9 AND created_by = $8
         RETURNING *
-      `, [name, description, type, department, job_title, is_default, is_active, id]);
+      `, [name, description, type, department, job_title, is_default, is_active, userId, id]);
 
       if (templateResult.rows.length === 0) {
         await db.query('ROLLBACK');
@@ -274,10 +273,8 @@ router.put('/templates/:id', async (req, res) => {
 
       const template = templateResult.rows[0];
 
-      // Delete existing tasks
       await db.query('DELETE FROM workflow_tasks WHERE template_id = $1', [id]);
 
-      // Create new tasks
       if (tasks && tasks.length > 0) {
         for (const task of tasks) {
           await db.query(`
@@ -327,23 +324,23 @@ router.put('/templates/:id', async (req, res) => {
  */
 router.delete('/templates/:id', async (req, res) => {
   try {
+    const userId = req.user;
     const { id } = req.params;
 
-    // Check if template is used in workflows
+    // Check if template is used in workflows (tenant-safe)
     const usageCheck = await db.query(`
       SELECT COUNT(*) as count
       FROM employee_workflows
-      WHERE template_id = $1
-    `, [id]);
+      WHERE template_id = $1 AND created_by = $2
+    `, [id, userId]);
 
     if (parseInt(usageCheck.rows[0].count) > 0) {
-      // Soft delete - just mark as inactive
       const result = await db.query(`
         UPDATE workflow_templates
-        SET is_active = false, updated_at = NOW()
-        WHERE id = $1
+        SET is_active = false, updated_at = NOW(), updated_by = $2
+        WHERE id = $1 AND created_by = $2
         RETURNING *
-      `, [id]);
+      `, [id, userId]);
 
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Template not found' });
@@ -355,19 +352,16 @@ router.delete('/templates/:id', async (req, res) => {
       });
     }
 
-    // Hard delete if not used
     await db.query('BEGIN');
 
     try {
-      // Delete tasks first
       await db.query('DELETE FROM workflow_tasks WHERE template_id = $1', [id]);
 
-      // Delete template
       const result = await db.query(`
         DELETE FROM workflow_templates
-        WHERE id = $1
+        WHERE id = $1 AND created_by = $2
         RETURNING *
-      `, [id]);
+      `, [id, userId]);
 
       if (result.rows.length === 0) {
         await db.query('ROLLBACK');
@@ -402,8 +396,9 @@ router.delete('/templates/:id', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
+    const userId = req.user;
     const { status, type, employee_id, overdue } = req.query;
-    
+
     let query = `
       SELECT 
         ew.id,
@@ -415,7 +410,7 @@ router.get('/', async (req, res) => {
         ew.completion_percentage,
         ew.started_at,
         ew.completed_at,
-        
+
         -- Employé
         json_build_object(
           'id', e.id,
@@ -425,13 +420,13 @@ router.get('/', async (req, res) => {
           'department', e.department,
           'job_title', e.job_title
         ) as employee,
-        
+
         -- Template
         json_build_object(
           'id', wt.id,
           'name', wt.name
         ) as template,
-        
+
         -- Tâches en retard
         (
           SELECT COUNT(*)
@@ -440,34 +435,34 @@ router.get('/', async (req, res) => {
             AND ewt.status NOT IN ('completed', 'skipped')
             AND ewt.due_date < CURRENT_DATE
         ) as overdue_tasks,
-        
+
         -- Jours avant target
         (ew.target_date - CURRENT_DATE) as days_until_target
-        
+
       FROM employee_workflows ew
-      JOIN employees e ON ew.employee_id = e.id
+      JOIN employees e ON ew.employee_id = e.id AND e.created_by = $1
       LEFT JOIN workflow_templates wt ON ew.template_id = wt.id
-      WHERE 1=1
+      WHERE ew.created_by = $1
     `;
-    
-    const params = [];
-    let paramIndex = 1;
-    
+
+    const params = [userId];
+    let paramIndex = 2;
+
     if (status) {
       query += ` AND ew.status = $${paramIndex++}`;
       params.push(status);
     }
-    
+
     if (type) {
       query += ` AND ew.workflow_type = $${paramIndex++}`;
       params.push(type);
     }
-    
+
     if (employee_id) {
       query += ` AND ew.employee_id = $${paramIndex++}`;
       params.push(employee_id);
     }
-    
+
     if (overdue === 'true') {
       query += ` AND EXISTS (
         SELECT 1 FROM employee_workflow_tasks ewt
@@ -476,15 +471,13 @@ router.get('/', async (req, res) => {
           AND ewt.due_date < CURRENT_DATE
       )`;
     }
-    
+
     query += ` ORDER BY ew.target_date ASC`;
-    
+
     const result = await db.query(query, params);
-    
-    res.status(200).json({
-      workflows: result.rows
-    });
-    
+
+    res.status(200).json({ workflows: result.rows });
+
   } catch (error) {
     console.error('❌ Error fetching workflows:', error);
     res.status(500).json({ error: 'Failed to fetch workflows' });
@@ -502,37 +495,62 @@ router.get('/', async (req, res) => {
  */
 router.get('/users-for-assignment', async (req, res) => {
   try {
-    // Récupérer tous les utilisateurs
+    const userId = req.user;
+    const { exclude_employee_id } = req.query; // ✅ Exclure l'employé concerné
+
+    // Utilisateurs "assignables" = owner + tous les user_id des employés du tenant
     const usersResult = await db.query(`
-      SELECT 
-        id,
-        email,
-        created_at
+      SELECT id, email, created_at
       FROM users
+      WHERE (id = $1 OR id IN (
+        SELECT DISTINCT user_id 
+        FROM employees 
+        WHERE created_by = $1 AND user_id IS NOT NULL
+      ))
+      AND email IS NOT NULL AND TRIM(email) <> ''
       ORDER BY email ASC
-    `);
-    
+    `, [userId]);
+
     const users = usersResult.rows.map(u => ({
       id: u.id,
       name: u.email,
       email: u.email
     }));
-    
-    // Récupérer les employés (qui ont un user_id et peuvent être assignés)
-    const employeesResult = await db.query(`
+
+    // ✅ CORRECTION : Employés actifs (AVEC OU SANS user_id) SAUF l'employé concerné
+    let employeeQuery = `
       SELECT 
         e.id,
         e.first_name,
         e.last_name,
         e.email,
         e.department,
+        e.job_title,
         e.user_id
       FROM employees e
-      WHERE e.status = 'active'
-      ORDER BY e.department, e.first_name, e.last_name
-    `);
+      WHERE e.created_by = $1
+        AND e.status = 'active'
+    `;
     
-    // Grouper par département
+    const queryParams = [userId];
+    
+    if (exclude_employee_id) {
+      employeeQuery += ` AND e.id != $2`;
+      queryParams.push(parseInt(exclude_employee_id));
+    }
+    
+    employeeQuery += ` ORDER BY e.department, e.first_name, e.last_name`;
+
+    const employeesResult = await db.query(employeeQuery, queryParams);
+
+    const managerIdsResult = await db.query(`
+      SELECT DISTINCT manager_id
+      FROM employees
+      WHERE created_by = $1 AND manager_id IS NOT NULL
+    `, [userId]);
+
+    const managerIdSet = new Set(managerIdsResult.rows.map(r => String(r.manager_id)));
+
     const byDepartment = {
       IT: [],
       HR: [],
@@ -540,40 +558,46 @@ router.get('/users-for-assignment', async (req, res) => {
       Manager: [],
       Other: []
     };
-    
+
     employeesResult.rows.forEach(emp => {
       const fullName = `${emp.first_name} ${emp.last_name}`;
       const dept = emp.department || 'Other';
-      
-      // Si l'employé a un user_id, il peut être assigné
-      if (emp.user_id) {
-        const entry = {
-          id: emp.user_id,
-          name: fullName,
-          email: emp.email,
-          department: dept,
-          employeeId: emp.id
-        };
-        
-        if (byDepartment[dept]) {
-          byDepartment[dept].push(entry);
-        } else {
-          byDepartment.Other.push(entry);
-        }
+      const isManager = (emp.job_title && /manager/i.test(emp.job_title)) || managerIdSet.has(String(emp.id));
+
+      const entry = {
+        id: emp.user_id || emp.id,  // user_id si disponible, sinon employee_id
+        hasUserAccount: !!emp.user_id,  // Indique si l'employé a un compte user
+        name: fullName,
+        email: emp.email,
+        department: dept,
+        employeeId: emp.id
+      };
+
+      if (isManager) {
+        byDepartment.Manager.push(entry);
+        return;
+      }
+
+      if (byDepartment[dept]) {
+        byDepartment[dept].push(entry);
+      } else {
+        byDepartment.Other.push(entry);
       }
     });
-    
+
     res.status(200).json({
       users,
       byDepartment,
       message: 'Users available for task assignment'
     });
-    
+
   } catch (error) {
     console.error('❌ Error fetching users for assignment:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
+
+
 
 // ============================================================================
 // ✅ MODIFIÉ : ROUTE POST AVEC ASSIGNATION DES TÂCHES
@@ -586,22 +610,40 @@ router.get('/users-for-assignment', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
+    const userId = req.user;
     const {
       employee_id,
       template_id,
       workflow_type,
       target_date,
-      task_assignments // ✅ NOUVEAU
+      task_assignments
     } = req.body;
 
-    // Validation
     if (!employee_id || !workflow_type || !target_date) {
       return res.status(400).json({
         error: 'employee_id, workflow_type, and target_date are required'
       });
     }
 
-    // Call the stored procedure
+    // ✅ Garde-fou tenant: l'employé doit appartenir au owner
+    const employeeCheck = await db.query(
+      'SELECT id FROM employees WHERE id = $1 AND created_by = $2',
+      [employee_id, userId]
+    );
+    if (employeeCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Forbidden: employee not accessible' });
+    }
+
+    if (template_id) {
+      const templateCheck = await db.query(
+        'SELECT id FROM workflow_templates WHERE id = $1 AND created_by = $2',
+        [template_id, userId]
+      );
+      if (templateCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'Forbidden: template not accessible' });
+      }
+    }
+
     const result = await db.query(
       'SELECT create_employee_workflow($1, $2, $3, $4) as workflow_id',
       [employee_id, workflow_type, target_date, template_id]
@@ -609,18 +651,17 @@ router.post('/', async (req, res) => {
 
     const workflowId = result.rows[0].workflow_id;
 
-    // ============================================================================
-    // ✅ NOUVEAU : APPLIQUER LES ASSIGNATIONS DE TÂCHES
-    // ============================================================================
-    
+    // ✅ Force l'owner (au cas où la fonction ne le ferait pas)
+    await db.query(
+      'UPDATE employee_workflows SET created_by = $1 WHERE id = $2',
+      [userId, workflowId]
+    );
+
     if (task_assignments && Array.isArray(task_assignments) && task_assignments.length > 0) {
-      console.log('📋 Application des assignations de tâches...');
-      
       for (const assignment of task_assignments) {
         const { task_template_id, assigned_to } = assignment;
-        
+
         if (task_template_id && assigned_to) {
-          // Trouver la tâche du workflow correspondant au template
           const taskResult = await db.query(`
             SELECT ewt.id
             FROM employee_workflow_tasks ewt
@@ -628,26 +669,20 @@ router.post('/', async (req, res) => {
             WHERE ewt.workflow_id = $1 
               AND wt.id = $2
           `, [workflowId, task_template_id]);
-          
+
           if (taskResult.rows.length > 0) {
             const employeeTaskId = taskResult.rows[0].id;
-            
-            // Assigner l'utilisateur à cette tâche
+
             await db.query(`
               UPDATE employee_workflow_tasks
               SET assigned_to = $1
               WHERE id = $2
             `, [assigned_to, employeeTaskId]);
-            
-            console.log(`✅ Tâche ${task_template_id} assignée à user ${assigned_to}`);
           }
         }
       }
     }
 
-    // ============================================================================
-
-    // Fetch the created workflow
     const workflowResult = await db.query(`
       SELECT 
         ew.*,
@@ -666,17 +701,13 @@ router.post('/', async (req, res) => {
       FROM employee_workflows ew
       JOIN employees e ON ew.employee_id = e.id
       LEFT JOIN workflow_templates wt ON ew.template_id = wt.id
-      WHERE ew.id = $1
-    `, [workflowId]);
+      WHERE ew.id = $1 AND ew.created_by = $2
+    `, [workflowId, userId]);
 
     const workflow = workflowResult.rows[0];
 
-    // ============================================================================
-    // ENVOYER LES NOTIFICATIONS PAR EMAIL
-    // ============================================================================
-    
+    // Emails (non-bloquant)
     try {
-      // Récupérer les tâches du workflow (avec les assignations)
       const tasksResult = await db.query(`
         SELECT 
           wt.id,
@@ -695,18 +726,17 @@ router.post('/', async (req, res) => {
         WHERE ewt.workflow_id = $1
         ORDER BY wt.task_order ASC
       `, [workflowId]);
-      
+
       const tasks = tasksResult.rows;
-      
-      // 1. Envoyer email "Workflow créé" au propriétaire
+
       const ownerResult = await db.query(
         'SELECT email FROM users WHERE id = $1',
-        [req.user]
+        [userId]
       );
-      
+
       if (ownerResult.rows.length > 0 && ownerResult.rows[0].email) {
         const ownerEmail = ownerResult.rows[0].email;
-        
+
         await emailService.sendWorkflowCreatedEmail(
           ownerEmail,
           {
@@ -722,11 +752,8 @@ router.post('/', async (req, res) => {
             responsible_team: t.responsible_team
           }))
         );
-        
-        console.log('✅ Email "Workflow créé" envoyé à:', ownerEmail);
       }
-      
-      // 2. Envoyer email "Tâche assignée" à chaque utilisateur assigné
+
       for (const task of tasks) {
         if (task.assigned_to && task.assigned_user_email) {
           await emailService.sendTaskAssignedEmail(
@@ -745,21 +772,16 @@ router.post('/', async (req, res) => {
             },
             workflow.employee
           );
-          
-          console.log('✅ Email "Tâche assignée" envoyé à:', task.assigned_user_email);
         }
       }
-      
+
     } catch (emailError) {
-      // Ne pas bloquer la création du workflow si l'email échoue
       console.error('❌ Erreur envoi emails workflow:', emailError);
     }
-    
-    // ============================================================================
 
     res.status(201).json({
       message: 'Workflow created successfully',
-      workflow: workflow
+      workflow
     });
 
   } catch (error) {
@@ -767,6 +789,7 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: error.message || 'Failed to create workflow' });
   }
 });
+
 
 // ============================================================================
 // ROUTES SPÉCIFIQUES - DOIVENT ÊTRE AVANT /:id
@@ -881,8 +904,8 @@ router.get('/my-tasks', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const userId = req.user; // ✅ AJOUTÉ
-    
+    const userId = req.user;
+
     const stats = await db.query(`
       SELECT
         COUNT(*) FILTER (WHERE status IN ('pending', 'in_progress')) as active_workflows,
@@ -897,16 +920,14 @@ router.get('/stats', async (req, res) => {
           WHERE ewt.status NOT IN ('completed', 'skipped')
             AND ewt.due_date < CURRENT_DATE
             AND ew.status IN ('pending', 'in_progress')
-            AND ew.created_by = $1 -- ✅ AJOUTÉ
+            AND ew.created_by = $1
         ) as tasks_overdue
       FROM employee_workflows
-      WHERE created_by = $1 -- ✅ AJOUTÉ
-    `, [userId]); // ✅ AJOUTÉ
-    
-    res.status(200).json({
-      stats: stats.rows[0]
-    });
-    
+      WHERE created_by = $1
+    `, [userId]);
+
+    res.status(200).json({ stats: stats.rows[0] });
+
   } catch (error) {
     console.error('❌ Error fetching workflow stats:', error);
     res.status(500).json({ error: 'Failed to fetch stats' });
@@ -923,9 +944,9 @@ router.get('/stats', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
+    const userId = req.user;
     const { id } = req.params;
-    
-    // Récupérer le workflow
+
     const workflowResult = await db.query(`
       SELECT 
         ew.*,
@@ -953,16 +974,15 @@ router.get('/:id', async (req, res) => {
       FROM employee_workflows ew
       JOIN employees e ON ew.employee_id = e.id
       LEFT JOIN workflow_templates wt ON ew.template_id = wt.id
-      WHERE ew.id = $1
-    `, [id]);
-    
+      WHERE ew.id = $1 AND ew.created_by = $2
+    `, [id, userId]);
+
     if (workflowResult.rows.length === 0) {
       return res.status(404).json({ error: 'Workflow not found' });
     }
-    
+
     const workflow = workflowResult.rows[0];
-    
-    // Récupérer les tâches du workflow
+
     const tasksResult = await db.query(`
       SELECT 
         ewt.id,
@@ -975,8 +995,7 @@ router.get('/:id', async (req, res) => {
         ewt.automation_error,
         ewt.notes,
         ewt.skipped_reason,
-        
-        -- Template task
+
         json_build_object(
           'id', wt.id,
           'title', wt.title,
@@ -988,21 +1007,19 @@ router.get('/:id', async (req, res) => {
           'checklist_items', wt.checklist_items,
           'task_order', wt.task_order
         ) as task,
-        
-        -- Assigned user name (utiliser email car pas de colonne nom)
+
         CASE 
           WHEN u.id IS NOT NULL THEN u.email
           ELSE NULL
         END as assigned_to_name,
-        
-        -- Completed by name (utiliser email car pas de colonne nom)
+
         CASE 
           WHEN u2.id IS NOT NULL THEN u2.email
           ELSE NULL
         END as completed_by_name,
-        
+
         ewt.checklist_completed
-        
+
       FROM employee_workflow_tasks ewt
       JOIN workflow_tasks wt ON ewt.task_id = wt.id
       LEFT JOIN users u ON ewt.assigned_to = u.id
@@ -1010,11 +1027,11 @@ router.get('/:id', async (req, res) => {
       WHERE ewt.workflow_id = $1
       ORDER BY wt.task_order ASC
     `, [id]);
-    
+
     workflow.tasks = tasksResult.rows;
-    
+
     res.status(200).json({ workflow });
-    
+
   } catch (error) {
     console.error('❌ Error fetching workflow:', error);
     res.status(500).json({ error: 'Failed to fetch workflow' });
@@ -1030,84 +1047,88 @@ router.put('/:id/tasks/:taskId', async (req, res) => {
     const { id, taskId } = req.params;
     const { status, result, notes, checklist_completed } = req.body;
     const userId = req.user;
-    
-    // Construction de la requête UPDATE dynamique
+
     const updates = [];
     const params = [];
     let paramIndex = 1;
-    
+
     if (status) {
       updates.push(`status = $${paramIndex++}`);
       params.push(status);
-      
+
       if (status === 'completed') {
         updates.push(`completed_at = NOW()`);
         updates.push(`completed_by = $${paramIndex++}`);
         params.push(userId);
-      } else if (status === 'in_progress' && !updates.includes('started_at')) {
+      } else if (status === 'in_progress') {
         updates.push(`started_at = COALESCE(started_at, NOW())`);
       }
     }
-    
+
     if (result) {
       updates.push(`result = $${paramIndex++}`);
       params.push(result);
     }
-    
+
     if (notes !== undefined) {
       updates.push(`notes = $${paramIndex++}`);
       params.push(notes);
     }
-    
+
     if (checklist_completed !== undefined) {
       updates.push(`checklist_completed = $${paramIndex++}`);
       params.push(JSON.stringify(checklist_completed));
     }
-    
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-    
-    // Ajouter l'ID de la tâche
+
+    // Params finaux: taskId, workflowId, authUserId
+    const taskIdParam = paramIndex++;
     params.push(taskId);
+
+    const workflowIdParam = paramIndex++;
     params.push(id);
-    
+
+    const authParam = paramIndex++;
+    params.push(userId);
+
     const query = `
-      UPDATE employee_workflow_tasks
+      UPDATE employee_workflow_tasks ewt
       SET ${updates.join(', ')}
-      WHERE id = $${paramIndex++} AND workflow_id = $${paramIndex}
-      RETURNING *
+      FROM employee_workflows ew
+      WHERE ewt.id = $${taskIdParam}
+        AND ewt.workflow_id = $${workflowIdParam}
+        AND ew.id = ewt.workflow_id
+        AND (ew.created_by = $${authParam} OR ewt.assigned_to = $${authParam})
+      RETURNING ewt.*
     `;
-    
+
     const taskResult = await db.query(query, params);
-    
+
     if (taskResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Task not found' });
+      return res.status(404).json({ error: 'Task not found or forbidden' });
     }
-    
-    // Récupérer l'état mis à jour du workflow (le trigger a déjà fait le calcul)
+
     const workflowResult = await db.query(`
       SELECT 
         id,
         completion_percentage,
         completed_tasks,
         total_tasks,
-        status
+        status,
+        created_by
       FROM employee_workflows
       WHERE id = $1
     `, [id]);
-    
-    // ============================================================================
-    // ENVOYER EMAIL SI WORKFLOW COMPLÉTÉ
-    // ============================================================================
-    
+
+    // Email workflow complété: uniquement owner
     if (status === 'completed') {
       try {
         const workflowInfo = workflowResult.rows[0];
-        
-        // Vérifier si le workflow est maintenant complété à 100%
+
         if (workflowInfo.status === 'completed') {
-          // Récupérer les infos complètes du workflow
           const fullWorkflowResult = await db.query(`
             SELECT 
               ew.*,
@@ -1123,15 +1144,14 @@ router.put('/:id/tasks/:taskId', async (req, res) => {
             JOIN employees e ON ew.employee_id = e.id
             WHERE ew.id = $1
           `, [id]);
-          
+
           const fullWorkflow = fullWorkflowResult.rows[0];
-          
-          // Envoyer email "Workflow complété" au propriétaire
+
           const ownerResult = await db.query(
             'SELECT email FROM users WHERE id = $1',
-            [req.user]
+            [workflowInfo.created_by]
           );
-          
+
           if (ownerResult.rows.length > 0 && ownerResult.rows[0].email) {
             await emailService.sendWorkflowCompletedEmail(
               ownerResult.rows[0].email,
@@ -1143,23 +1163,19 @@ router.put('/:id/tasks/:taskId', async (req, res) => {
               },
               fullWorkflow.employee
             );
-            
-            console.log('✅ Email "Workflow complété" envoyé à:', ownerResult.rows[0].email);
           }
         }
-        
+
       } catch (emailError) {
         console.error('❌ Erreur envoi email workflow complété:', emailError);
       }
     }
-    
-    // ============================================================================
-    
+
     res.status(200).json({
       task: taskResult.rows[0],
       workflow: workflowResult.rows[0]
     });
-    
+
   } catch (error) {
     console.error('❌ Error updating task:', error);
     res.status(500).json({ error: 'Failed to update task' });
@@ -1174,26 +1190,31 @@ router.post('/:id/tasks/:taskId/skip', async (req, res) => {
   try {
     const { id, taskId } = req.params;
     const { skipped_reason } = req.body;
-    
+    const userId = req.user;
+
     const result = await db.query(`
-      UPDATE employee_workflow_tasks
+      UPDATE employee_workflow_tasks ewt
       SET 
         status = 'skipped',
         skipped_reason = $1,
         updated_at = NOW()
-      WHERE id = $2 AND workflow_id = $3
-      RETURNING *
-    `, [skipped_reason, taskId, id]);
-    
+      FROM employee_workflows ew
+      WHERE ewt.id = $2 
+        AND ewt.workflow_id = $3
+        AND ew.id = ewt.workflow_id
+        AND (ew.created_by = $4 OR ewt.assigned_to = $4)
+      RETURNING ewt.*
+    `, [skipped_reason, taskId, id, userId]);
+
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Task not found' });
+      return res.status(404).json({ error: 'Task not found or forbidden' });
     }
-    
+
     res.status(200).json({
       message: 'Task skipped',
       task: result.rows[0]
     });
-    
+
   } catch (error) {
     console.error('❌ Error skipping task:', error);
     res.status(500).json({ error: 'Failed to skip task' });
@@ -1206,28 +1227,29 @@ router.post('/:id/tasks/:taskId/skip', async (req, res) => {
  */
 router.post('/:id/cancel', async (req, res) => {
   try {
+    const userId = req.user;
     const { id } = req.params;
     const { cancellation_reason } = req.body;
-    
+
     const result = await db.query(`
       UPDATE employee_workflows
       SET 
         status = 'cancelled',
         cancellation_reason = $1,
         cancelled_at = NOW()
-      WHERE id = $2
+      WHERE id = $2 AND created_by = $3
       RETURNING *
-    `, [cancellation_reason, id]);
-    
+    `, [cancellation_reason, id, userId]);
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Workflow not found' });
     }
-    
+
     res.status(200).json({
       message: 'Workflow cancelled',
       workflow: result.rows[0]
     });
-    
+
   } catch (error) {
     console.error('❌ Error cancelling workflow:', error);
     res.status(500).json({ error: 'Failed to cancel workflow' });

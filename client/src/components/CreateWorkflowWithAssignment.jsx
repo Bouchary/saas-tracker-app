@@ -59,7 +59,7 @@ const CreateWorkflowWithAssignment = ({ employee, onClose, onSuccess }) => {
     const fetchUsers = async () => {
         try {
             const response = await fetch(
-                `${API_URL}/api/workflows/users-for-assignment`,
+                `${API_URL}/api/workflows/users-for-assignment?exclude_employee_id=${employee.id}`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,

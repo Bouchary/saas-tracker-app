@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../AuthContext';
 import {
   FileText, Plus, Edit, Rocket, LogOut, Users, Building,
   CheckCircle2, Filter, Search, RefreshCw, AlertCircle, XCircle,
@@ -15,6 +16,8 @@ import {
 
 const TemplatesPage = () => {
   const navigate = useNavigate();
+  const { token: authToken } = useAuth();
+
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -31,21 +34,21 @@ const TemplatesPage = () => {
   const fetchTemplates = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = authToken || localStorage.getItem('userToken') || localStorage.getItem('token');
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      
+
       const params = new URLSearchParams();
       if (filters.type !== 'all') params.append('type', filters.type);
       if (filters.department !== 'all') params.append('department', filters.department);
-      
+
       const url = `${apiUrl}/api/workflows/templates?${params.toString()}`;
-      
+
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
       if (!response.ok) throw new Error('Failed to fetch templates');
-      
+
       const data = await response.json();
       setTemplates(data.templates || []);
       setError(null);
@@ -65,7 +68,7 @@ const TemplatesPage = () => {
   // Filter templates by search
   const filteredTemplates = templates.filter(template => {
     if (filters.search === '') return true;
-    
+
     const searchLower = filters.search.toLowerCase();
     return (
       template.name.toLowerCase().includes(searchLower) ||
@@ -139,7 +142,7 @@ const TemplatesPage = () => {
               </div>
               <p className="text-3xl font-bold text-gray-900">{formatNumber(stats.total)}</p>
             </div>
-            
+
             <div className="bg-green-50 rounded-lg shadow-sm border-2 border-green-200 p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-green-600">Onboarding</p>
@@ -147,7 +150,7 @@ const TemplatesPage = () => {
               </div>
               <p className="text-3xl font-bold text-green-700">{formatNumber(stats.onboarding)}</p>
             </div>
-            
+
             <div className="bg-orange-50 rounded-lg shadow-sm border-2 border-orange-200 p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-orange-600">Offboarding</p>
@@ -155,7 +158,7 @@ const TemplatesPage = () => {
               </div>
               <p className="text-3xl font-bold text-orange-700">{formatNumber(stats.offboarding)}</p>
             </div>
-            
+
             <div className="bg-blue-50 rounded-lg shadow-sm border-2 border-blue-200 p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-blue-600">Actifs</p>
@@ -163,7 +166,7 @@ const TemplatesPage = () => {
               </div>
               <p className="text-3xl font-bold text-blue-700">{formatNumber(stats.active)}</p>
             </div>
-            
+
             <div className="bg-purple-50 rounded-lg shadow-sm border-2 border-purple-200 p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-purple-600">Total tâches</p>

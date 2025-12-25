@@ -1,5 +1,6 @@
 // server/src/services/emailService.js
 // Service d'envoi d'emails centralisé (Resend) - VERSION ÉTENDUE POUR WORKFLOWS
+// ✅ CORRECTION #3 : Harmonisation sur FRONTEND_URL
 
 const { Resend } = require('resend');
 
@@ -43,7 +44,7 @@ class EmailService {
      */
     async sendWelcomeEmail(userEmail, userName) {
         const welcomeTemplate = require('../templates/welcomeEmail');
-        const html = welcomeTemplate(userName, process.env.APP_URL);
+        const html = welcomeTemplate(userName, process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5174');
 
         return this.sendEmail({
             to: userEmail,
@@ -57,7 +58,7 @@ class EmailService {
      */
     async sendContractExpirationAlert(userEmail, contract, daysLeft) {
         const expirationTemplate = require('../templates/contractExpirationEmail');
-        const html = expirationTemplate(contract, daysLeft, process.env.APP_URL);
+        const html = expirationTemplate(contract, daysLeft, process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5174');
 
         let urgency = '';
         if (daysLeft <= 7) {
@@ -101,7 +102,7 @@ class EmailService {
                     <ul style="background: #f9fafb; padding: 20px; border-radius: 8px;">
                         ${contractsList}
                     </ul>
-                    <a href="${process.env.APP_URL}" 
+                    <a href="${process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5174'}" 
                        style="display: inline-block; margin-top: 20px; padding: 12px 24px; background: #6366f1; color: white; text-decoration: none; border-radius: 6px;">
                         Voir mes contrats
                     </a>
@@ -161,7 +162,7 @@ class EmailService {
                         ${tasks.length > 5 ? `<li style="color: #6b7280; font-style: italic;">... et ${tasks.length - 5} autres tâches</li>` : ''}
                     </ul>
                     
-                    <a href="${process.env.FRONTEND_URL}/workflows/${workflow.id}" 
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:5174'}/workflows/${workflow.id}" 
                        style="display: inline-block; margin-top: 20px; padding: 12px 24px; background: #6366f1; color: white; text-decoration: none; border-radius: 6px;">
                         Voir le workflow complet
                     </a>
@@ -212,7 +213,7 @@ class EmailService {
                         </div>
                     ` : ''}
                     
-                    <a href="${process.env.FRONTEND_URL}/workflows/${workflow.id}" 
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:5174'}/workflows/${workflow.id}" 
                        style="display: inline-block; margin-top: 20px; padding: 12px 24px; background: #6366f1; color: white; text-decoration: none; border-radius: 6px;">
                         Voir le workflow
                     </a>
@@ -254,7 +255,7 @@ class EmailService {
                     
                     <p>Cette tâche arrive à échéance dans moins de 3 jours. Merci de la compléter rapidement.</p>
                     
-                    <a href="${process.env.FRONTEND_URL}/workflows/${workflow.id}" 
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:5174'}/workflows/${workflow.id}" 
                        style="display: inline-block; margin-top: 20px; padding: 12px 24px; background: #f59e0b; color: white; text-decoration: none; border-radius: 6px;">
                         Voir la tâche
                     </a>
@@ -299,7 +300,7 @@ class EmailService {
                     
                     <p style="font-weight: bold; color: #991b1b;">Action requise immédiatement !</p>
                     
-                    <a href="${process.env.FRONTEND_URL}/workflows/${workflow.id}" 
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:5174'}/workflows/${workflow.id}" 
                        style="display: inline-block; margin-top: 20px; padding: 12px 24px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px;">
                         Compléter la tâche maintenant
                     </a>
@@ -340,7 +341,7 @@ class EmailService {
                         Toutes les tâches obligatoires ont été complétées !
                     </p>
                     
-                    <a href="${process.env.FRONTEND_URL}/workflows/${workflow.id}" 
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:5174'}/workflows/${workflow.id}" 
                        style="display: inline-block; margin-top: 20px; padding: 12px 24px; background: #16a34a; color: white; text-decoration: none; border-radius: 6px;">
                         Voir le résumé
                     </a>
@@ -413,7 +414,7 @@ class EmailService {
                         </div>
                     ` : ''}
                     
-                    <a href="${process.env.FRONTEND_URL}/workflows" 
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:5174'}/workflows" 
                        style="display: inline-block; margin-top: 20px; padding: 12px 24px; background: #6366f1; color: white; text-decoration: none; border-radius: 6px;">
                         Voir tous les workflows
                     </a>
