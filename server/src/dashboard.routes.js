@@ -1,11 +1,18 @@
 // ============================================================================
 // DASHBOARD ROUTES - FICHIER COMPLET
 // ✅ AJOUT : Route /global pour GlobalView
+// ✅ CORRECTION : authMiddleware + organizationMiddleware
 // ============================================================================
 
 const express = require('express');
 const router = express.Router();
-const { protect } = require('./middlewares/authMiddleware');
+
+// ✅ CORRECTION : Import direct authMiddleware
+const authMiddleware = require('./middlewares/authMiddleware');
+
+// ✅ AJOUT : organizationMiddleware
+const organizationMiddleware = require('./middlewares/organizationMiddleware');
+
 const {
     getGlobalStats,
     getGlobalView,
@@ -15,8 +22,9 @@ const {
     getEmployeesAnalytics
 } = require('./dashboardController');
 
-// Protection de toutes les routes
-router.use(protect);
+// ✅ CORRECTION : Protection de toutes les routes
+router.use(authMiddleware);
+router.use(organizationMiddleware);
 
 // GET /api/dashboard/stats - Statistiques globales
 router.get('/stats', getGlobalStats);

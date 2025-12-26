@@ -4,7 +4,16 @@
 
 const express = require('express');
 const router = express.Router();
+
+// ✅ AJOUT : authMiddleware et organizationMiddleware
+const authMiddleware = require('./middlewares/authMiddleware.js');
+const organizationMiddleware = require('./middlewares/organizationMiddleware.js');
+
 const employeesController = require('./employeesController');
+
+// ✅ AJOUT : Appliquer les middlewares à toutes les routes
+router.use(authMiddleware);
+router.use(organizationMiddleware);
 
 // ============================================================================
 // ROUTES SPÉCIFIQUES (doivent être AVANT les routes avec paramètres)

@@ -1,5 +1,6 @@
 // ============================================================================
 // ROUTES - GESTION DES UTILISATEURS
+// ✅ CORRECTION : authMiddleware + organizationMiddleware
 // ============================================================================
 // Fichier : server/src/users.routes.js
 // Description : Routes pour CRUD utilisateurs (réservé super_admin)
@@ -7,7 +8,13 @@
 
 const express = require('express');
 const router = express.Router();
-const { protect } = require('./middlewares/authMiddleware');
+
+// ✅ CORRECTION : Import direct authMiddleware
+const authMiddleware = require('./middlewares/authMiddleware');
+
+// ✅ AJOUT : organizationMiddleware  
+const organizationMiddleware = require('./middlewares/organizationMiddleware');
+
 const { requireSuperAdmin } = require('./middlewares/roleMiddleware');
 const {
   getAllUsers,
@@ -19,13 +26,15 @@ const {
 } = require('./usersController');
 
 // Route publique pour récupérer l'utilisateur connecté
-router.get('/me', protect, getCurrentUser);
+// ✅ Cette route utilise authMiddleware mais PAS organizationMiddleware
+router.get('/me', authMiddleware, getCurrentUser);
 
 // Routes réservées aux super_admin
-router.get('/', protect, requireSuperAdmin, getAllUsers);
-router.get('/:id', protect, requireSuperAdmin, getUserById);
-router.post('/', protect, requireSuperAdmin, createUser);
-router.put('/:id', protect, requireSuperAdmin, updateUser);
-router.delete('/:id', protect, requireSuperAdmin, deleteUser);
+// ✅ Ces routes utilisent authMiddleware + organizationMiddleware + requireSuperAdmin
+router.get('/', authMiddleware, organizationMiddleware, requireSuperAdmin, getAllUsers);
+router.get('/:id', authMiddleware, organizationMiddleware, requireSuperAdmin, getUserById);
+router.post('/', authMiddleware, organizationMiddleware, requireSuperAdmin, createUser);
+router.put('/:id', authMiddleware, organizationMiddleware, requireSuperAdmin, updateUser);
+router.delete('/:id', authMiddleware, organizationMiddleware, requireSuperAdmin, deleteUser);
 
 module.exports = router;

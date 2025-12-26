@@ -9,11 +9,18 @@
 const express = require('express');
 const router = express.Router();
 const db = require('./db');
-const { protect } = require('./middlewares/authMiddleware');
+
+// ✅ CORRECTION : Import direct authMiddleware
+const authMiddleware = require('./middlewares/authMiddleware');
+
+// ✅ AJOUT : organizationMiddleware
+const organizationMiddleware = require('./middlewares/organizationMiddleware');
+
 const emailService = require('./services/emailService');
 
-// Toutes les routes nécessitent authentication
-router.use(protect);
+// ✅ CORRECTION : Toutes les routes nécessitent authentication
+router.use(authMiddleware);
+router.use(organizationMiddleware);
 
 // ============================================================================
 // TEMPLATES DE WORKFLOWS - CRUD COMPLET

@@ -1,25 +1,32 @@
 // server/src/routes/emails.js
+// ✅ CORRECTION : authMiddleware + organizationMiddleware
 
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const emailService = require('../services/emailService');
 const emailScheduler = require('../jobs/emailScheduler');
-const { protect } = require('../middlewares/authMiddleware');
+
+// ✅ CORRECTION : Import direct authMiddleware (chemin ../middlewares/)
+const authMiddleware = require('../middlewares/authMiddleware');
+
+// ✅ AJOUT : organizationMiddleware
+const organizationMiddleware = require('../middlewares/organizationMiddleware');
 
 /**
  * @route   POST /api/emails/test
  * @desc    Envoyer un email de test (développement uniquement)
  * @access  Private
  */
-router.post('/test', protect, async (req, res) => {
+router.post('/test', authMiddleware, organizationMiddleware, async (req, res) => {
     try {
-        const userId = req.user;
+        const userId = req.user.id;
+        const organizationId = req.organizationId;
 
         // Récupérer les infos de l'utilisateur
         const userResult = await db.query(
-            'SELECT email FROM users WHERE id = $1',
-            [userId]
+            'SELECT email FROM users WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+            [userId, organizationId]
         );
 
         if (userResult.rows.length === 0) {
@@ -48,13 +55,14 @@ router.post('/test', protect, async (req, res) => {
  * @desc    Envoyer un email de bienvenue
  * @access  Private
  */
-router.post('/welcome', protect, async (req, res) => {
+router.post('/welcome', authMiddleware, organizationMiddleware, async (req, res) => {
     try {
-        const userId = req.user;
+        const userId = req.user.id;
+        const organizationId = req.organizationId;
 
         const userResult = await db.query(
-            'SELECT email FROM users WHERE id = $1',
-            [userId]
+            'SELECT email FROM users WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+            [userId, organizationId]
         );
 
         if (userResult.rows.length === 0) {
@@ -80,20 +88,21 @@ router.post('/welcome', protect, async (req, res) => {
  * @desc    Envoyer une alerte manuelle pour un contrat
  * @access  Private
  */
-router.post('/contract-alert/:contractId', protect, async (req, res) => {
+router.post('/contract-alert/:contractId', authMiddleware, organizationMiddleware, async (req, res) => {
     try {
-        const userId = req.user;
+        const userId = req.user.id;
+        const organizationId = req.organizationId;
         const contractId = req.params.contractId;
 
-        // Récupérer le contrat avec les infos utilisateur
+        // Récupérer le contrat avec les infos utilisateur (multi-tenant)
         const result = await db.query(`
             SELECT 
                 c.*,
                 u.email as user_email
             FROM contracts c
-            JOIN users u ON c.user_id = u.id
-            WHERE c.id = $1 AND c.user_id = $2
-        `, [contractId, userId]);
+            JOIN users u ON c.created_by = u.id
+            WHERE c.id = $1 AND c.organization_id = $2 AND c.deleted_at IS NULL
+        `, [contractId, organizationId]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Contrat non trouvé' });
@@ -142,14 +151,15 @@ router.post('/contract-alert/:contractId', protect, async (req, res) => {
  * @desc    Envoyer un résumé hebdomadaire manuel
  * @access  Private
  */
-router.post('/weekly-summary', protect, async (req, res) => {
+router.post('/weekly-summary', authMiddleware, organizationMiddleware, async (req, res) => {
     try {
-        const userId = req.user;
+        const userId = req.user.id;
+        const organizationId = req.organizationId;
 
         // Récupérer les infos utilisateur
         const userResult = await db.query(
-            'SELECT email FROM users WHERE id = $1',
-            [userId]
+            'SELECT email FROM users WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+            [userId, organizationId]
         );
 
         if (userResult.rows.length === 0) {
@@ -173,9 +183,10 @@ router.post('/weekly-summary', protect, async (req, res) => {
  * @desc    Récupérer l'historique des notifications email
  * @access  Private
  */
-router.get('/notifications', protect, async (req, res) => {
+router.get('/notifications', authMiddleware, organizationMiddleware, async (req, res) => {
     try {
-        const userId = req.user;
+        const userId = req.user.id;
+        const organizationId = req.organizationId;
         const { limit = 50, offset = 0 } = req.query;
 
         const result = await db.query(`
@@ -217,9 +228,10 @@ router.get('/notifications', protect, async (req, res) => {
  * @desc    Mettre à jour les préférences de notification email
  * @access  Private
  */
-router.put('/settings', protect, async (req, res) => {
+router.put('/settings', authMiddleware, organizationMiddleware, async (req, res) => {
     try {
-        const userId = req.user;
+        const userId = req.user.id;
+        const organizationId = req.organizationId;
         const { notification_email, notification_days } = req.body;
 
         // Validation
@@ -258,11 +270,12 @@ router.put('/settings', protect, async (req, res) => {
         }
 
         values.push(userId);
+        values.push(organizationId);
 
         const result = await db.query(`
             UPDATE users
             SET ${updates.join(', ')}, updated_at = NOW()
-            WHERE id = $${paramCount}
+            WHERE id = $${paramCount} AND organization_id = $${paramCount + 1} AND deleted_at IS NULL
             RETURNING notification_email, notification_days
         `, values);
 
@@ -282,15 +295,16 @@ router.put('/settings', protect, async (req, res) => {
  * @desc    Récupérer les préférences de notification email
  * @access  Private
  */
-router.get('/settings', protect, async (req, res) => {
+router.get('/settings', authMiddleware, organizationMiddleware, async (req, res) => {
     try {
-        const userId = req.user;
+        const userId = req.user.id;
+        const organizationId = req.organizationId;
 
         const result = await db.query(`
             SELECT notification_email, notification_days
             FROM users
-            WHERE id = $1
-        `, [userId]);
+            WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
+        `, [userId, organizationId]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Utilisateur non trouvé' });
@@ -302,5 +316,6 @@ router.get('/settings', protect, async (req, res) => {
         res.status(500).json({ error: 'Erreur lors de la récupération des préférences' });
     }
 });
+
 
 module.exports = router;

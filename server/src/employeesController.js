@@ -1,29 +1,9 @@
-// ============================================================================
-// EMPLOYEES CONTROLLER - MULTI-TENANT ROBUSTE (created_by + fallback legacy user_id)
-// ============================================================================
-// Objectif : éviter les régressions si certaines lignes historiques n'ont pas encore `created_by`.
-// Règle d'accès : un employé est visible/modifiable si
-//   employees.created_by = req.user
-//   OU (employees.created_by IS NULL ET employees.user_id = req.user)  // legacy
-//
-// ✅ Fix : utilisation de db.query (ton db.js n'expose pas pool.query)
-// ✅ Fix : manager_name renvoyé (EmployeeDetailPage l'utilise)
-// ✅ Fix : update allowlist (évite de pouvoir modifier created_by, employee_number, etc.)
-// ✅ CORRECTION #4 : Vérification email multi-tenant
-// ✅ CORRECTION #5 : employee_number par tenant (évite collisions)
-// ✅ NOUVEAU : 3 fonctions de gestion des utilisateurs (assign, unassign, create+assign)
-// ============================================================================
-
 const db = require('./db');
 const bcrypt = require('bcryptjs');
 
-// -----------------------------------------------------------------------------
-// Helpers multi-tenant (compat)
-// -----------------------------------------------------------------------------
-const tenantWhereEmployees = (alias = 'e', param = '$1') =>
-  `(${alias}.created_by = ${param} OR (${alias}.created_by IS NULL AND ${alias}.user_id = ${param}))`;
+const tenantWhereEmployees = (alias = 'e', orgParam = '$1', userParam = '$2') =>
+  `(${alias}.organization_id = ${orgParam} AND (${alias}.created_by = ${userParam} OR (${alias}.created_by IS NULL AND ${alias}.user_id = ${userParam})))`;
 
-// Colonnes autorisées en update (évite injections / modifications sensibles)
 const UPDATABLE_FIELDS = new Set([
   'first_name',
   'last_name',
@@ -44,20 +24,20 @@ const UPDATABLE_FIELDS = new Set([
   'city',
   'notes',
   'status',
-  'user_id', // lien éventuel vers un compte user (si tu le permets)
+  'user_id',
 ]);
 
-// ============================================================================
-// GET /api/employees - Liste tous les employés (multi-tenant)
-// ============================================================================
 const getAllEmployees = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) return res.status(401).json({ error: 'Non autorisé' });
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
 
     const { page = 1, limit = 20, status, department, search } = req.query;
 
-    // ✅ Base multi-tenant + manager_name
     let query = `
       SELECT
         e.*,
@@ -68,12 +48,12 @@ const getAllEmployees = async (req, res) => {
       FROM employees e
       LEFT JOIN employees m
         ON e.manager_id = m.id
-        AND ${tenantWhereEmployees('m', '$1')}
-      WHERE ${tenantWhereEmployees('e', '$1')}
+        AND ${tenantWhereEmployees('m', '$1', '$2')}
+      WHERE ${tenantWhereEmployees('e', '$1', '$2')}
     `;
 
-    const params = [userId];
-    let paramIndex = 2;
+    const params = [organizationId, userId];
+    let paramIndex = 3;
 
     if (status) {
       query += ` AND e.status = $${paramIndex++}`;
@@ -95,12 +75,10 @@ const getAllEmployees = async (req, res) => {
       paramIndex++;
     }
 
-    // Total count (mêmes filtres)
     const countQuery = `SELECT COUNT(*) FROM (${query}) as count_query`;
     const countResult = await db.query(countQuery, params);
     const total = Number.parseInt(countResult.rows?.[0]?.count || '0', 10);
 
-    // Pagination
     query += ` ORDER BY e.id ASC`;
     const offset = (Number.parseInt(page, 10) - 1) * Number.parseInt(limit, 10);
 
@@ -124,13 +102,14 @@ const getAllEmployees = async (req, res) => {
   }
 };
 
-// ============================================================================
-// GET /api/employees/:id - Détails d'un employé (multi-tenant + manager_name)
-// ============================================================================
 const getEmployeeById = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) return res.status(401).json({ error: 'Non autorisé' });
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
 
     const { id } = req.params;
 
@@ -145,11 +124,11 @@ const getEmployeeById = async (req, res) => {
       FROM employees e
       LEFT JOIN employees m
         ON e.manager_id = m.id
-        AND ${tenantWhereEmployees('m', '$2')}
+        AND ${tenantWhereEmployees('m', '$2', '$3')}
       WHERE e.id = $1
-        AND ${tenantWhereEmployees('e', '$2')}
+        AND ${tenantWhereEmployees('e', '$2', '$3')}
       `,
-      [id, userId]
+      [id, organizationId, userId]
     );
 
     if (result.rows.length === 0) {
@@ -163,13 +142,14 @@ const getEmployeeById = async (req, res) => {
   }
 };
 
-// ============================================================================
-// POST /api/employees - Créer un employé
-// ============================================================================
 const createEmployee = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) return res.status(401).json({ error: 'Non autorisé' });
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
 
     const {
       first_name,
@@ -190,45 +170,43 @@ const createEmployee = async (req, res) => {
       city,
       notes,
       status = 'active',
-      user_id, // lien éventuel vers un compte user
+      user_id,
     } = req.body;
 
     if (!first_name || !last_name || !email) {
       return res.status(400).json({ error: 'first_name, last_name et email sont requis' });
     }
 
-    // ✅ CORRECTION #4 : Vérification email multi-tenant (évite collision entre tenants)
     const checkEmail = await db.query(
-      `SELECT id FROM employees e WHERE e.email = $1 AND ${tenantWhereEmployees('e', '$2')}`,
-      [email, userId]
+      `SELECT id FROM employees e WHERE e.email = $1 AND ${tenantWhereEmployees('e', '$2', '$3')}`,
+      [email, organizationId, userId]
     );
     if (checkEmail.rows.length > 0) {
       return res.status(409).json({ error: 'Email déjà utilisé dans votre organisation' });
     }
 
-    // ✅ CORRECTION #5 : employee_number par tenant (évite collisions globales)
     const countResult = await db.query(
-      `SELECT COUNT(*) FROM employees e WHERE ${tenantWhereEmployees('e', '$1')}`,
-      [userId]
+      `SELECT COUNT(*) FROM employees e WHERE ${tenantWhereEmployees('e', '$1', '$2')}`,
+      [organizationId, userId]
     );
     const count = Number.parseInt(countResult.rows?.[0]?.count || '0', 10) + 1;
-    const employee_number = `EMP-${userId}-${String(count).padStart(3, '0')}`;
+    const employee_number = `EMP-${organizationId}-${String(count).padStart(3, '0')}`;
 
     const result = await db.query(
       `
       INSERT INTO employees
-        (first_name, last_name, email, personal_email, phone, employee_number,
+        (organization_id, first_name, last_name, email, personal_email, phone, employee_number,
          job_title, department, team, manager_id, hire_date, start_date,
          employment_type, office_location, work_mode, country, city, notes, status,
-         created_by, user_id)
-      VALUES
-        ($1,$2,$3,$4,$5,$6,
-         $7,$8,$9,$10,$11,$12,
-         $13,$14,$15,$16,$17,$18,$19,
-         $20,$21)
+         created_by, updated_by, user_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,
+         $8,$9,$10,$11,$12,$13,
+         $14,$15,$16,$17,$18,$19,$20,
+         $21,$22,$23)
       RETURNING *
       `,
       [
+        organizationId,
         first_name,
         last_name,
         email,
@@ -249,6 +227,7 @@ const createEmployee = async (req, res) => {
         notes || null,
         status,
         userId,
+        userId,
         user_id || null,
       ]
     );
@@ -260,28 +239,27 @@ const createEmployee = async (req, res) => {
   }
 };
 
-// ============================================================================
-// PUT /api/employees/:id - Mettre à jour un employé (multi-tenant)
-// ============================================================================
 const updateEmployee = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) return res.status(401).json({ error: 'Non autorisé' });
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
 
     const { id } = req.params;
     const updates = req.body || {};
 
-    // allowlist
     const entries = Object.entries(updates).filter(([k]) => UPDATABLE_FIELDS.has(k));
 
     if (entries.length === 0) {
       return res.status(400).json({ error: 'Aucun champ valide à mettre à jour' });
     }
 
-    // ✅ Vérifier tenant
     const check = await db.query(
-      `SELECT id FROM employees e WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2')}`,
-      [id, userId]
+      `SELECT id FROM employees e WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')}`,
+      [id, organizationId, userId]
     );
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Employé non trouvé' });
@@ -296,34 +274,43 @@ const updateEmployee = async (req, res) => {
       values.push(value);
     }
 
-    // WHERE id + tenant
+    fields.push(`updated_by = $${paramIndex++}`);
+    values.push(userId);
+
+    fields.push(`updated_at = NOW()`);
+
     values.push(id);
+    values.push(organizationId);
     values.push(userId);
 
     const query = `
       UPDATE employees e
       SET ${fields.join(', ')}
       WHERE e.id = $${paramIndex++}
-        AND ${tenantWhereEmployees('e', `$${paramIndex}`)}
+        AND ${tenantWhereEmployees('e', `$${paramIndex++}`, `$${paramIndex}`)}
       RETURNING *
     `;
 
     const result = await db.query(query, values);
 
-    res.json({ message: 'Employé mis à jour', employee: result.rows[0] });
+    res.json({ 
+      message: 'Employé mis à jour avec succès',
+      employee: result.rows[0] 
+    });
   } catch (error) {
     console.error('❌ updateEmployee error:', error);
     res.status(500).json({ error: 'Erreur serveur', details: error.message });
   }
 };
 
-// ============================================================================
-// DELETE /api/employees/:id - Soft delete (multi-tenant)
-// ============================================================================
 const deleteEmployee = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) return res.status(401).json({ error: 'Non autorisé' });
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
 
     const { id } = req.params;
 
@@ -331,12 +318,14 @@ const deleteEmployee = async (req, res) => {
       `
       UPDATE employees e
       SET status = 'exited',
-          end_date = CURRENT_DATE
+          end_date = CURRENT_DATE,
+          deleted_at = NOW(),
+          deleted_by = $3
       WHERE e.id = $1
-        AND ${tenantWhereEmployees('e', '$2')}
+        AND ${tenantWhereEmployees('e', '$2', '$3')}
       RETURNING *
       `,
-      [id, userId]
+      [id, organizationId, userId]
     );
 
     if (result.rows.length === 0) {
@@ -350,17 +339,18 @@ const deleteEmployee = async (req, res) => {
   }
 };
 
-// ============================================================================
-// GET /api/employees/stats - Statistiques (multi-tenant)
-// ============================================================================
 const getEmployeeStats = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) return res.status(401).json({ error: 'Non autorisé' });
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
 
     const totalResult = await db.query(
-      `SELECT COUNT(*) FROM employees e WHERE ${tenantWhereEmployees('e', '$1')}`,
-      [userId]
+      `SELECT COUNT(*) FROM employees e WHERE ${tenantWhereEmployees('e', '$1', '$2')}`,
+      [organizationId, userId]
     );
     const total = Number.parseInt(totalResult.rows?.[0]?.count || '0', 10);
 
@@ -368,10 +358,10 @@ const getEmployeeStats = async (req, res) => {
       `
       SELECT e.status, COUNT(*) as count
       FROM employees e
-      WHERE ${tenantWhereEmployees('e', '$1')}
+      WHERE ${tenantWhereEmployees('e', '$1', '$2')}
       GROUP BY e.status
       `,
-      [userId]
+      [organizationId, userId]
     );
 
     const byStatus = {};
@@ -381,11 +371,11 @@ const getEmployeeStats = async (req, res) => {
       `
       SELECT e.department, COUNT(*) as count
       FROM employees e
-      WHERE ${tenantWhereEmployees('e', '$1')}
+      WHERE ${tenantWhereEmployees('e', '$1', '$2')}
       GROUP BY e.department
       ORDER BY count DESC
       `,
-      [userId]
+      [organizationId, userId]
     );
 
     const byDepartment = {};
@@ -398,28 +388,27 @@ const getEmployeeStats = async (req, res) => {
   }
 };
 
-// ============================================================================
-// GET /api/employees/:id/assets - Assets assignés (multi-tenant)
-// ============================================================================
 const getEmployeeAssets = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) return res.status(401).json({ error: 'Non autorisé' });
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
 
     const { id } = req.params;
 
-    // ✅ Vérifier employee + tenant (compat)
     const employeeCheck = await db.query(
       `SELECT id, first_name, last_name FROM employees e
-       WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2')}`,
-      [id, userId]
+       WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')}`,
+      [id, organizationId, userId]
     );
     if (employeeCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Employé non trouvé' });
     }
     const employee = employeeCheck.rows[0];
 
-    // ✅ Assets actuellement assignés (tenant safe sur assets.created_by)
     const currentAssetsResult = await db.query(
       `
       SELECT
@@ -431,13 +420,12 @@ const getEmployeeAssets = async (req, res) => {
       JOIN asset_assignments aa ON a.id = aa.asset_id
       WHERE aa.employee_id = $1
         AND aa.status = 'active'
-        AND a.created_by = $2
+        AND a.organization_id = $2
       ORDER BY aa.assigned_date DESC
       `,
-      [id, userId]
+      [id, organizationId]
     );
 
-    // ✅ Historique (tenant safe)
     const historyResult = await db.query(
       `
       SELECT
@@ -456,10 +444,10 @@ const getEmployeeAssets = async (req, res) => {
       FROM asset_assignments aa
       JOIN assets a ON aa.asset_id = a.id
       WHERE aa.employee_id = $1
-        AND a.created_by = $2
+        AND a.organization_id = $2
       ORDER BY aa.assigned_date DESC
       `,
-      [id, userId]
+      [id, organizationId]
     );
 
     const stats = {
@@ -484,25 +472,20 @@ const getEmployeeAssets = async (req, res) => {
   }
 };
 
-// ============================================================================
-// ✅ NOUVEAU : POST /api/employees/:id/assign-user
-// Lier un employé à un utilisateur existant
-// ============================================================================
 const assignUserToEmployee = async (req, res) => {
   try {
-    const { id } = req.params; // Employee ID
+    const { id } = req.params;
     const { user_id } = req.body;
-    const currentUserId = req.user;
+    const currentUserId = req.user.id;
+    const organizationId = req.organizationId;
 
-    // Validation
     if (!user_id) {
       return res.status(400).json({ error: 'user_id requis' });
     }
 
-    // Vérifier que l'employé existe et appartient au tenant
     const employeeCheck = await db.query(
-      `SELECT id, first_name, last_name, user_id FROM employees e WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2')}`,
-      [id, currentUserId]
+      `SELECT id, first_name, last_name, user_id FROM employees e WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')}`,
+      [id, organizationId, currentUserId]
     );
 
     if (employeeCheck.rows.length === 0) {
@@ -511,10 +494,9 @@ const assignUserToEmployee = async (req, res) => {
 
     const employee = employeeCheck.rows[0];
 
-    // Vérifier que l'utilisateur existe
     const userCheck = await db.query(
-      'SELECT id, email FROM users WHERE id = $1',
-      [user_id]
+      'SELECT id, email FROM users WHERE id = $1 AND organization_id = $2',
+      [user_id, organizationId]
     );
 
     if (userCheck.rows.length === 0) {
@@ -523,10 +505,9 @@ const assignUserToEmployee = async (req, res) => {
 
     const user = userCheck.rows[0];
 
-    // Vérifier que l'utilisateur n'est pas déjà lié à un autre employé du même tenant
     const existingLink = await db.query(
-      `SELECT id, first_name, last_name FROM employees e WHERE e.user_id = $1 AND ${tenantWhereEmployees('e', '$2')} AND e.id != $3`,
-      [user_id, currentUserId, id]
+      `SELECT id, first_name, last_name FROM employees e WHERE e.user_id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')} AND e.id != $4`,
+      [user_id, organizationId, currentUserId, id]
     );
 
     if (existingLink.rows.length > 0) {
@@ -536,10 +517,9 @@ const assignUserToEmployee = async (req, res) => {
       });
     }
 
-    // Lier l'utilisateur à l'employé
     const result = await db.query(
-      `UPDATE employees e SET user_id = $1, updated_at = NOW() WHERE e.id = $2 AND ${tenantWhereEmployees('e', '$3')} RETURNING *`,
-      [user_id, id, currentUserId]
+      `UPDATE employees e SET user_id = $1, updated_by = $4, updated_at = NOW() WHERE e.id = $2 AND ${tenantWhereEmployees('e', '$3', '$4')} RETURNING *`,
+      [user_id, id, organizationId, currentUserId]
     );
 
     res.status(200).json({ 
@@ -553,19 +533,15 @@ const assignUserToEmployee = async (req, res) => {
   }
 };
 
-// ============================================================================
-// ✅ NOUVEAU : DELETE /api/employees/:id/assign-user
-// Délier un employé d'un utilisateur
-// ============================================================================
 const unassignUserFromEmployee = async (req, res) => {
   try {
     const { id } = req.params;
-    const currentUserId = req.user;
+    const currentUserId = req.user.id;
+    const organizationId = req.organizationId;
 
-    // Vérifier que l'employé existe
     const employeeCheck = await db.query(
-      `SELECT id, first_name, last_name, user_id FROM employees e WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2')}`,
-      [id, currentUserId]
+      `SELECT id, first_name, last_name, user_id FROM employees e WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')}`,
+      [id, organizationId, currentUserId]
     );
 
     if (employeeCheck.rows.length === 0) {
@@ -578,10 +554,9 @@ const unassignUserFromEmployee = async (req, res) => {
       return res.status(400).json({ error: 'Cet employé n\'est lié à aucun utilisateur' });
     }
 
-    // Délier l'utilisateur
     const result = await db.query(
-      `UPDATE employees e SET user_id = NULL, updated_at = NOW() WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2')} RETURNING *`,
-      [id, currentUserId]
+      `UPDATE employees e SET user_id = NULL, updated_by = $3, updated_at = NOW() WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')} RETURNING *`,
+      [id, organizationId, currentUserId]
     );
 
     res.status(200).json({ 
@@ -595,25 +570,20 @@ const unassignUserFromEmployee = async (req, res) => {
   }
 };
 
-// ============================================================================
-// ✅ NOUVEAU : POST /api/employees/:id/create-user
-// Créer un utilisateur et le lier immédiatement à l'employé
-// ============================================================================
 const createAndAssignUser = async (req, res) => {
   try {
-    const { id } = req.params; // Employee ID
+    const { id } = req.params;
     const { email, password, role = 'user' } = req.body;
-    const currentUserId = req.user;
+    const currentUserId = req.user.id;
+    const organizationId = req.organizationId;
 
-    // Validation
     if (!email || !password) {
       return res.status(400).json({ error: 'Email et mot de passe requis' });
     }
 
-    // Vérifier que l'employé existe
     const employeeCheck = await db.query(
-      `SELECT id, first_name, last_name, email as employee_email, user_id FROM employees e WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2')}`,
-      [id, currentUserId]
+      `SELECT id, first_name, last_name, email as employee_email, user_id FROM employees e WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')}`,
+      [id, organizationId, currentUserId]
     );
 
     if (employeeCheck.rows.length === 0) {
@@ -629,20 +599,17 @@ const createAndAssignUser = async (req, res) => {
       });
     }
 
-    // Vérifier format email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ error: 'Format email invalide' });
     }
 
-    // Vérifier longueur mot de passe
     if (password.length < 6) {
       return res.status(400).json({ 
         error: 'Le mot de passe doit contenir au moins 6 caractères' 
       });
     }
 
-    // Vérifier si email existe déjà
     const existingUser = await db.query(
       'SELECT id FROM users WHERE email = $1',
       [email.toLowerCase()]
@@ -655,25 +622,22 @@ const createAndAssignUser = async (req, res) => {
       });
     }
 
-    // Transaction : créer user + lier à l'employé
     await db.query('BEGIN');
 
     try {
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Créer l'utilisateur
       const userResult = await db.query(`
-        INSERT INTO users (email, password_hash, role)
-        VALUES ($1, $2, $3)
+        INSERT INTO users (email, password_hash, role, organization_id, created_by, updated_by)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, email, role
-      `, [email.toLowerCase(), hashedPassword, role]);
+      `, [email.toLowerCase(), hashedPassword, role, organizationId, currentUserId, currentUserId]);
 
       const newUser = userResult.rows[0];
 
-      // Lier à l'employé
       const employeeResult = await db.query(
-        `UPDATE employees e SET user_id = $1, updated_at = NOW() WHERE e.id = $2 AND ${tenantWhereEmployees('e', '$3')} RETURNING *`,
-        [newUser.id, id, currentUserId]
+        `UPDATE employees e SET user_id = $1, updated_by = $4, updated_at = NOW() WHERE e.id = $2 AND ${tenantWhereEmployees('e', '$3', '$4')} RETURNING *`,
+        [newUser.id, id, organizationId, currentUserId]
       );
 
       await db.query('COMMIT');
@@ -695,9 +659,6 @@ const createAndAssignUser = async (req, res) => {
   }
 };
 
-// ============================================================================
-// EXPORTS - ✅ 3 NOUVELLES FONCTIONS AJOUTÉES
-// ============================================================================
 module.exports = {
   getAllEmployees,
   getEmployeeById,
@@ -706,7 +667,7 @@ module.exports = {
   deleteEmployee,
   getEmployeeStats,
   getEmployeeAssets,
-  assignUserToEmployee,        // ✅ NOUVEAU
-  unassignUserFromEmployee,    // ✅ NOUVEAU
-  createAndAssignUser,         // ✅ NOUVEAU
+  assignUserToEmployee,
+  unassignUserFromEmployee,
+  createAndAssignUser,
 };

@@ -1,4 +1,5 @@
 // server/src/auth.controller.js
+// ✅ CORRECTION MULTI-TENANT : Création d'organization avec slug lors de l'inscription
 
 const db = require('./db');
 const bcrypt = require('bcryptjs');
@@ -9,7 +10,20 @@ const emailService = require('./services/emailService');
 const JWT_SECRET = process.env.JWT_SECRET;
 
 /**
+ * Génère un slug URL-safe à partir d'un texte
+ */
+const generateSlug = (text) => {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '') // Enlever caractères spéciaux
+    .replace(/[\s_-]+/g, '-')  // Remplacer espaces/underscores par tirets
+    .replace(/^-+|-+$/g, '');  // Enlever tirets début/fin
+};
+
+/**
  * Gère l'inscription d'un nouvel utilisateur.
+ * ✅ CORRECTION : Crée automatiquement une nouvelle organization avec slug
  */
 const register = async (req, res) => {
   // Sanitize les données d'entrée
@@ -24,39 +38,83 @@ const register = async (req, res) => {
     }
 
     // 2. Hacher le mot de passe avec un salt fort
-    const salt = await bcrypt.genSalt(12); // Augmenté à 12 pour plus de sécurité
+    const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 3. Enregistrer l'utilisateur
-    const result = await db.query(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at',
-      [email, hashedPassword]
-    );
+    // ✅ NOUVEAU : Créer une nouvelle organization pour ce user
+    const organizationName = email.split('@')[0] + ' Organization';
+    const baseSlug = generateSlug(email.split('@')[0]);
+    
+    await db.query('BEGIN');
 
-    // 4. Générer le token
-    const user = result.rows[0];
-    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' }); // 7 jours
-
-    console.log(`Nouvel utilisateur inscrit: ${user.email} (ID: ${user.id})`);
-
-    // 5. Envoyer l'email de bienvenue
     try {
-      const userName = email.split('@')[0]; // Utilise la partie avant @ comme nom
-      await emailService.sendWelcomeEmail(email, userName);
-      console.log(`✅ Email de bienvenue envoyé à ${email}`);
-    } catch (emailError) {
-      // Ne pas bloquer l'inscription si l'email échoue
-      console.error('⚠️ Erreur envoi email de bienvenue:', emailError);
+      // Vérifier si le slug existe déjà et ajouter un suffixe si nécessaire
+      let slug = baseSlug;
+      let slugExists = true;
+      let counter = 1;
+
+      while (slugExists) {
+        const slugCheck = await db.query(
+          'SELECT id FROM organizations WHERE slug = $1',
+          [slug]
+        );
+        
+        if (slugCheck.rows.length === 0) {
+          slugExists = false;
+        } else {
+          slug = `${baseSlug}-${counter}`;
+          counter++;
+        }
+      }
+
+      const orgResult = await db.query(
+        'INSERT INTO organizations (name, slug) VALUES ($1, $2) RETURNING id',
+        [organizationName, slug]
+      );
+
+      const organizationId = orgResult.rows[0].id;
+
+      console.log(`✅ Organization créée: "${organizationName}" (ID: ${organizationId}, Slug: ${slug})`);
+
+      // 3. Enregistrer l'utilisateur avec organization_id et role='owner'
+      const result = await db.query(
+        'INSERT INTO users (email, password_hash, organization_id, role) VALUES ($1, $2, $3, $4) RETURNING id, email, organization_id, role, created_at',
+        [email, hashedPassword, organizationId, 'owner']
+      );
+
+      await db.query('COMMIT');
+
+      // 4. Générer le token
+      const user = result.rows[0];
+      const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
+
+      console.log(`✅ Nouvel utilisateur inscrit: ${user.email} (ID: ${user.id}, Organization: ${organizationId})`);
+
+      // 5. Envoyer l'email de bienvenue
+      try {
+        const userName = email.split('@')[0];
+        await emailService.sendWelcomeEmail(email, userName);
+        console.log(`✅ Email de bienvenue envoyé à ${email}`);
+      } catch (emailError) {
+        // Ne pas bloquer l'inscription si l'email échoue
+        console.error('⚠️ Erreur envoi email de bienvenue:', emailError);
+      }
+
+      res.status(201).json({ 
+        token, 
+        id: user.id,
+        email: user.email,
+        organizationId: user.organization_id,
+        role: user.role
+      });
+
+    } catch (err) {
+      await db.query('ROLLBACK');
+      throw err;
     }
 
-    res.status(201).json({ 
-      token, 
-      id: user.id,
-      email: user.email
-    });
-
   } catch (error) {
-    console.error('Erreur inscription:', error);
+    console.error('❌ Erreur inscription:', error);
     res.status(500).json({ error: 'Erreur serveur lors de l\'inscription.' });
   }
 };
@@ -71,7 +129,7 @@ const login = async (req, res) => {
 
   try {
     // 1. Rechercher l'utilisateur
-    const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    const result = await db.query('SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL', [email]);
     const user = result.rows[0];
 
     if (!user) {
@@ -79,50 +137,24 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Identifiants invalides.' });
     }
 
-    // ✅ LOGS DE DEBUG
-    console.log('═══════════════════════════════════');
-    console.log('🔍 DEBUG LOGIN');
-    console.log('Email:', email);
-    console.log('Password saisi:', password);
-    console.log('Password longueur:', password.length);
-    console.log('Password bytes:', Buffer.from(password).toString('hex'));
-    console.log('Hash en base:', user.password_hash);
-    console.log('Hash longueur:', user.password_hash.length);
-    console.log('═══════════════════════════════════');
-
     // 2. Comparer le mot de passe
     const isMatch = await bcrypt.compare(password, user.password_hash);
 
-    console.log('✅ Résultat comparaison:', isMatch);
-
     if (!isMatch) {
-      // Tests additionnels pour diagnostiquer
-      console.log('❌ Comparaison échouée, tests additionnels:');
-      
-      const trimmedMatch = await bcrypt.compare(password.trim(), user.password_hash);
-      console.log('  - Avec trim():', trimmedMatch);
-      
-      const upperMatch = await bcrypt.compare(password.toUpperCase(), user.password_hash);
-      console.log('  - En majuscules:', upperMatch);
-      
-      const lowerMatch = await bcrypt.compare(password.toLowerCase(), user.password_hash);
-      console.log('  - En minuscules:', lowerMatch);
-      
-      console.log('═══════════════════════════════════');
-      
       return res.status(401).json({ error: 'Identifiants invalides.' });
     }
 
     // 3. Générer le token JWT
-    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' }); // 7 jours
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
 
-    console.log(`✅ Utilisateur connecté: ${user.email} (ID: ${user.id})`);
-    console.log('═══════════════════════════════════');
+    console.log(`✅ Utilisateur connecté: ${user.email} (ID: ${user.id}, Organization: ${user.organization_id})`);
 
     res.status(200).json({ 
       token, 
       id: user.id,
-      email: user.email
+      email: user.email,
+      organizationId: user.organization_id,
+      role: user.role
     });
 
   } catch (error) {

@@ -1,22 +1,11 @@
-// ============================================================================
-// ASSETS CONTROLLER - VERSION CORRIGÉE MULTI-TENANT (created_by)
-// ============================================================================
-// ✅ FIX CRITIQUE : Filtre created_by = req.user sur toutes les opérations
-// ✅ FIX CRITIQUE : JOIN employees tenant-safe
-// ✅ FIX CRITIQUE : Vérifs ownership sur :id + assign/unassign/history
-// ✅ CORRECTION #2 : Harmonisation pool → db
-// ============================================================================
-
 const db = require('./db');
-
-// ============================================================================
-// GET /api/assets - Liste des assets avec filtres (multi-tenant)
-// ============================================================================
 
 const getAllAssets = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) {
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
@@ -32,7 +21,6 @@ const getAllAssets = async (req, res) => {
       order = 'ASC'
     } = req.query;
 
-    // ✅ Base multi-tenant (a.created_by = $1)
     let query = `
       SELECT 
         a.*,
@@ -41,11 +29,11 @@ const getAllAssets = async (req, res) => {
       FROM assets a
       LEFT JOIN employees e 
         ON a.currently_assigned_to = e.id 
-       AND e.created_by = $1
-      WHERE a.created_by = $1
+       AND e.organization_id = $1
+      WHERE a.organization_id = $1 AND a.deleted_at IS NULL
     `;
 
-    const params = [userId];
+    const params = [organizationId];
     let paramIndex = 2;
 
     if (asset_type) {
@@ -118,30 +106,27 @@ const getAllAssets = async (req, res) => {
   }
 };
 
-// ============================================================================
-// GET /api/assets/stats - Statistiques assets (multi-tenant)
-// ============================================================================
-
 const getAssetStats = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) {
+    const organizationId = req.organizationId;
+    
+    if (!organizationId) {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
     const totalResult = await db.query(
-      'SELECT COUNT(*) FROM assets WHERE created_by = $1',
-      [userId]
+      'SELECT COUNT(*) FROM assets WHERE organization_id = $1 AND deleted_at IS NULL',
+      [organizationId]
     );
     const total = parseInt(totalResult.rows[0].count);
 
     const typeResult = await db.query(
       `SELECT asset_type, COUNT(*) as count
        FROM assets
-       WHERE created_by = $1
+       WHERE organization_id = $1 AND deleted_at IS NULL
        GROUP BY asset_type
        ORDER BY count DESC`,
-      [userId]
+      [organizationId]
     );
     const byType = {};
     typeResult.rows.forEach(row => {
@@ -151,10 +136,10 @@ const getAssetStats = async (req, res) => {
     const statusResult = await db.query(
       `SELECT status, COUNT(*) as count
        FROM assets
-       WHERE created_by = $1
+       WHERE organization_id = $1 AND deleted_at IS NULL
        GROUP BY status
        ORDER BY count DESC`,
-      [userId]
+      [organizationId]
     );
     const byStatus = {};
     statusResult.rows.forEach(row => {
@@ -164,11 +149,11 @@ const getAssetStats = async (req, res) => {
     const manufacturerResult = await db.query(
       `SELECT manufacturer, COUNT(*) as count
        FROM assets
-       WHERE created_by = $1 AND manufacturer IS NOT NULL
+       WHERE organization_id = $1 AND manufacturer IS NOT NULL AND deleted_at IS NULL
        GROUP BY manufacturer
        ORDER BY count DESC
        LIMIT 5`,
-      [userId]
+      [organizationId]
     );
     const byManufacturer = {};
     manufacturerResult.rows.forEach(row => {
@@ -180,9 +165,9 @@ const getAssetStats = async (req, res) => {
         SUM(purchase_price) as total_value,
         currency
       FROM assets
-      WHERE created_by = $1 AND purchase_price IS NOT NULL
+      WHERE organization_id = $1 AND purchase_price IS NOT NULL AND deleted_at IS NULL
       GROUP BY currency`,
-      [userId]
+      [organizationId]
     );
 
     res.json({
@@ -202,14 +187,11 @@ const getAssetStats = async (req, res) => {
   }
 };
 
-// ============================================================================
-// GET /api/assets/:id - Détails d'un asset (multi-tenant)
-// ============================================================================
-
 const getAssetById = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) {
+    const organizationId = req.organizationId;
+    
+    if (!organizationId) {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
@@ -226,9 +208,9 @@ const getAssetById = async (req, res) => {
       FROM assets a
       LEFT JOIN employees e 
         ON a.currently_assigned_to = e.id
-       AND e.created_by = $2
-      WHERE a.id = $1 AND a.created_by = $2
-    `, [id, userId]);
+       AND e.organization_id = $2
+      WHERE a.id = $1 AND a.organization_id = $2 AND a.deleted_at IS NULL
+    `, [id, organizationId]);
 
     if (assetResult.rows.length === 0) {
       return res.status(404).json({ error: 'Asset non trouvé' });
@@ -247,11 +229,11 @@ const getAssetById = async (req, res) => {
         FROM asset_assignments aa
         JOIN employees e 
           ON aa.employee_id = e.id
-         AND e.created_by = $2
+         AND e.organization_id = $2
         WHERE aa.asset_id = $1 AND aa.status = $3
         ORDER BY aa.assigned_date DESC
         LIMIT 1
-      `, [id, userId, 'active']);
+      `, [id, organizationId, 'active']);
 
       if (assignmentResult.rows.length > 0) {
         currentAssignment = assignmentResult.rows[0];
@@ -266,11 +248,11 @@ const getAssetById = async (req, res) => {
       FROM asset_assignments aa
       JOIN employees e 
         ON aa.employee_id = e.id
-       AND e.created_by = $2
+       AND e.organization_id = $2
       WHERE aa.asset_id = $1
       ORDER BY aa.assigned_date DESC
       LIMIT 5
-    `, [id, userId]);
+    `, [id, organizationId]);
 
     res.json({
       asset,
@@ -287,14 +269,12 @@ const getAssetById = async (req, res) => {
   }
 };
 
-// ============================================================================
-// POST /api/assets - Créer un asset
-// ============================================================================
-
 const createAsset = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) {
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
@@ -319,44 +299,47 @@ const createAsset = async (req, res) => {
       notes
     } = req.body;
 
-    // ⚠️ On conserve les checks d'unicité globaux (cf. explication employeesController).
+    if (!asset_tag || !name || !asset_type) {
+      return res.status(400).json({ error: 'asset_tag, name et asset_type sont requis' });
+    }
+
     const checkTag = await db.query(
-      'SELECT id FROM assets WHERE asset_tag = $1',
-      [asset_tag]
+      'SELECT id FROM assets WHERE asset_tag = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      [asset_tag, organizationId]
     );
 
     if (checkTag.rows.length > 0) {
-      return res.status(409).json({ error: 'Asset tag déjà utilisé' });
+      return res.status(409).json({ error: 'Asset tag déjà utilisé dans votre organisation' });
     }
 
     if (serial_number) {
       const checkSerial = await db.query(
-        'SELECT id FROM assets WHERE serial_number = $1',
-        [serial_number]
+        'SELECT id FROM assets WHERE serial_number = $1 AND organization_id = $2 AND deleted_at IS NULL',
+        [serial_number, organizationId]
       );
 
       if (checkSerial.rows.length > 0) {
-        return res.status(409).json({ error: 'Numéro de série déjà utilisé' });
+        return res.status(409).json({ error: 'Numéro de série déjà utilisé dans votre organisation' });
       }
     }
 
     const result = await db.query(
       `INSERT INTO assets (
-        asset_tag, name, asset_type, manufacturer, model, serial_number,
+        organization_id, asset_tag, name, asset_type, manufacturer, model, serial_number,
         specifications, status, condition, purchase_date, purchase_price,
         currency, warranty_end_date, supplier, location, room, image_url, notes,
-        created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *`,
       [
-        asset_tag, name, asset_type, manufacturer, model, serial_number,
+        organizationId, asset_tag, name, asset_type, manufacturer, model, serial_number,
         specifications, status, condition, purchase_date, purchase_price,
         currency, warranty_end_date, supplier, location, room, image_url, notes,
-        userId
+        userId, userId
       ]
     );
 
-    console.log(`✅ Asset créé par user ${userId}: ${result.rows[0].asset_tag}`);
+    console.log(`✅ Asset créé par user ${userId} pour organization ${organizationId}: ${result.rows[0].asset_tag}`);
 
     res.status(201).json({
       message: 'Asset créé avec succès',
@@ -372,14 +355,12 @@ const createAsset = async (req, res) => {
   }
 };
 
-// ============================================================================
-// PUT /api/assets/:id - Mettre à jour un asset (multi-tenant)
-// ============================================================================
-
 const updateAsset = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) {
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
@@ -387,8 +368,8 @@ const updateAsset = async (req, res) => {
     const updates = req.body;
 
     const check = await db.query(
-      'SELECT id FROM assets WHERE id = $1 AND created_by = $2',
-      [id, userId]
+      'SELECT id FROM assets WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      [id, organizationId]
     );
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Asset non trouvé' });
@@ -417,13 +398,19 @@ const updateAsset = async (req, res) => {
       return res.status(400).json({ error: 'Aucun champ à mettre à jour' });
     }
 
-    values.push(id);
+    fields.push(`updated_by = $${paramIndex}`);
     values.push(userId);
+    paramIndex++;
+
+    fields.push(`updated_at = NOW()`);
+
+    values.push(id);
+    values.push(organizationId);
 
     const query = `
       UPDATE assets 
       SET ${fields.join(', ')}
-      WHERE id = $${paramIndex} AND created_by = $${paramIndex + 1}
+      WHERE id = $${paramIndex} AND organization_id = $${paramIndex + 1} AND deleted_at IS NULL
       RETURNING *
     `;
 
@@ -443,23 +430,20 @@ const updateAsset = async (req, res) => {
   }
 };
 
-// ============================================================================
-// DELETE /api/assets/:id - Supprimer un asset (retired) (multi-tenant)
-// ============================================================================
-
 const deleteAsset = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) {
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
     const { id } = req.params;
 
-    // ✅ Vérifier ownership
     const assetCheck = await db.query(
-      'SELECT id FROM assets WHERE id = $1 AND created_by = $2',
-      [id, userId]
+      'SELECT id FROM assets WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      [id, organizationId]
     );
     if (assetCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Asset non trouvé' });
@@ -478,10 +462,10 @@ const deleteAsset = async (req, res) => {
 
     const result = await db.query(
       `UPDATE assets 
-       SET status = 'retired'
-       WHERE id = $1 AND created_by = $2
+       SET status = 'retired', deleted_at = NOW(), deleted_by = $3
+       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
        RETURNING *`,
-      [id, userId]
+      [id, organizationId, userId]
     );
 
     res.json({
@@ -498,14 +482,12 @@ const deleteAsset = async (req, res) => {
   }
 };
 
-// ============================================================================
-// POST /api/assets/:id/assign - Assigner un asset à un employé (multi-tenant)
-// ============================================================================
-
 const assignAsset = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) {
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
@@ -518,10 +500,9 @@ const assignAsset = async (req, res) => {
       assignment_notes
     } = req.body;
 
-    // ✅ Asset appartient au tenant
     const assetResult = await db.query(
-      'SELECT * FROM assets WHERE id = $1 AND created_by = $2',
-      [id, userId]
+      'SELECT * FROM assets WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      [id, organizationId]
     );
 
     if (assetResult.rows.length === 0) {
@@ -543,10 +524,9 @@ const assignAsset = async (req, res) => {
       });
     }
 
-    // ✅ Employé appartient au tenant
     const employeeResult = await db.query(
-      'SELECT id, first_name, last_name FROM employees WHERE id = $1 AND created_by = $2',
-      [employee_id, userId]
+      'SELECT id, first_name, last_name FROM employees WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      [employee_id, organizationId]
     );
 
     if (employeeResult.rows.length === 0) {
@@ -566,9 +546,9 @@ const assignAsset = async (req, res) => {
 
     await db.query(
       `UPDATE assets 
-       SET status = 'assigned', currently_assigned_to = $1
-       WHERE id = $2 AND created_by = $3`,
-      [employee_id, id, userId]
+       SET status = 'assigned', currently_assigned_to = $1, updated_by = $4
+       WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL`,
+      [employee_id, id, organizationId, userId]
     );
 
     console.log(`✅ Asset ${id} assigné à employé ${employee_id} par user ${userId}`);
@@ -587,14 +567,12 @@ const assignAsset = async (req, res) => {
   }
 };
 
-// ============================================================================
-// POST /api/assets/:id/unassign - Retourner un asset (multi-tenant)
-// ============================================================================
-
 const unassignAsset = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) {
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
@@ -602,8 +580,8 @@ const unassignAsset = async (req, res) => {
     const { condition_on_return = 'good', return_notes } = req.body;
 
     const assetResult = await db.query(
-      'SELECT * FROM assets WHERE id = $1 AND created_by = $2',
-      [id, userId]
+      'SELECT * FROM assets WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      [id, organizationId]
     );
 
     if (assetResult.rows.length === 0) {
@@ -618,17 +596,16 @@ const unassignAsset = async (req, res) => {
       });
     }
 
-    // ✅ CORRECTION #6 : Vérification tenant sur assignment
     const assignmentResult = await db.query(
       `SELECT aa.* 
        FROM asset_assignments aa
        JOIN assets a ON aa.asset_id = a.id
        WHERE aa.asset_id = $1 
          AND aa.status = 'active'
-         AND a.created_by = $2
+         AND a.organization_id = $2
        ORDER BY aa.assigned_date DESC
        LIMIT 1`,
-      [id, userId]
+      [id, organizationId]
     );
 
     if (assignmentResult.rows.length === 0) {
@@ -653,9 +630,10 @@ const unassignAsset = async (req, res) => {
       `UPDATE assets 
        SET status = 'available', 
            currently_assigned_to = NULL,
-           condition = $1
-       WHERE id = $2 AND created_by = $3`,
-      [condition_on_return, id, userId]
+           condition = $1,
+           updated_by = $4
+       WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL`,
+      [condition_on_return, id, organizationId, userId]
     );
 
     res.json({
@@ -677,22 +655,19 @@ const unassignAsset = async (req, res) => {
   }
 };
 
-// ============================================================================
-// GET /api/assets/:id/history - Historique des assignations (multi-tenant)
-// ============================================================================
-
 const getAssetHistory = async (req, res) => {
   try {
-    const userId = req.user;
-    if (!userId) {
+    const organizationId = req.organizationId;
+    
+    if (!organizationId) {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
     const { id } = req.params;
 
     const assetCheck = await db.query(
-      'SELECT id, asset_tag, name FROM assets WHERE id = $1 AND created_by = $2',
-      [id, userId]
+      'SELECT id, asset_tag, name FROM assets WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      [id, organizationId]
     );
 
     if (assetCheck.rows.length === 0) {
@@ -709,13 +684,13 @@ const getAssetHistory = async (req, res) => {
       FROM asset_assignments aa
       JOIN employees e 
         ON aa.employee_id = e.id
-       AND e.created_by = $2
+       AND e.organization_id = $2
       JOIN assets a
         ON aa.asset_id = a.id
-       AND a.created_by = $2
+       AND a.organization_id = $2
       WHERE aa.asset_id = $1
       ORDER BY aa.assigned_date DESC`,
-      [id, userId]
+      [id, organizationId]
     );
 
     res.json({
@@ -731,10 +706,6 @@ const getAssetHistory = async (req, res) => {
     });
   }
 };
-
-// ============================================================================
-// EXPORTS
-// ============================================================================
 
 module.exports = {
   getAllAssets,

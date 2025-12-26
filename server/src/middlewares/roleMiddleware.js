@@ -1,69 +1,73 @@
-// ============================================================================
-// MIDDLEWARE - VÉRIFICATION DES RÔLES
-// ============================================================================
-// Fichier : server/src/middlewares/roleMiddleware.js
-// Description : Middleware pour restreindre l'accès selon les rôles
-// ============================================================================
+// server/src/middlewares/roleMiddleware.js
+// ✅ CORRECTION : Utiliser req.user.id au lieu de req.user
 
 const db = require('../db');
 
 /**
- * Middleware pour vérifier qu'un utilisateur a un rôle spécifique
- * Usage : router.get('/path', protect, requireRole('super_admin'), handler)
+ * Middleware pour vérifier que l'utilisateur a le rôle super_admin
  */
-const requireRole = (...allowedRoles) => {
-  return async (req, res, next) => {
-    try {
-      const userId = req.user;
+const requireSuperAdmin = async (req, res, next) => {
+  try {
+    // ✅ CORRECTION : Utiliser req.user.id au lieu de req.user
+    const userId = req.user.id;
 
-      if (!userId) {
-        return res.status(401).json({ error: 'Non authentifié' });
-      }
+    const result = await db.query(
+      'SELECT role FROM users WHERE id = $1',
+      [userId]
+    );
 
-      // Récupérer le rôle de l'utilisateur
-      const result = await db.query(
-        'SELECT role FROM users WHERE id = $1',
-        [userId]
-      );
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'Utilisateur non trouvé' });
-      }
-
-      const userRole = result.rows[0].role;
-
-      // Vérifier si le rôle est autorisé
-      if (!allowedRoles.includes(userRole)) {
-        return res.status(403).json({ 
-          error: 'Accès refusé',
-          message: `Cette action nécessite un rôle : ${allowedRoles.join(' ou ')}`,
-          yourRole: userRole
-        });
-      }
-
-      // Ajouter le rôle à la requête pour utilisation ultérieure
-      req.userRole = userRole;
-      next();
-
-    } catch (error) {
-      console.error('❌ Erreur vérification rôle:', error);
-      res.status(500).json({ error: 'Erreur serveur' });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
     }
-  };
+
+    const user = result.rows[0];
+
+    if (user.role !== 'super_admin') {
+      return res.status(403).json({ 
+        error: 'Accès refusé : rôle super_admin requis' 
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('❌ Erreur vérification rôle:', error);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
 };
 
 /**
- * Middleware pour vérifier que l'utilisateur est au moins admin
+ * Middleware pour vérifier que l'utilisateur a le rôle admin ou super_admin
  */
-const requireAdmin = requireRole('admin', 'super_admin');
+const requireAdmin = async (req, res, next) => {
+  try {
+    // ✅ CORRECTION : Utiliser req.user.id au lieu de req.user
+    const userId = req.user.id;
 
-/**
- * Middleware pour vérifier que l'utilisateur est super_admin
- */
-const requireSuperAdmin = requireRole('super_admin');
+    const result = await db.query(
+      'SELECT role FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    const user = result.rows[0];
+
+    if (!['admin', 'super_admin', 'owner'].includes(user.role)) {
+      return res.status(403).json({ 
+        error: 'Accès refusé : rôle admin requis' 
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('❌ Erreur vérification rôle:', error);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+};
 
 module.exports = {
-  requireRole,
-  requireAdmin,
-  requireSuperAdmin
+  requireSuperAdmin,
+  requireAdmin
 };

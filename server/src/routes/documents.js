@@ -1,24 +1,29 @@
 // server/src/routes/documents.js
 // Routes pour l'upload, download et gestion des documents
+// ✅ CORRECTION : authMiddleware + organizationMiddleware + multi-tenant
 
 const express = require('express');
 const router = express.Router();
-const pool = require('../db');
+const db = require('../db');
 const upload = require('../config/upload');
 const path = require('path');
 const fs = require('fs');
 
-// Middleware de protection (utilisateur authentifié)
-const { protect } = require('../middlewares/authMiddleware');
+// ✅ CORRECTION : Import direct authMiddleware
+const authMiddleware = require('../middlewares/authMiddleware');
+
+// ✅ AJOUT : organizationMiddleware
+const organizationMiddleware = require('../middlewares/organizationMiddleware');
 
 // ==========================================
 // ROUTE : UPLOAD DE FICHIER
 // ==========================================
 // POST /api/contracts/:contractId/documents
-router.post('/:contractId/documents', protect, upload.single('file'), async (req, res) => {
+router.post('/:contractId/documents', authMiddleware, organizationMiddleware, upload.single('file'), async (req, res) => {
     const { contractId } = req.params;
     const { documentType } = req.body; // 'contract', 'invoice', 'other'
-    const userId = req.user;  // ✅ CORRIGÉ : req.user est directement l'ID
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
 
     try {
         // Vérifier que le fichier a été uploadé
@@ -26,10 +31,10 @@ router.post('/:contractId/documents', protect, upload.single('file'), async (req
             return res.status(400).json({ error: 'Aucun fichier fourni' });
         }
 
-        // Vérifier que le contrat appartient bien à l'utilisateur
-        const contractCheck = await pool.query(
-            'SELECT id FROM contracts WHERE id = $1 AND user_id = $2',
-            [contractId, userId]
+        // Vérifier que le contrat appartient bien à l'organization
+        const contractCheck = await db.query(
+            'SELECT id FROM contracts WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+            [contractId, organizationId]
         );
 
         if (contractCheck.rows.length === 0) {
@@ -65,7 +70,7 @@ router.post('/:contractId/documents', protect, upload.single('file'), async (req
             userId
         ];
 
-        const result = await pool.query(insertQuery, values);
+        const result = await db.query(insertQuery, values);
         const document = result.rows[0];
 
         console.log(`✅ Fichier uploadé : ${req.file.originalname} pour contrat ${contractId}`);
@@ -102,15 +107,16 @@ router.post('/:contractId/documents', protect, upload.single('file'), async (req
 // ROUTE : LISTE DES DOCUMENTS D'UN CONTRAT
 // ==========================================
 // GET /api/contracts/:contractId/documents
-router.get('/:contractId/documents', protect, async (req, res) => {
+router.get('/:contractId/documents', authMiddleware, organizationMiddleware, async (req, res) => {
     const { contractId } = req.params;
-    const userId = req.user;  // ✅ CORRIGÉ
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
 
     try {
-        // Vérifier que le contrat appartient à l'utilisateur
-        const contractCheck = await pool.query(
-            'SELECT id FROM contracts WHERE id = $1 AND user_id = $2',
-            [contractId, userId]
+        // Vérifier que le contrat appartient à l'organization
+        const contractCheck = await db.query(
+            'SELECT id FROM contracts WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+            [contractId, organizationId]
         );
 
         if (contractCheck.rows.length === 0) {
@@ -131,7 +137,7 @@ router.get('/:contractId/documents', protect, async (req, res) => {
             ORDER BY uploaded_at DESC
         `;
 
-        const result = await pool.query(documentsQuery, [contractId]);
+        const result = await db.query(documentsQuery, [contractId]);
 
         res.json({
             contractId: parseInt(contractId),
@@ -149,20 +155,21 @@ router.get('/:contractId/documents', protect, async (req, res) => {
 // ROUTE : DOWNLOAD D'UN DOCUMENT
 // ==========================================
 // GET /api/documents/:documentId/download
-router.get('/:documentId/download', protect, async (req, res) => {
+router.get('/:documentId/download', authMiddleware, organizationMiddleware, async (req, res) => {
     const { documentId } = req.params;
-    const userId = req.user;  // ✅ CORRIGÉ
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
 
     try {
         // Récupérer le document et vérifier les permissions
         const query = `
-            SELECT d.*, c.user_id
+            SELECT d.*, c.organization_id
             FROM documents d
             JOIN contracts c ON d.contract_id = c.id
             WHERE d.id = $1
         `;
 
-        const result = await pool.query(query, [documentId]);
+        const result = await db.query(query, [documentId]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Document non trouvé' });
@@ -171,7 +178,7 @@ router.get('/:documentId/download', protect, async (req, res) => {
         const document = result.rows[0];
 
         // Vérifier que l'utilisateur a accès au contrat
-        if (document.user_id !== userId) {
+        if (document.organization_id !== organizationId) {
             return res.status(403).json({ error: 'Accès non autorisé' });
         }
 
@@ -202,20 +209,21 @@ router.get('/:documentId/download', protect, async (req, res) => {
 // ROUTE : SUPPRESSION D'UN DOCUMENT
 // ==========================================
 // DELETE /api/documents/:documentId
-router.delete('/:documentId', protect, async (req, res) => {
+router.delete('/:documentId', authMiddleware, organizationMiddleware, async (req, res) => {
     const { documentId } = req.params;
-    const userId = req.user;  // ✅ CORRIGÉ
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
 
     try {
         // Récupérer le document et vérifier les permissions
         const query = `
-            SELECT d.*, c.user_id
+            SELECT d.*, c.organization_id
             FROM documents d
             JOIN contracts c ON d.contract_id = c.id
             WHERE d.id = $1
         `;
 
-        const result = await pool.query(query, [documentId]);
+        const result = await db.query(query, [documentId]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Document non trouvé' });
@@ -224,7 +232,7 @@ router.delete('/:documentId', protect, async (req, res) => {
         const document = result.rows[0];
 
         // Vérifier que l'utilisateur a accès
-        if (document.user_id !== userId) {
+        if (document.organization_id !== organizationId) {
             return res.status(403).json({ error: 'Accès non autorisé' });
         }
 
@@ -235,7 +243,7 @@ router.delete('/:documentId', protect, async (req, res) => {
         }
 
         // Supprimer de la base de données
-        await pool.query('DELETE FROM documents WHERE id = $1', [documentId]);
+        await db.query('DELETE FROM documents WHERE id = $1', [documentId]);
 
         console.log(`✅ Document supprimé : ${document.original_filename}`);
 
@@ -257,15 +265,16 @@ router.delete('/:documentId', protect, async (req, res) => {
 // ROUTE : STATISTIQUES DES DOCUMENTS
 // ==========================================
 // GET /api/contracts/:contractId/documents/stats
-router.get('/:contractId/documents/stats', protect, async (req, res) => {
+router.get('/:contractId/documents/stats', authMiddleware, organizationMiddleware, async (req, res) => {
     const { contractId } = req.params;
-    const userId = req.user;  // ✅ CORRIGÉ
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
 
     try {
         // Vérifier le contrat
-        const contractCheck = await pool.query(
-            'SELECT id FROM contracts WHERE id = $1 AND user_id = $2',
-            [contractId, userId]
+        const contractCheck = await db.query(
+            'SELECT id FROM contracts WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+            [contractId, organizationId]
         );
 
         if (contractCheck.rows.length === 0) {
@@ -284,7 +293,7 @@ router.get('/:contractId/documents/stats', protect, async (req, res) => {
             WHERE contract_id = $1
         `;
 
-        const result = await pool.query(statsQuery, [contractId]);
+        const result = await db.query(statsQuery, [contractId]);
         const stats = result.rows[0];
 
         res.json({

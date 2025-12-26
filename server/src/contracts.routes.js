@@ -4,7 +4,12 @@ const express = require('express');
 const router = express.Router();
 const db = require('./db');
 
-const { protect } = require('./middlewares/authMiddleware.js');
+// ✅ CORRECTION : Import direct authMiddleware (pas { protect })
+const authMiddleware = require('./middlewares/authMiddleware.js');
+
+// ✅ AJOUT : organizationMiddleware
+const organizationMiddleware = require('./middlewares/organizationMiddleware.js');
+
 const { validate } = require('./middlewares/validation');
 const { createContractValidation, updateContractValidation } = require('./validators/contractValidator');
 const {
@@ -16,8 +21,9 @@ const {
     exportContracts
 } = require('./contractsController.js');
 
-// Applique le middleware de protection à toutes les routes
-router.use(protect);
+// ✅ CORRECTION : Appliquer les middlewares à toutes les routes
+router.use(authMiddleware);
+router.use(organizationMiddleware);
 
 // GET /api/contracts/providers - Obtenir la liste des fournisseurs uniques
 // ⚠️ DOIT ÊTRE AVANT /:id
@@ -34,12 +40,13 @@ router.get('/export', exportContracts);
 // ⚠️ DOIT ÊTRE APRÈS /providers et /export mais AVANT /
 router.get('/:id', async (req, res) => {
     const { id } = req.params;
-    const userId = req.user;
+    // ✅ CORRECTION : Utiliser req.organizationId au lieu de req.user
+    const organizationId = req.organizationId;
 
     try {
         const result = await db.query(
-            'SELECT * FROM contracts WHERE id = $1 AND user_id = $2',
-            [id, userId]
+            'SELECT * FROM contracts WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+            [id, organizationId]
         );
 
         if (result.rows.length === 0) {

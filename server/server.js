@@ -2,6 +2,7 @@
 // + WORKFLOW SCHEDULER POUR NOTIFICATIONS AUTOMATIQUES
 // ✅ CORRECTION #1 : getGlobalData déplacé dans dashboardController
 // ✅ NOUVEAU : Route /api/users pour gestion des utilisateurs
+// ✅ CORRECTION MULTI-TENANT : authMiddleware corrigé
 
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
@@ -9,8 +10,8 @@ if (process.env.NODE_ENV !== 'production') {
 
 const express = require('express');
 const cors = require('cors');
-const compression = require('compression'); // ✅ CORRECTION #21
-const db = require('./src/db.js'); // ✅ CORRECTION #18
+const compression = require('compression');
+const db = require('./src/db.js');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -18,18 +19,19 @@ const port = process.env.PORT || 5000;
 // ✅ CORRECTION #20 : Configuration CORS sécurisée
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production'
-    ? [process.env.FRONTEND_URL, process.env.APP_URL].filter(Boolean) // Production : domaines autorisés
-    : '*', // Développement : tous domaines autorisés
+    ? [process.env.FRONTEND_URL, process.env.APP_URL].filter(Boolean)
+    : '*',
   credentials: true,
   optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
-// ✅ CORRECTION #21 : Compression gzip pour meilleures performances
 app.use(compression());
 
-const { protect } = require('./src/middlewares/authMiddleware.js'); // ✅ CORRECTION #18
+// ✅ CORRECTION MULTI-TENANT : Import direct authMiddleware
+const authMiddleware = require('./src/middlewares/authMiddleware.js');
+const organizationMiddleware = require('./src/middlewares/organizationMiddleware.js');
 
 const authRoutes = require('./src/auth.routes.js');
 const contractRoutes = require('./src/contracts.routes.js');
@@ -40,13 +42,13 @@ const passwordResetRoutes = require('./src/routes/password-reset.js');
 const employeesRoutes = require('./src/employees.routes.js');
 const assetsRoutes = require('./src/assets.routes.js');
 const workflowRoutes = require('./src/workflows.routes.js');
-const dashboardRoutes = require('./src/dashboard.routes.js'); // ✅ CORRECTION #18
-const dashboardController = require('./src/dashboardController.js'); // ✅ CORRECTION #18
-const usersRoutes = require('./src/users.routes.js'); // ✅ NOUVEAU : Routes utilisateurs
+const dashboardRoutes = require('./src/dashboard.routes.js');
+const dashboardController = require('./src/dashboardController.js');
+const usersRoutes = require('./src/users.routes.js');
 
 // Schedulers pour notifications automatiques
-const emailScheduler = require('./src/jobs/emailScheduler.js'); // ✅ CORRECTION #18
-const workflowScheduler = require('./src/jobs/workflowScheduler.js'); // ✅ CORRECTION #18
+const emailScheduler = require('./src/jobs/emailScheduler.js');
+const workflowScheduler = require('./src/jobs/workflowScheduler.js');
 
 // ====================================
 // ROUTES
@@ -60,18 +62,19 @@ app.use('/api/emails', emailRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/documents', documentsRoutes);
 
-// ✅ FIX CRITIQUE : PROTÈGE employees & assets (sinon accessibles sans login)
-app.use('/api/employees', protect, employeesRoutes);
-app.use('/api/assets', protect, assetsRoutes);
+// ✅ CORRECTION MULTI-TENANT : Les routes employees et assets ont déjà leurs middlewares
+// On ne les ajoute PAS ici pour éviter la double application
+app.use('/api/employees', employeesRoutes);
+app.use('/api/assets', assetsRoutes);
 
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
-// ✅ NOUVEAU : Route pour gestion des utilisateurs (super_admin uniquement)
+// ✅ NOUVEAU : Route pour gestion des utilisateurs
 app.use('/api/users', usersRoutes);
 
 // ✅ CORRECTION #1 : Utilise dashboardController.getGlobalView
-app.get('/api/dashboard/global', protect, dashboardController.getGlobalView);
+app.get('/api/dashboard/global', authMiddleware, organizationMiddleware, dashboardController.getGlobalView);
 
 app.get('/', (req, res) => {
   res.json({ message: "SaaS Tracker API OK" });

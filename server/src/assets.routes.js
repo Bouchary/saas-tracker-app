@@ -7,11 +7,16 @@
 
 const express = require('express');
 const router = express.Router();
+
+// ✅ AJOUT : authMiddleware et organizationMiddleware
+const authMiddleware = require('./middlewares/authMiddleware.js');
+const organizationMiddleware = require('./middlewares/organizationMiddleware.js');
+
 const assetsController = require('./assetsController');
 
-// NOTE: Si vous avez un middleware d'authentification, décommentez ces lignes
-// const { authenticateToken } = require('./middlewares/authMiddleware');
-// Toutes les routes ci-dessous seraient alors protégées
+// ✅ AJOUT : Appliquer les middlewares à toutes les routes
+router.use(authMiddleware);
+router.use(organizationMiddleware);
 
 // ============================================================================
 // ROUTES STATISTICS (doit être avant /:id pour éviter les conflits)

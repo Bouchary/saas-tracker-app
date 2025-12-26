@@ -1,11 +1,12 @@
 // server/src/routes/password-reset.js
 // Routes pour la réinitialisation de mot de passe
+// ✅ Routes publiques - pas de middleware d'authentification
 
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const pool = require('../db');
+const db = require('../db');
 const { sendEmail } = require('../services/emailService');
 
 // ==========================================
@@ -17,8 +18,8 @@ router.post('/forgot-password', async (req, res) => {
 
     try {
         // Vérifier que l'utilisateur existe
-        const userResult = await pool.query(
-            'SELECT id, email FROM users WHERE email = $1',
+        const userResult = await db.query(
+            'SELECT id, email, organization_id FROM users WHERE email = $1 AND deleted_at IS NULL',
             [email]
         );
 
@@ -37,8 +38,8 @@ router.post('/forgot-password', async (req, res) => {
         const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 heure
 
         // Sauvegarder le token en base
-        await pool.query(
-            'UPDATE users SET reset_token = $1, reset_token_expiry = $2 WHERE id = $3',
+        await db.query(
+            'UPDATE users SET reset_token = $1, reset_token_expiry = $2, updated_at = NOW() WHERE id = $3',
             [resetTokenHash, resetTokenExpiry, user.id]
         );
 
@@ -94,8 +95,8 @@ router.post('/reset-password/:token', async (req, res) => {
         const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
         // Trouver l'utilisateur avec ce token et vérifier l'expiration
-        const userResult = await pool.query(
-            'SELECT id FROM users WHERE reset_token = $1 AND reset_token_expiry > NOW()',
+        const userResult = await db.query(
+            'SELECT id FROM users WHERE reset_token = $1 AND reset_token_expiry > NOW() AND deleted_at IS NULL',
             [resetTokenHash]
         );
 
@@ -109,8 +110,8 @@ router.post('/reset-password/:token', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         // Mettre à jour le mot de passe et supprimer le token
-        await pool.query(
-            'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL WHERE id = $2',
+        await db.query(
+            'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL, updated_at = NOW() WHERE id = $2',
             [hashedPassword, user.id]
         );
 

@@ -1,19 +1,26 @@
 // server/src/routes/profile.js
+// ✅ CORRECTION : authMiddleware + organizationMiddleware + multi-tenant
 
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const bcrypt = require('bcryptjs');
-const { protect } = require('../middlewares/authMiddleware');
+
+// ✅ CORRECTION : Import direct authMiddleware
+const authMiddleware = require('../middlewares/authMiddleware');
+
+// ✅ AJOUT : organizationMiddleware
+const organizationMiddleware = require('../middlewares/organizationMiddleware');
 
 /**
  * @route   GET /api/profile
  * @desc    Récupérer les informations du profil utilisateur
  * @access  Private
  */
-router.get('/', protect, async (req, res) => {
+router.get('/', authMiddleware, organizationMiddleware, async (req, res) => {
     try {
-        const userId = req.user;
+        const userId = req.user.id;
+        const organizationId = req.organizationId;
 
         // Récupérer les infos utilisateur
         const userResult = await db.query(
@@ -24,8 +31,8 @@ router.get('/', protect, async (req, res) => {
                 notification_email,
                 notification_days
             FROM users 
-            WHERE id = $1`,
-            [userId]
+            WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+            [userId, organizationId]
         );
 
         if (userResult.rows.length === 0) {
@@ -42,8 +49,8 @@ router.get('/', protect, async (req, res) => {
                 COALESCE(SUM(CASE WHEN status = 'active' THEN monthly_cost ELSE 0 END), 0) as total_monthly_cost,
                 MIN(renewal_date) as next_renewal
             FROM contracts 
-            WHERE user_id = $1`,
-            [userId]
+            WHERE organization_id = $1 AND deleted_at IS NULL`,
+            [organizationId]
         );
 
         const stats = statsResult.rows[0];
@@ -74,9 +81,10 @@ router.get('/', protect, async (req, res) => {
  * @desc    Mettre à jour les préférences de notification
  * @access  Private
  */
-router.put('/notifications', protect, async (req, res) => {
+router.put('/notifications', authMiddleware, organizationMiddleware, async (req, res) => {
     try {
-        const userId = req.user;
+        const userId = req.user.id;
+        const organizationId = req.organizationId;
         const { notification_email, notification_days } = req.body;
 
         // Validation
@@ -115,11 +123,12 @@ router.put('/notifications', protect, async (req, res) => {
         }
 
         values.push(userId);
+        values.push(organizationId);
 
         const result = await db.query(`
             UPDATE users
             SET ${updates.join(', ')}, updated_at = NOW()
-            WHERE id = $${paramCount}
+            WHERE id = $${paramCount} AND organization_id = $${paramCount + 1} AND deleted_at IS NULL
             RETURNING notification_email, notification_days
         `, values);
 
@@ -141,9 +150,10 @@ router.put('/notifications', protect, async (req, res) => {
  * @desc    Récupérer l'historique des notifications
  * @access  Private
  */
-router.get('/notifications/history', protect, async (req, res) => {
+router.get('/notifications/history', authMiddleware, organizationMiddleware, async (req, res) => {
     try {
-        const userId = req.user;
+        const userId = req.user.id;
+        const organizationId = req.organizationId;
         const { limit = 20, offset = 0 } = req.query;
 
         const result = await db.query(`
@@ -184,9 +194,10 @@ router.get('/notifications/history', protect, async (req, res) => {
  * @desc    Changer le mot de passe de l'utilisateur
  * @access  Private
  */
-router.put('/password', protect, async (req, res) => {
+router.put('/password', authMiddleware, organizationMiddleware, async (req, res) => {
     try {
-        const userId = req.user;
+        const userId = req.user.id;
+        const organizationId = req.organizationId;
         const { currentPassword, newPassword } = req.body;
 
         // Validation
@@ -204,8 +215,8 @@ router.put('/password', protect, async (req, res) => {
 
         // Récupérer l'utilisateur avec son mot de passe actuel
         const userResult = await db.query(
-            'SELECT id, password_hash FROM users WHERE id = $1',
-            [userId]
+            'SELECT id, password_hash FROM users WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+            [userId, organizationId]
         );
 
         if (userResult.rows.length === 0) {
@@ -229,8 +240,8 @@ router.put('/password', protect, async (req, res) => {
 
         // Mettre à jour le mot de passe
         await db.query(
-            'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
-            [hashedPassword, userId]
+            'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3',
+            [hashedPassword, userId, organizationId]
         );
 
         console.log(`✅ Mot de passe changé pour l'utilisateur ${userId}`);
