@@ -1,7 +1,8 @@
 // ============================================================================
-// HEADER - COMPLET avec menu déroulant Workflows
+// HEADER - COMPLET avec menu déroulant Workflows + Lien Utilisateurs
 // ============================================================================
 // Fichier : client/src/components/Header.jsx
+// ✅ NOUVEAU : Lien "Utilisateurs" pour les super_admin
 // ============================================================================
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -9,7 +10,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { 
   LayoutDashboard, User, Lightbulb, Users, Package, BarChart3, 
-  GitBranch, FileText, List, ChevronDown
+  GitBranch, FileText, List, ChevronDown, Shield
 } from 'lucide-react';
 import Notifications from './Notifications';
 
@@ -169,6 +170,17 @@ const Header = ({ onNotificationClick }) => {
                   </Link>
                 </div>
               )}
+            </li>
+            
+            {/* ✅ NOUVEAU : LIEN UTILISATEURS (visible pour tous, mais page réservée super_admin) */}
+            <li>
+              <Link 
+                to="/users" 
+                className="text-gray-700 hover:text-purple-600 font-medium transition duration-300 flex items-center gap-1"
+              >
+                <Shield className="w-4 h-4" />
+                Utilisateurs
+              </Link>
             </li>
             
             {isAuthenticated && (

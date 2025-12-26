@@ -1,6 +1,7 @@
 // VERSION AVEC DÉPARTEMENTS RÉELS - Fallback sur mock si table vide
 // + WORKFLOW SCHEDULER POUR NOTIFICATIONS AUTOMATIQUES
 // ✅ CORRECTION #1 : getGlobalData déplacé dans dashboardController
+// ✅ NOUVEAU : Route /api/users pour gestion des utilisateurs
 
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
@@ -41,6 +42,8 @@ const assetsRoutes = require('./src/assets.routes.js');
 const workflowRoutes = require('./src/workflows.routes.js');
 const dashboardRoutes = require('./src/dashboard.routes.js'); // ✅ CORRECTION #18
 const dashboardController = require('./src/dashboardController.js'); // ✅ CORRECTION #18
+const usersRoutes = require('./src/users.routes.js'); // ✅ NOUVEAU : Routes utilisateurs
+
 // Schedulers pour notifications automatiques
 const emailScheduler = require('./src/jobs/emailScheduler.js'); // ✅ CORRECTION #18
 const workflowScheduler = require('./src/jobs/workflowScheduler.js'); // ✅ CORRECTION #18
@@ -63,6 +66,9 @@ app.use('/api/assets', protect, assetsRoutes);
 
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+
+// ✅ NOUVEAU : Route pour gestion des utilisateurs (super_admin uniquement)
+app.use('/api/users', usersRoutes);
 
 // ✅ CORRECTION #1 : Utilise dashboardController.getGlobalView
 app.get('/api/dashboard/global', protect, dashboardController.getGlobalView);

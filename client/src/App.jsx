@@ -1,7 +1,8 @@
 // ============================================================================
-// APP.JSX - COMPLET avec toutes les routes Workflows
+// APP.JSX - COMPLET avec toutes les routes Workflows + Gestion Utilisateurs
 // ============================================================================
 // Fichier : client/src/App.jsx
+// ✅ NOUVEAU : Route /users pour gestion des utilisateurs
 // ============================================================================
 
 import React, { useState } from 'react';
@@ -42,6 +43,9 @@ import WorkflowsPage from './pages/workflows/WorkflowsPage';
 import WorkflowDetailPage from './pages/workflows/WorkflowDetailPage';
 import TemplatesPage from './pages/workflows/TemplatesPage';
 import TemplateFormPage from './pages/workflows/TemplateFormPage';
+
+// ✅ NOUVEAU : MODULE GESTION UTILISATEURS
+import UsersPage from './pages/UsersPage';
 
 // Importation des composants de structure
 import Header from './components/Header';
@@ -257,6 +261,16 @@ const App = () => {
                         element={
                             <ProtectedRoute>
                                 <WorkflowsPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    
+                    {/* ✅ NOUVELLE ROUTE : GESTION UTILISATEURS (super_admin uniquement) */}
+                    <Route
+                        path="/users"
+                        element={
+                            <ProtectedRoute>
+                                <UsersPage />
                             </ProtectedRoute>
                         }
                     />

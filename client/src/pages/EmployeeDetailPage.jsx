@@ -1,31 +1,30 @@
-// ============================================================================
-// EMPLOYEE DETAIL PAGE - COMPLET avec Matériel, Workflows et Création Workflow
-// ✅ CORRIGÉ : Noms de champs (office_location, employment_type, manager)
-// ============================================================================
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Package, ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Briefcase, 
   Calendar, User, FileText, Building, Home, Shuffle, XCircle, GitBranch,
-  Plus, Users
+  Plus, Users, UserPlus, UserCheck, UserX, Shield
 } from 'lucide-react';
+import { useAuth } from '../AuthContext';
+import API_URL from '../config/api';
 import employeesApi from '../services/employeesApi';
 import EmployeeAssets from '../components/EmployeeAssets';
 import EmployeeWorkflowsTab from '../components/employees/EmployeeWorkflowsTab';
 import CreateWorkflowWithAssignment from '../components/CreateWorkflowWithAssignment';
+import AssignUserModal from '../components/AssignUserModal';
 
 const EmployeeDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { token } = useAuth();
   
   const [employee, setEmployee] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('infos');
   const [showCreateWorkflowModal, setShowCreateWorkflowModal] = useState(false);
+  const [showAssignUserModal, setShowAssignUserModal] = useState(false);
 
-  // ✅ AJOUTÉ : Labels pour employment_type
   const employmentTypeLabels = {
     'full_time': 'Temps plein',
     'part_time': 'Temps partiel',
@@ -34,7 +33,6 @@ const EmployeeDetailPage = () => {
     'temporary': 'Temporaire'
   };
 
-  // ✅ AJOUTÉ : Labels pour work_mode
   const workModeLabels = {
     'on_site': 'Sur site',
     'remote': 'Remote',
@@ -77,6 +75,27 @@ const EmployeeDetailPage = () => {
     loadEmployee();
     setActiveTab('workflows');
     setShowCreateWorkflowModal(false);
+  };
+
+  const handleUnlinkUser = async () => {
+    if (!confirm('Délier cet employé de son compte utilisateur ?')) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/api/employees/${id}/assign-user`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        loadEmployee();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || 'Erreur lors de la déliaison');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erreur lors de la déliaison');
+    }
   };
 
   const formatDate = (dateString) => {
@@ -126,7 +145,6 @@ const EmployeeDetailPage = () => {
 
   return (
     <div className="page-container">
-      {/* Header */}
       <div className="page-header">
         <button onClick={() => navigate('/employees')} className="btn-back">
           <ArrowLeft size={20} />
@@ -167,7 +185,6 @@ const EmployeeDetailPage = () => {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="tabs-container">
         <button
           className={`tab-button ${activeTab === 'infos' ? 'active' : ''}`}
@@ -192,11 +209,45 @@ const EmployeeDetailPage = () => {
         </button>
       </div>
 
-      {/* Tab Content */}
       <div className="tab-content">
         {activeTab === 'infos' && (
           <div className="info-grid">
-            {/* Contact Information */}
+            <div className="info-card full-width">
+              <h3 className="info-card-title">
+                <Shield size={20} className="text-purple-600" />
+                Compte utilisateur
+              </h3>
+              
+              {employee.user_id ? (
+                <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <UserCheck className="w-5 h-5 text-green-600" />
+                      <div>
+                        <p className="text-sm text-green-600 font-medium">Compte utilisateur lié</p>
+                        <p className="text-sm text-gray-700">Peut se connecter et gérer ses tâches</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleUnlinkUser}
+                      className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2 border border-red-200"
+                    >
+                      <UserX className="w-4 h-4" />
+                      Délier
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAssignUserModal(true)}
+                  className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <UserPlus className="w-5 h-5" />
+                  Lier un utilisateur
+                </button>
+              )}
+            </div>
+
             <div className="info-card">
               <h3 className="info-card-title">
                 <Mail size={20} />
@@ -227,7 +278,6 @@ const EmployeeDetailPage = () => {
               </div>
             </div>
 
-            {/* Professional Information */}
             <div className="info-card">
               <h3 className="info-card-title">
                 <Briefcase size={20} />
@@ -265,7 +315,6 @@ const EmployeeDetailPage = () => {
               </div>
             </div>
 
-            {/* Localisation */}
             <div className="info-card">
               <h3 className="info-card-title">
                 <MapPin size={20} />
@@ -305,7 +354,6 @@ const EmployeeDetailPage = () => {
               </div>
             </div>
 
-            {/* Contract Information */}
             <div className="info-card">
               <h3 className="info-card-title">
                 <FileText size={20} />
@@ -347,7 +395,6 @@ const EmployeeDetailPage = () => {
               </div>
             </div>
 
-            {/* Additional Information */}
             {employee.notes && (
               <div className="info-card full-width">
                 <h3 className="info-card-title">
@@ -368,6 +415,18 @@ const EmployeeDetailPage = () => {
           <EmployeeWorkflowsTab employeeId={id} />
         )}
       </div>
+
+      {showAssignUserModal && (
+        <AssignUserModal
+          isOpen={showAssignUserModal}
+          onClose={() => setShowAssignUserModal(false)}
+          employee={employee}
+          onSuccess={() => {
+            loadEmployee();
+            setShowAssignUserModal(false);
+          }}
+        />
+      )}
 
       {showCreateWorkflowModal && (
         <CreateWorkflowWithAssignment

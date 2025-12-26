@@ -1,5 +1,5 @@
 // ============================================================================
-// EMPLOYEES ROUTES - VERSION COMPLÈTE AVEC ASSETS
+// EMPLOYEES ROUTES - VERSION COMPLÈTE AVEC ASSETS + GESTION UTILISATEURS
 // ============================================================================
 
 const express = require('express');
@@ -16,6 +16,19 @@ router.get('/stats', employeesController.getEmployeeStats);
 // 🆕 GET /api/employees/:id/assets - Assets de l'employé
 // PHASE 10 - JOUR 4 : INTÉGRATION EMPLOYÉS ↔ MATÉRIEL
 router.get('/:id/assets', employeesController.getEmployeeAssets);
+
+// ============================================================================
+// ✅ NOUVELLES ROUTES - GESTION DES UTILISATEURS
+// ============================================================================
+
+// POST /api/employees/:id/create-user - Créer un user et le lier à l'employé
+router.post('/:id/create-user', employeesController.createAndAssignUser);
+
+// POST /api/employees/:id/assign-user - Lier un employé à un user existant
+router.post('/:id/assign-user', employeesController.assignUserToEmployee);
+
+// DELETE /api/employees/:id/assign-user - Délier un employé d'un user
+router.delete('/:id/assign-user', employeesController.unassignUserFromEmployee);
 
 // ============================================================================
 // ROUTES GÉNÉRIQUES
