@@ -1,6 +1,5 @@
 // server/src/routes/import.routes.js
-// Routes pour import CSV/Excel - ÉTAPE 3 : Preview et analyse
-// VERSION AVEC LOGS DEBUG
+// Routes pour import CSV/Excel - ÉTAPE 6 : Import en BDD
 
 const express = require('express');
 const router = express.Router();
@@ -14,6 +13,7 @@ const upload = require('../config/upload.config');
 
 // Services
 const csvParser = require('../services/csvParser');
+const importService = require('../services/importService');
 
 // ✅ Protection : toutes les routes nécessitent authentification
 router.use(authMiddleware);
@@ -78,47 +78,21 @@ router.get('/preview/:filename', async (req, res) => {
     const { filename } = req.params;
     const userId = req.user.id;
     const organizationId = req.organizationId;
-    const { entity_type } = req.query; // contracts, assets, employees
-
-    // 🔍 LOGS DEBUG - DIAGNOSTIC COMPLET
-    console.log('');
-    console.log('🔍 ========== DEBUG PREVIEW ==========');
-    console.log('Filename reçu:', filename);
-    console.log('req.user COMPLET:', JSON.stringify(req.user, null, 2));
-    console.log('userId extrait:', userId);
-    console.log('Type de userId:', typeof userId);
-    console.log('organizationId:', organizationId);
-    console.log('String recherché:', `-${userId}-`);
-    console.log('Filename includes -userId-?', filename.includes(`-${userId}-`));
-    
-    // Test manuel de matching
-    const expectedPattern = `-${userId}-`;
-    const filenameContainsPattern = filename.indexOf(expectedPattern) !== -1;
-    console.log('Test indexOf:', filenameContainsPattern);
-    console.log('Position de -userId- dans filename:', filename.indexOf(expectedPattern));
-    console.log('=====================================');
-    console.log('');
+    const { entity_type } = req.query;
 
     // Vérifier que le fichier appartient à l'utilisateur (sécurité)
     if (!filename.includes(`-${userId}-`)) {
-      console.log('❌ ACCÈS REFUSÉ - Le userId ne correspond pas dans le filename');
-      console.log('   Filename:', filename);
-      console.log('   Pattern cherché:', `-${userId}-`);
       return res.status(403).json({ 
         error: 'Accès refusé à ce fichier' 
       });
     }
-
-    console.log('✅ Vérification userId: PASSÉE');
 
     const filePath = path.join('uploads', filename);
 
     // Vérifier que le fichier existe
     try {
       await fs.access(filePath);
-      console.log('✅ Fichier existe:', filePath);
     } catch {
-      console.log('❌ Fichier non trouvé:', filePath);
       return res.status(404).json({ 
         error: 'Fichier non trouvé' 
       });
@@ -126,13 +100,10 @@ router.get('/preview/:filename', async (req, res) => {
 
     // Détecter le type de fichier
     const ext = path.extname(filename).toLowerCase();
-    console.log('Extension détectée:', ext);
 
     let parseResult;
 
     if (ext === '.csv') {
-      console.log('📄 Parsing CSV en cours...');
-      
       // Parser CSV
       parseResult = await csvParser.parseCSV(filePath);
 
@@ -143,7 +114,6 @@ router.get('/preview/:filename', async (req, res) => {
           entity_type
         );
         parseResult.suggestedMapping = suggestedMapping;
-        console.log('💡 Mapping suggéré:', JSON.stringify(suggestedMapping, null, 2));
       }
 
       console.log(`📊 CSV parsé: ${filename} - ${parseResult.stats.totalRows} lignes, ${parseResult.stats.totalColumns} colonnes`);
@@ -156,29 +126,103 @@ router.get('/preview/:filename', async (req, res) => {
       });
 
     } else if (ext === '.xlsx' || ext === '.xls') {
-      console.log('📊 Fichier Excel détecté - pas encore supporté');
       // TODO: Parser Excel (ÉTAPE 4)
       res.status(501).json({ 
         error: 'Parsing Excel pas encore implémenté. Utilisez CSV pour le moment.' 
       });
 
     } else {
-      console.log('❌ Format de fichier non supporté:', ext);
       res.status(400).json({ 
         error: 'Format de fichier non supporté' 
       });
     }
 
   } catch (error) {
-    console.log('');
-    console.log('❌ ========== ERREUR PREVIEW ==========');
-    console.error('Erreur complète:', error);
-    console.log('Stack trace:', error.stack);
-    console.log('======================================');
-    console.log('');
-    
+    console.error('❌ Erreur preview:', error);
     res.status(500).json({ 
       error: error.message || 'Erreur lors de l\'analyse du fichier' 
+    });
+  }
+});
+
+/**
+ * POST /api/import/contracts
+ * Importer les contrats depuis un fichier CSV en base de données
+ */
+router.post('/contracts', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    const { filename, mapping } = req.body;
+
+    console.log('📥 Début import contracts:', { filename, userId, organizationId });
+
+    // Validation
+    if (!filename) {
+      return res.status(400).json({ error: 'Filename requis' });
+    }
+
+    if (!mapping || typeof mapping !== 'object') {
+      return res.status(400).json({ error: 'Mapping requis' });
+    }
+
+    // Vérifier que le fichier appartient à l'utilisateur
+    if (!filename.includes(`-${userId}-`)) {
+      return res.status(403).json({ 
+        error: 'Accès refusé à ce fichier' 
+      });
+    }
+
+    const filePath = path.join('uploads', filename);
+
+    // Vérifier que le fichier existe
+    try {
+      await fs.access(filePath);
+    } catch {
+      return res.status(404).json({ 
+        error: 'Fichier non trouvé' 
+      });
+    }
+
+    // Parser le CSV
+    const parseResult = await csvParser.parseCSV(filePath);
+
+    if (!parseResult.success || parseResult.data.length === 0) {
+      return res.status(400).json({ 
+        error: 'Aucune donnée à importer' 
+      });
+    }
+
+    console.log(`📊 ${parseResult.data.length} lignes à importer`);
+
+    // Importer les contrats
+    const importResult = await importService.importContracts(
+      parseResult.data,
+      mapping,
+      organizationId,
+      userId
+    );
+
+    console.log(`✅ Import terminé: ${importResult.success} succès, ${importResult.failed} échecs`);
+
+    // Supprimer le fichier après import (optionnel)
+    try {
+      await fs.unlink(filePath);
+      console.log(`🗑️  Fichier supprimé après import: ${filename}`);
+    } catch (unlinkError) {
+      console.warn('⚠️  Impossible de supprimer le fichier:', unlinkError.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Import terminé: ${importResult.success}/${importResult.total} contrats importés`,
+      results: importResult
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur import contracts:', error);
+    res.status(500).json({ 
+      error: error.message || 'Erreur lors de l\'import' 
     });
   }
 });
@@ -192,11 +236,8 @@ router.delete('/cleanup/:filename', async (req, res) => {
     const { filename } = req.params;
     const userId = req.user.id;
 
-    console.log('🗑️  Tentative de suppression:', filename, 'par user', userId);
-
     // Vérifier que le fichier appartient à l'utilisateur (sécurité)
     if (!filename.includes(`-${userId}-`)) {
-      console.log('❌ Suppression refusée - userId ne correspond pas');
       return res.status(403).json({ 
         error: 'Accès refusé à ce fichier' 
       });
@@ -208,7 +249,6 @@ router.delete('/cleanup/:filename', async (req, res) => {
     try {
       await fs.access(filePath);
     } catch {
-      console.log('❌ Fichier non trouvé pour suppression:', filePath);
       return res.status(404).json({ 
         error: 'Fichier non trouvé' 
       });
@@ -217,7 +257,7 @@ router.delete('/cleanup/:filename', async (req, res) => {
     // Supprimer le fichier
     await fs.unlink(filePath);
 
-    console.log(`✅ Fichier supprimé: ${filename} par user ${userId}`);
+    console.log(`🗑️  Fichier supprimé: ${filename} par user ${userId}`);
 
     res.status(200).json({ 
       message: 'Fichier supprimé avec succès' 
