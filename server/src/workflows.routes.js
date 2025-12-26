@@ -32,7 +32,8 @@ router.use(organizationMiddleware);
  */
 router.get('/templates', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     const { type, department, is_active } = req.query;
 
     let query = `
@@ -57,10 +58,10 @@ router.get('/templates', async (req, res) => {
         t.updated_at
       FROM workflow_templates t
       LEFT JOIN workflow_tasks wt ON t.id = wt.template_id
-      WHERE t.created_by = $1
+      WHERE t.organization_id = $1
     `;
 
-    const params = [userId];
+    const params = [organizationId];
     let paramIndex = 2;
 
     if (type) {
@@ -99,15 +100,16 @@ router.get('/templates', async (req, res) => {
  */
 router.get('/templates/:id', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     const { id } = req.params;
 
     // Récupérer le template (multi-tenant)
     const templateResult = await db.query(`
       SELECT * 
       FROM workflow_templates 
-      WHERE id = $1 AND created_by = $2
-    `, [id, userId]);
+      WHERE id = $1 AND organization_id = $2
+`, [id, organizationId]);
 
     if (templateResult.rows.length === 0) {
       return res.status(404).json({ error: 'Template not found' });
@@ -153,7 +155,8 @@ router.get('/templates/:id', async (req, res) => {
  */
 router.post('/templates', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     const {
       name,
       description,
@@ -180,11 +183,11 @@ router.post('/templates', async (req, res) => {
       const templateResult = await db.query(`
         INSERT INTO workflow_templates (
           name, description, type, department, job_title, 
-          is_default, is_active, created_by, updated_by
+          is_default, is_active, organization_id, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
         RETURNING *
-      `, [name, description, type, department, job_title, is_default, is_active, userId]);
+      `, [name, description, type, department, job_title, is_default, is_active, organizationId, userId]);
 
       const template = templateResult.rows[0];
 
@@ -194,9 +197,9 @@ router.post('/templates', async (req, res) => {
             INSERT INTO workflow_tasks (
               template_id, title, description, responsible_team,
               trigger_days, due_days, task_order, is_mandatory,
-              is_automated, automation_type, checklist_items
+              is_automated, automation_type, checklist_items, organization_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
           `, [
             template.id,
             task.title,
@@ -208,7 +211,8 @@ router.post('/templates', async (req, res) => {
             task.is_mandatory !== false,
             task.is_automated || false,
             task.automation_type || null,
-            task.checklist_items || []
+            task.checklist_items || [],
+            organizationId
           ]);
         }
       }
@@ -237,7 +241,8 @@ router.post('/templates', async (req, res) => {
  */
 router.put('/templates/:id', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     const { id } = req.params;
     const {
       name,
@@ -269,9 +274,9 @@ router.put('/templates/:id', async (req, res) => {
           is_active = $7,
           updated_at = NOW(),
           updated_by = $8
-        WHERE id = $9 AND created_by = $8
+        WHERE id = $9 AND organization_id = $10
         RETURNING *
-      `, [name, description, type, department, job_title, is_default, is_active, userId, id]);
+      `, [name, description, type, department, job_title, is_default, is_active, userId, id, organizationId]);
 
       if (templateResult.rows.length === 0) {
         await db.query('ROLLBACK');
@@ -285,25 +290,26 @@ router.put('/templates/:id', async (req, res) => {
       if (tasks && tasks.length > 0) {
         for (const task of tasks) {
           await db.query(`
-            INSERT INTO workflow_tasks (
-              template_id, title, description, responsible_team,
-              trigger_days, due_days, task_order, is_mandatory,
-              is_automated, automation_type, checklist_items
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-          `, [
-            template.id,
-            task.title,
-            task.description,
-            task.responsible_team,
-            task.trigger_days || 0,
-            task.due_days || 1,
-            task.task_order,
-            task.is_mandatory !== false,
-            task.is_automated || false,
-            task.automation_type || null,
-            task.checklist_items || []
-          ]);
+  INSERT INTO workflow_tasks (
+    template_id, title, description, responsible_team,
+    trigger_days, due_days, task_order, is_mandatory,
+    is_automated, automation_type, checklist_items, organization_id
+  )
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+`, [
+  template.id,
+  task.title,
+  task.description,
+  task.responsible_team,
+  task.trigger_days || 0,
+  task.due_days || 1,
+  task.task_order,
+  task.is_mandatory !== false,
+  task.is_automated || false,
+  task.automation_type || null,
+  task.checklist_items || [],
+  organizationId
+]);
         }
       }
 
@@ -331,23 +337,24 @@ router.put('/templates/:id', async (req, res) => {
  */
 router.delete('/templates/:id', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     const { id } = req.params;
 
     // Check if template is used in workflows (tenant-safe)
     const usageCheck = await db.query(`
       SELECT COUNT(*) as count
       FROM employee_workflows
-      WHERE template_id = $1 AND created_by = $2
-    `, [id, userId]);
+      WHERE template_id = $1 AND organization_id = $2
+`, [id, organizationId]);
 
     if (parseInt(usageCheck.rows[0].count) > 0) {
       const result = await db.query(`
         UPDATE workflow_templates
         SET is_active = false, updated_at = NOW(), updated_by = $2
-        WHERE id = $1 AND created_by = $2
-        RETURNING *
-      `, [id, userId]);
+        WHERE id = $1 AND organization_id = $2
+RETURNING *
+`, [id, organizationId]);
 
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Template not found' });
@@ -366,9 +373,9 @@ router.delete('/templates/:id', async (req, res) => {
 
       const result = await db.query(`
         DELETE FROM workflow_templates
-        WHERE id = $1 AND created_by = $2
-        RETURNING *
-      `, [id, userId]);
+        WHERE id = $1 AND organization_id = $3
+RETURNING *
+`, [id, userId, organizationId]);
 
       if (result.rows.length === 0) {
         await db.query('ROLLBACK');
@@ -403,7 +410,8 @@ router.delete('/templates/:id', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     const { status, type, employee_id, overdue } = req.query;
 
     let query = `
@@ -447,12 +455,12 @@ router.get('/', async (req, res) => {
         (ew.target_date - CURRENT_DATE) as days_until_target
 
       FROM employee_workflows ew
-      JOIN employees e ON ew.employee_id = e.id AND e.created_by = $1
+      JOIN employees e ON ew.employee_id = e.id AND e.organization_id = $1
       LEFT JOIN workflow_templates wt ON ew.template_id = wt.id
-      WHERE ew.created_by = $1
+      WHERE ew.organization_id = $1
     `;
 
-    const params = [userId];
+    const params = [organizationId];
     let paramIndex = 2;
 
     if (status) {
@@ -502,7 +510,8 @@ router.get('/', async (req, res) => {
  */
 router.get('/users-for-assignment', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     const { exclude_employee_id } = req.query; // ✅ Exclure l'employé concerné
 
     // Utilisateurs "assignables" = owner + tous les user_id des employés du tenant
@@ -617,7 +626,8 @@ router.get('/users-for-assignment', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     const {
       employee_id,
       template_id,
@@ -634,7 +644,7 @@ router.post('/', async (req, res) => {
 
     // ✅ Garde-fou tenant: l'employé doit appartenir au owner
     const employeeCheck = await db.query(
-      'SELECT id FROM employees WHERE id = $1 AND created_by = $2',
+      'SELECT id FROM employees WHERE id = $1 AND organization_id = $2',
       [employee_id, userId]
     );
     if (employeeCheck.rows.length === 0) {
@@ -643,7 +653,7 @@ router.post('/', async (req, res) => {
 
     if (template_id) {
       const templateCheck = await db.query(
-        'SELECT id FROM workflow_templates WHERE id = $1 AND created_by = $2',
+        'SELECT id FROM workflow_templates WHERE id = $1 AND organization_id = $2',
         [template_id, userId]
       );
       if (templateCheck.rows.length === 0) {
@@ -808,7 +818,8 @@ router.post('/', async (req, res) => {
  */
 router.get('/my-tasks', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     const { status, team, due_soon, overdue } = req.query;
     
     let query = `
@@ -866,7 +877,7 @@ router.get('/my-tasks', async (req, res) => {
         AND ew.status IN ('pending', 'in_progress')
     `;
     
-    const params = [userId];
+    const params = [organizationId];
     let paramIndex = 2;
     
     if (status) {
@@ -911,7 +922,8 @@ router.get('/my-tasks', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
 
     const stats = await db.query(`
       SELECT
@@ -951,7 +963,8 @@ router.get('/stats', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     const { id } = req.params;
 
     const workflowResult = await db.query(`
@@ -1053,7 +1066,8 @@ router.put('/:id/tasks/:taskId', async (req, res) => {
   try {
     const { id, taskId } = req.params;
     const { status, result, notes, checklist_completed } = req.body;
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
 
     const updates = [];
     const params = [];
@@ -1197,7 +1211,8 @@ router.post('/:id/tasks/:taskId/skip', async (req, res) => {
   try {
     const { id, taskId } = req.params;
     const { skipped_reason } = req.body;
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
 
     const result = await db.query(`
       UPDATE employee_workflow_tasks ewt
@@ -1234,7 +1249,8 @@ router.post('/:id/tasks/:taskId/skip', async (req, res) => {
  */
 router.post('/:id/cancel', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     const { id } = req.params;
     const { cancellation_reason } = req.body;
 

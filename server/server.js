@@ -3,6 +3,7 @@
 // ✅ CORRECTION #1 : getGlobalData déplacé dans dashboardController
 // ✅ NOUVEAU : Route /api/users pour gestion des utilisateurs
 // ✅ CORRECTION MULTI-TENANT : authMiddleware corrigé
+// ✅ NOUVEAU : Route /api/import pour import CSV/Excel
 
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
@@ -45,6 +46,7 @@ const workflowRoutes = require('./src/workflows.routes.js');
 const dashboardRoutes = require('./src/dashboard.routes.js');
 const dashboardController = require('./src/dashboardController.js');
 const usersRoutes = require('./src/users.routes.js');
+const importRoutes = require('./src/routes/import.routes.js'); // ✅ NOUVEAU
 
 // Schedulers pour notifications automatiques
 const emailScheduler = require('./src/jobs/emailScheduler.js');
@@ -72,6 +74,9 @@ app.use('/api/dashboard', dashboardRoutes);
 
 // ✅ NOUVEAU : Route pour gestion des utilisateurs
 app.use('/api/users', usersRoutes);
+
+// ✅ NOUVEAU : Route pour import CSV/Excel
+app.use('/api/import', importRoutes);
 
 // ✅ CORRECTION #1 : Utilise dashboardController.getGlobalView
 app.get('/api/dashboard/global', authMiddleware, organizationMiddleware, dashboardController.getGlobalView);

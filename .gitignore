@@ -19,3 +19,6 @@ uploads/
 *.png
 *.doc
 *.docx
+*.csv
+*.xlsx
+*.xls
