@@ -1,20 +1,17 @@
 // ============================================================================
 // ROUTES - GESTION DES UTILISATEURS
-// ✅ CORRECTION : authMiddleware + organizationMiddleware
+// ✅ CORRECTION : Chemins corrects pour src/users.routes.js
 // ============================================================================
 // Fichier : server/src/users.routes.js
-// Description : Routes pour CRUD utilisateurs (réservé super_admin)
+// Description : Routes pour CRUD utilisateurs (réservé super_admin/admin)
 // ============================================================================
 
 const express = require('express');
 const router = express.Router();
 
-// ✅ CORRECTION : Import direct authMiddleware
+// ✅ CORRECTION : Chemins relatifs corrects
 const authMiddleware = require('./middlewares/authMiddleware');
-
-// ✅ AJOUT : organizationMiddleware  
 const organizationMiddleware = require('./middlewares/organizationMiddleware');
-
 const { requireSuperAdmin } = require('./middlewares/roleMiddleware');
 const {
   getAllUsers,

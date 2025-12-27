@@ -2,16 +2,17 @@
 // PAGE - GESTION DES UTILISATEURS
 // ============================================================================
 // Fichier : client/src/pages/UsersPage.jsx
-// Description : Page complète de gestion des utilisateurs (super_admin uniquement)
+// Description : Page complète de gestion des utilisateurs (super_admin/admin)
+// ✅ TOUTES FONCTIONNALITÉS : Stats, filtres, modal, linked employees
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Edit2, Trash2, Shield, Search, UserCheck, UserX } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, Shield, Search, UserCheck, UserX, Crown, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import API_URL from '../config/api';
 
 const UsersPage = () => {
-  const { token } = useAuth();
+  const { token, user, logout } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -29,20 +30,32 @@ const UsersPage = () => {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [token]);
 
   const fetchUsers = async () => {
+    if (!token) return;
+
     try {
       setLoading(true);
       const response = await fetch(`${API_URL}/api/users`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
 
+      if (response.status === 401) {
+        logout();
+        return;
+      }
+
+      if (response.status === 403) {
+        setError('Accès refusé : vous devez être administrateur');
+        setLoading(false);
+        return;
+      }
+
       if (!response.ok) {
-        if (response.status === 403) {
-          setError('Accès refusé : vous devez être super administrateur');
-          return;
-        }
         throw new Error('Erreur de chargement');
       }
 
@@ -100,21 +113,21 @@ const UsersPage = () => {
     }
   };
 
-  const handleEdit = (user) => {
-    setEditingUser(user);
+  const handleEdit = (selectedUser) => {
+    setEditingUser(selectedUser);
     setFormData({
-      email: user.email,
+      email: selectedUser.email,
       password: '',
-      role: user.role
+      role: selectedUser.role
     });
     setShowForm(true);
   };
 
-  const handleDelete = async (user) => {
-    if (!confirm(`Supprimer l'utilisateur ${user.email} ?`)) return;
+  const handleDelete = async (selectedUser) => {
+    if (!confirm(`Supprimer l'utilisateur ${selectedUser.email} ?`)) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/users/${user.id}`, {
+      const response = await fetch(`${API_URL}/api/users/${selectedUser.id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -130,9 +143,15 @@ const UsersPage = () => {
     }
   };
 
+  const getRoleIcon = (role) => {
+    if (role === 'super_admin') return <Crown className="w-5 h-5 text-yellow-600" />;
+    if (role === 'admin') return <Shield className="w-5 h-5 text-blue-600" />;
+    return <UserIcon className="w-5 h-5 text-gray-600" />;
+  };
+
   const getRoleBadge = (role) => {
     const styles = {
-      super_admin: 'bg-purple-100 text-purple-800 border-purple-300',
+      super_admin: 'bg-yellow-100 text-yellow-800 border-yellow-300',
       admin: 'bg-blue-100 text-blue-800 border-blue-300',
       user: 'bg-gray-100 text-gray-800 border-gray-300'
     };
@@ -144,15 +163,16 @@ const UsersPage = () => {
     };
 
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${styles[role]}`}>
+      <span className={`px-3 py-1 rounded-full text-xs font-semibold border-2 flex items-center gap-1 ${styles[role]}`}>
+        {getRoleIcon(role)}
         {labels[role]}
       </span>
     );
   };
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = !filterRole || user.role === filterRole;
+  const filteredUsers = users.filter(u => {
+    const matchesSearch = u.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = !filterRole || u.role === filterRole;
     return matchesSearch && matchesRole;
   });
 
@@ -160,7 +180,7 @@ const UsersPage = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Chargement...</p>
         </div>
       </div>
@@ -169,7 +189,7 @@ const UsersPage = () => {
 
   if (error) {
     return (
-      <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6 text-center">
+      <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6 text-center max-w-2xl mx-auto">
         <p className="text-red-800 font-semibold mb-2">❌ Erreur</p>
         <p className="text-red-700">{error}</p>
       </div>
@@ -182,7 +202,7 @@ const UsersPage = () => {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="bg-purple-600 p-3 rounded-lg">
+            <div className="bg-indigo-600 p-3 rounded-lg">
               <Users className="w-8 h-8 text-white" />
             </div>
             <div>
@@ -197,7 +217,7 @@ const UsersPage = () => {
               setEditingUser(null);
               setFormData({ email: '', password: '', role: 'user' });
             }}
-            className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all hover:scale-105 shadow-lg"
           >
             <Plus className="w-5 h-5" />
             Nouvel utilisateur
@@ -206,23 +226,23 @@ const UsersPage = () => {
 
         {/* Statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white border-2 border-gray-200 rounded-lg p-4">
+          <div className="bg-white border-2 border-gray-200 rounded-xl p-4">
             <p className="text-gray-600 text-sm mb-1">Total utilisateurs</p>
             <p className="text-2xl font-bold text-gray-900">{users.length}</p>
           </div>
-          <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4">
-            <p className="text-purple-600 text-sm mb-1">Super Admins</p>
-            <p className="text-2xl font-bold text-purple-900">
+          <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
+            <p className="text-yellow-600 text-sm mb-1">Super Admins</p>
+            <p className="text-2xl font-bold text-yellow-900">
               {users.filter(u => u.role === 'super_admin').length}
             </p>
           </div>
-          <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
             <p className="text-blue-600 text-sm mb-1">Admins</p>
             <p className="text-2xl font-bold text-blue-900">
               {users.filter(u => u.role === 'admin').length}
             </p>
           </div>
-          <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-4">
+          <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4">
             <p className="text-gray-600 text-sm mb-1">Utilisateurs</p>
             <p className="text-2xl font-bold text-gray-900">
               {users.filter(u => u.role === 'user').length}
@@ -233,7 +253,7 @@ const UsersPage = () => {
 
       {/* Formulaire */}
       {showForm && (
-        <div className="bg-white border-2 border-gray-200 rounded-lg p-6 mb-6">
+        <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 mb-6 shadow-lg">
           <h2 className="text-xl font-bold text-gray-900 mb-4">
             {editingUser ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'}
           </h2>
@@ -247,8 +267,9 @@ const UsersPage = () => {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
                 required
+                disabled={editingUser}
               />
             </div>
 
@@ -260,11 +281,12 @@ const UsersPage = () => {
                 type="password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
                 required={!editingUser}
                 minLength={6}
+                placeholder={editingUser ? 'Laisser vide pour ne pas changer' : 'Minimum 6 caractères'}
               />
-              <p className="mt-1 text-xs text-gray-500">Minimum 6 caractères</p>
+              {!editingUser && <p className="mt-1 text-xs text-gray-500">Minimum 6 caractères</p>}
             </div>
 
             <div>
@@ -274,21 +296,21 @@ const UsersPage = () => {
               <select
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none bg-white"
                 required
               >
                 <option value="user">Utilisateur</option>
                 <option value="admin">Admin</option>
-                <option value="super_admin">Super Admin</option>
+                {user?.role === 'super_admin' && <option value="super_admin">Super Admin</option>}
               </select>
             </div>
 
             <div className="flex gap-3 pt-4">
               <button
                 type="submit"
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all hover:scale-105"
               >
-                {editingUser ? 'Mettre à jour' : 'Créer'}
+                {editingUser ? 'Enregistrer' : 'Créer'}
               </button>
               <button
                 type="button"
@@ -297,7 +319,7 @@ const UsersPage = () => {
                   setEditingUser(null);
                   setFormData({ email: '', password: '', role: 'user' });
                 }}
-                className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
+                className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition-all"
               >
                 Annuler
               </button>
@@ -307,7 +329,7 @@ const UsersPage = () => {
       )}
 
       {/* Filtres */}
-      <div className="bg-white border-2 border-gray-200 rounded-lg p-4 mb-6">
+      <div className="bg-white border-2 border-gray-200 rounded-2xl p-4 mb-6 shadow-lg">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -316,14 +338,14 @@ const UsersPage = () => {
               placeholder="Rechercher par email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
             />
           </div>
 
           <select
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
-            className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none bg-white"
           >
             <option value="">Tous les rôles</option>
             <option value="super_admin">Super Admin</option>
@@ -331,10 +353,14 @@ const UsersPage = () => {
             <option value="user">Utilisateur</option>
           </select>
         </div>
+        
+        <p className="mt-4 text-sm text-gray-600">
+          <span className="font-semibold text-indigo-600">{filteredUsers.length}</span> utilisateur(s) trouvé(s)
+        </p>
       </div>
 
       {/* Liste des utilisateurs */}
-      <div className="bg-white border-2 border-gray-200 rounded-lg overflow-hidden">
+      <div className="bg-white border-2 border-gray-200 rounded-2xl overflow-hidden shadow-lg">
         <table className="w-full">
           <thead className="bg-gray-50 border-b-2 border-gray-200">
             <tr>
@@ -353,22 +379,22 @@ const UsersPage = () => {
                 </td>
               </tr>
             ) : (
-              filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+              filteredUsers.map((u) => (
+                <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <Shield className="w-4 h-4 text-gray-400" />
-                      <span className="font-medium text-gray-900">{user.email}</span>
+                      <span className="font-medium text-gray-900">{u.email}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    {getRoleBadge(user.role)}
+                    {getRoleBadge(u.role)}
                   </td>
                   <td className="px-6 py-4">
-                    {user.employees_count > 0 ? (
+                    {u.employees_count > 0 ? (
                       <div className="flex items-center gap-2 text-green-700">
                         <UserCheck className="w-4 h-4" />
-                        <span className="text-sm font-medium">{user.employees_count} employé(s)</span>
+                        <span className="text-sm font-medium">{u.employees_count} employé(s)</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 text-gray-400">
@@ -378,24 +404,26 @@ const UsersPage = () => {
                     )}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {new Date(user.created_at).toLocaleDateString('fr-FR')}
+                    {new Date(u.created_at).toLocaleDateString('fr-FR')}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        onClick={() => handleEdit(user)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        onClick={() => handleEdit(u)}
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                         title="Modifier"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(user)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {u.id !== user?.id && (
+                        <button
+                          onClick={() => handleDelete(u)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

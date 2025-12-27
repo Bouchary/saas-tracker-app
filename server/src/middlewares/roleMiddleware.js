@@ -1,34 +1,26 @@
 // server/src/middlewares/roleMiddleware.js
-// ✅ CORRECTION : Utiliser req.user.id au lieu de req.user
-
-const db = require('../db');
+// ✅ VERSION OPTIMISÉE : Utilise req.user.role directement (pas de requête DB)
+// authMiddleware a déjà chargé req.user avec le rôle
 
 /**
- * Middleware pour vérifier que l'utilisateur a le rôle super_admin
+ * Middleware pour vérifier que l'utilisateur a le rôle super_admin OU admin
+ * ✅ PERMET admin ET super_admin (pour gestion users)
  */
-const requireSuperAdmin = async (req, res, next) => {
+const requireSuperAdmin = (req, res, next) => {
   try {
-    // ✅ CORRECTION : Utiliser req.user.id au lieu de req.user
-    const userId = req.user.id;
-
-    const result = await db.query(
-      'SELECT role FROM users WHERE id = $1',
-      [userId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    if (!req.user || !req.user.role) {
+      return res.status(401).json({ error: 'Non authentifié' });
     }
 
-    const user = result.rows[0];
-
-    if (user.role !== 'super_admin') {
-      return res.status(403).json({ 
-        error: 'Accès refusé : rôle super_admin requis' 
-      });
+    // ✅ Permet admin ET super_admin
+    if (req.user.role === 'super_admin' || req.user.role === 'admin') {
+      return next();
     }
 
-    next();
+    return res.status(403).json({ 
+      error: 'Accès refusé. Rôle admin ou super_admin requis.' 
+    });
+
   } catch (error) {
     console.error('❌ Erreur vérification rôle:', error);
     return res.status(500).json({ error: 'Erreur serveur' });
@@ -36,31 +28,45 @@ const requireSuperAdmin = async (req, res, next) => {
 };
 
 /**
- * Middleware pour vérifier que l'utilisateur a le rôle admin ou super_admin
+ * Middleware pour vérifier que l'utilisateur a le rôle admin, super_admin ou owner
  */
-const requireAdmin = async (req, res, next) => {
+const requireAdmin = (req, res, next) => {
   try {
-    // ✅ CORRECTION : Utiliser req.user.id au lieu de req.user
-    const userId = req.user.id;
-
-    const result = await db.query(
-      'SELECT role FROM users WHERE id = $1',
-      [userId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    if (!req.user || !req.user.role) {
+      return res.status(401).json({ error: 'Non authentifié' });
     }
 
-    const user = result.rows[0];
-
-    if (!['admin', 'super_admin', 'owner'].includes(user.role)) {
-      return res.status(403).json({ 
-        error: 'Accès refusé : rôle admin requis' 
-      });
+    if (['admin', 'super_admin', 'owner'].includes(req.user.role)) {
+      return next();
     }
 
-    next();
+    return res.status(403).json({ 
+      error: 'Accès refusé. Rôle admin requis.' 
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur vérification rôle:', error);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+};
+
+/**
+ * Middleware strict : SEULEMENT super_admin (pas admin)
+ */
+const requireStrictSuperAdmin = (req, res, next) => {
+  try {
+    if (!req.user || !req.user.role) {
+      return res.status(401).json({ error: 'Non authentifié' });
+    }
+
+    if (req.user.role === 'super_admin') {
+      return next();
+    }
+
+    return res.status(403).json({ 
+      error: 'Accès refusé. Rôle super_admin requis.' 
+    });
+
   } catch (error) {
     console.error('❌ Erreur vérification rôle:', error);
     return res.status(500).json({ error: 'Erreur serveur' });
@@ -68,6 +74,7 @@ const requireAdmin = async (req, res, next) => {
 };
 
 module.exports = {
-  requireSuperAdmin,
-  requireAdmin
+  requireSuperAdmin,      // ✅ Permet admin ET super_admin
+  requireAdmin,           // ✅ Permet admin, super_admin, owner
+  requireStrictSuperAdmin // ✅ SEULEMENT super_admin
 };
