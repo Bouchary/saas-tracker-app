@@ -85,6 +85,8 @@ const LoginPage = () => {
       const userPayload = {
         id: data.id,
         email: data.email,
+        role: data.role,                    // ✅ AJOUT role
+        organizationId: data.organizationId // ✅ AJOUT organizationId
       };
       
       // ✅ CORRECTION : STOCKER LE TOKEN EXPLICITEMENT DANS LOCALSTORAGE

@@ -25,8 +25,8 @@ const getDepartmentCostsFromAllocations = async (userId) => {
   try {
     // Vérifier si des allocations existent
     const checkResult = await db.query(
-      `SELECT COUNT(*) as count FROM department_allocations WHERE user_id = $1`,
-      [userId]
+      `SELECT COUNT(*) as count FROM department_allocations WHERE organization_id = $1`,
+      [organizationId]
     );
 
     if (parseInt(checkResult.rows[0].count) === 0) {
@@ -43,7 +43,7 @@ const getDepartmentCostsFromAllocations = async (userId) => {
              JOIN contracts c ON da.contract_id = c.id
              WHERE da.user_id = $1 AND c.status = 'active' AND da.contract_id IS NOT NULL
              GROUP BY da.department`,
-      [userId]
+      [organizationId]
     );
 
     // Récupérer les coûts par département (assets - estimation mensuelle)
@@ -58,7 +58,7 @@ const getDepartmentCostsFromAllocations = async (userId) => {
              JOIN assets a ON da.asset_id = a.id
              WHERE da.user_id = $1 AND da.asset_id IS NOT NULL
              GROUP BY da.department`,
-      [userId]
+      [organizationId]
     );
 
     // Fusionner les coûts contrats + assets par département
@@ -83,9 +83,9 @@ const getDepartmentCostsFromAllocations = async (userId) => {
       const employeesResult = await db.query(
         `SELECT department, COUNT(*) as count 
                  FROM employees 
-                 WHERE created_by = $1 AND status = 'active' AND department IS NOT NULL
+                 WHERE organization_id = $1 AND status = 'active' AND department IS NOT NULL
                  GROUP BY department`,
-        [userId]
+        [organizationId]
       );
       employeesResult.rows.forEach(row => {
         employeesByDept.set(row.department, parseInt(row.count));
@@ -123,38 +123,39 @@ const getDepartmentCostsFromAllocations = async (userId) => {
 // 1. OBTENIR LES KPIs GLOBAUX
 // ============================================================================
 const getGlobalStats = async (req, res) => {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     
-    if (!userId) {
+    if (!userId || !organizationId) {
         return res.status(401).json({ error: 'Non autorisé' });
     }
 
     try {
         // Total contrats de cet utilisateur
         const contractsResult = await db.query(
-            'SELECT COUNT(*) as total FROM contracts WHERE user_id = $1',
-            [userId]
+            'SELECT COUNT(*) as total FROM contracts WHERE organization_id = $1',
+            [organizationId]
         );
         const totalContracts = parseInt(contractsResult.rows[0].total);
 
         // Contrats actifs de cet utilisateur
         const activeContractsResult = await db.query(
-            "SELECT COUNT(*) as active FROM contracts WHERE user_id = $1 AND status = 'active'",
-            [userId]
+            "SELECT COUNT(*) as active FROM contracts WHERE organization_id = $1 AND status = 'active'",
+            [organizationId]
         );
         const activeContracts = parseInt(activeContractsResult.rows[0].active);
 
         // Coût total mensuel de cet utilisateur
         const costResult = await db.query(
-            "SELECT COALESCE(SUM(monthly_cost), 0) as total_cost FROM contracts WHERE user_id = $1 AND status = 'active'",
-            [userId]
+            "SELECT COALESCE(SUM(monthly_cost), 0) as total_cost FROM contracts WHERE organization_id = $1 AND status = 'active'",
+            [organizationId]
         );
         const totalCost = parseFloat(costResult.rows[0].total_cost);
 
         // Total assets créés par cet utilisateur
         const assetsResult = await db.query(
-            'SELECT COUNT(*) as total FROM assets WHERE created_by = $1',
-            [userId]
+            'SELECT COUNT(*) as total FROM assets WHERE organization_id = $1',
+            [organizationId]
         );
         const totalAssets = parseInt(assetsResult.rows[0].total);
 
@@ -164,26 +165,26 @@ const getGlobalStats = async (req, res) => {
             `SELECT COUNT(DISTINCT aa.asset_id) as assigned 
              FROM asset_assignments aa
              JOIN assets a ON aa.asset_id = a.id
-             WHERE a.created_by = $1 AND aa.status = 'active'`,
-            [userId]
+             WHERE a.organization_id = $1 AND aa.status = 'active'`,
+            [organizationId]
         );
         const assignedAssets = parseInt(assignedAssetsResult.rows[0].assigned || 0);
 
         // Total employés créés par cet utilisateur
         const employeesResult = await db.query(
-            'SELECT COUNT(*) as total FROM employees WHERE created_by = $1',
-            [userId]
+            'SELECT COUNT(*) as total FROM employees WHERE organization_id = $1',
+            [organizationId]
         );
         const totalEmployees = parseInt(employeesResult.rows[0].total);
 
         // Employés actifs créés par cet utilisateur
         const activeEmployeesResult = await db.query(
-            "SELECT COUNT(*) as active FROM employees WHERE created_by = $1 AND status = 'active'",
-            [userId]
+            "SELECT COUNT(*) as active FROM employees WHERE organization_id = $1 AND status = 'active'",
+            [organizationId]
         );
         const activeEmployees = parseInt(activeEmployeesResult.rows[0].active);
 
-        console.log(`${LOG_PREFIX} Stats globales pour utilisateur ${userId}`);
+        console.log(`${LOG_PREFIX} Stats globales pour organisation ${organizationId}`);
 
         res.status(200).json({
             contracts: {
@@ -212,9 +213,10 @@ const getGlobalStats = async (req, res) => {
 // ✅ CORRECTION #1 : Version complète depuis server.js
 // ============================================================================
 const getGlobalView = async (req, res) => {
-  const userId = req.user;
+  const userId = req.user.id;
+  const organizationId = req.organizationId;
 
-  if (!userId) {
+  if (!userId || !organizationId) {
     return res.status(401).json({ error: 'Non autorisé' });
   }
 
@@ -224,8 +226,8 @@ const getGlobalView = async (req, res) => {
     // 1. Coût total
     console.log('🎯 COMPLET: Requête coût...');
     const costResult = await db.query(
-      `SELECT COALESCE(SUM(monthly_cost), 0) as total FROM contracts WHERE user_id = $1 AND status = 'active'`,
-      [userId]
+      `SELECT COALESCE(SUM(monthly_cost), 0) as total FROM contracts WHERE organization_id = $1 AND status = 'active'`,
+      [organizationId]
     );
     const currentCost = parseFloat(costResult.rows[0].total);
     console.log('✅ Coût:', currentCost);
@@ -233,8 +235,8 @@ const getGlobalView = async (req, res) => {
     // 2. Contrats
     console.log('🎯 COMPLET: Requête contrats...');
     const contractsResult = await db.query(
-      `SELECT COUNT(*) as current FROM contracts WHERE user_id = $1 AND status = 'active'`,
-      [userId]
+      `SELECT COUNT(*) as current FROM contracts WHERE organization_id = $1 AND status = 'active'`,
+      [organizationId]
     );
     const activeContracts = parseInt(contractsResult.rows[0].current);
     console.log('✅ Contrats:', activeContracts);
@@ -242,8 +244,8 @@ const getGlobalView = async (req, res) => {
     // 3. Assets
     console.log('🎯 COMPLET: Requête assets...');
     const assetsResult = await db.query(
-      `SELECT COUNT(*) as total FROM assets WHERE created_by = $1`,
-      [userId]
+      `SELECT COUNT(*) as total FROM assets WHERE organization_id = $1`,
+      [organizationId]
     );
     const totalAssets = parseInt(assetsResult.rows[0].total);
     console.log('✅ Assets:', totalAssets);
@@ -252,8 +254,8 @@ const getGlobalView = async (req, res) => {
     console.log('🎯 COMPLET: Requête employés...');
     // ✅ FIX MULTI-TENANT : employees filtrés par created_by (pas user_id)
     const employeesResult = await db.query(
-      `SELECT COUNT(*) as total FROM employees WHERE created_by = $1 AND status = 'active'`,
-      [userId]
+      `SELECT COUNT(*) as total FROM employees WHERE organization_id = $1 AND status = 'active'`,
+      [organizationId]
     );
     const activeEmployees = parseInt(employeesResult.rows[0].total);
     console.log('✅ Employés:', activeEmployees);
@@ -265,8 +267,8 @@ const getGlobalView = async (req, res) => {
                 COALESCE(SUM(license_count), 0) as total_licenses, 
                 COALESCE(SUM(licenses_used), 0) as total_used
              FROM contracts 
-             WHERE user_id = $1 AND status = 'active' AND pricing_model = 'per_user'`,
-      [userId]
+             WHERE organization_id = $1 AND status = 'active' AND pricing_model = 'per_user'`,
+      [organizationId]
     );
     const totalLicenses = parseInt(utilizationResult.rows[0].total_licenses);
     const totalUsed = parseInt(utilizationResult.rows[0].total_used);
@@ -278,8 +280,8 @@ const getGlobalView = async (req, res) => {
     const savingsResult = await db.query(
       `SELECT COALESCE(SUM((license_count - licenses_used) * unit_cost), 0) as potential_savings
              FROM contracts 
-             WHERE user_id = $1 AND status = 'active' AND pricing_model = 'per_user' AND licenses_used < license_count`,
-      [userId]
+             WHERE organization_id = $1 AND status = 'active' AND pricing_model = 'per_user' AND licenses_used < license_count`,
+      [organizationId]
     );
     const potentialSavings = parseFloat(savingsResult.rows[0].potential_savings) || 0;
     console.log('✅ Économies:', potentialSavings);
@@ -422,9 +424,10 @@ const getGlobalView = async (req, res) => {
 // 3. ANALYTICS CONTRATS
 // ============================================================================
 const getContractsAnalytics = async (req, res) => {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     
-    if (!userId) {
+    if (!userId || !organizationId) {
         return res.status(401).json({ error: 'Non autorisé' });
     }
 
@@ -433,22 +436,22 @@ const getContractsAnalytics = async (req, res) => {
         const providerQuery = `
             SELECT provider, COUNT(*) as count, SUM(monthly_cost) as total_cost
             FROM contracts
-            WHERE user_id = $1 AND status = 'active' AND provider IS NOT NULL
+            WHERE organization_id = $1 AND status = 'active' AND provider IS NOT NULL
             GROUP BY provider
             ORDER BY total_cost DESC
             LIMIT 10
         `;
-        const providersResult = await db.query(providerQuery, [userId]);
+        const providersResult = await db.query(providerQuery, [organizationId]);
 
         // Top 10 contrats les plus coûteux de cet utilisateur
         const topContractsQuery = `
             SELECT name, provider, monthly_cost, pricing_model
             FROM contracts
-            WHERE user_id = $1 AND status = 'active'
+            WHERE organization_id = $1 AND status = 'active'
             ORDER BY monthly_cost DESC
             LIMIT 10
         `;
-        const topContractsResult = await db.query(topContractsQuery, [userId]);
+        const topContractsResult = await db.query(topContractsQuery, [organizationId]);
 
         // Répartition par modèle tarifaire de cet utilisateur
         const pricingModelQuery = `
@@ -457,25 +460,25 @@ const getContractsAnalytics = async (req, res) => {
                 COUNT(*) as count,
                 SUM(monthly_cost) as total_cost
             FROM contracts
-            WHERE user_id = $1 AND status = 'active'
+            WHERE organization_id = $1 AND status = 'active'
             GROUP BY pricing_model
         `;
-        const pricingModelsResult = await db.query(pricingModelQuery, [userId]);
+        const pricingModelsResult = await db.query(pricingModelQuery, [organizationId]);
 
         // Contrats expirant dans 30 jours de cet utilisateur
         const expiringQuery = `
             SELECT name, provider, renewal_date, monthly_cost
             FROM contracts
-            WHERE user_id = $1 
+            WHERE organization_id = $1 
             AND status = 'active'
             AND renewal_date IS NOT NULL
             AND renewal_date <= CURRENT_DATE + INTERVAL '30 days'
             AND renewal_date >= CURRENT_DATE
             ORDER BY renewal_date ASC
         `;
-        const expiringResult = await db.query(expiringQuery, [userId]);
+        const expiringResult = await db.query(expiringQuery, [organizationId]);
 
-        console.log(`${LOG_PREFIX} Analytics contrats pour utilisateur ${userId}`);
+        console.log(`${LOG_PREFIX} Analytics contrats pour organisation ${organizationId}`);
 
         res.status(200).json({
             providers: providersResult.rows,
@@ -493,9 +496,10 @@ const getContractsAnalytics = async (req, res) => {
 // 4. ANALYTICS LICENCES
 // ============================================================================
 const getLicensesAnalytics = async (req, res) => {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     
-    if (!userId) {
+    if (!userId || !organizationId) {
         return res.status(401).json({ error: 'Non autorisé' });
     }
 
@@ -511,12 +515,12 @@ const getLicensesAnalytics = async (req, res) => {
                 unit_cost,
                 monthly_cost
             FROM contracts
-            WHERE user_id = $1 
+            WHERE organization_id = $1 
             AND status = 'active'
             AND pricing_model = 'per_user'
             AND license_count IS NOT NULL
         `;
-        const licensesResult = await db.query(licensesQuery, [userId]);
+        const licensesResult = await db.query(licensesQuery, [organizationId]);
 
         // Calculer métriques
         let totalLicenses = 0;
@@ -575,7 +579,7 @@ const getLicensesAnalytics = async (req, res) => {
             ? ((totalUsed / totalLicenses) * 100).toFixed(1)
             : 0;
 
-        console.log(`${LOG_PREFIX} Analytics licences pour utilisateur ${userId}`);
+        console.log(`${LOG_PREFIX} Analytics licences pour organisation ${organizationId}`);
 
         res.status(200).json({
             summary: {
@@ -600,9 +604,10 @@ const getLicensesAnalytics = async (req, res) => {
 // 5. ANALYTICS ASSETS
 // ============================================================================
 const getAssetsAnalytics = async (req, res) => {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     
-    if (!userId) {
+    if (!userId || !organizationId) {
         return res.status(401).json({ error: 'Non autorisé' });
     }
 
@@ -611,20 +616,20 @@ const getAssetsAnalytics = async (req, res) => {
         const typeQuery = `
             SELECT asset_type, COUNT(*) as count
             FROM assets
-            WHERE created_by = $1
+            WHERE organization_id = $1
             GROUP BY asset_type
             ORDER BY count DESC
         `;
-        const typesResult = await db.query(typeQuery, [userId]);
+        const typesResult = await db.query(typeQuery, [organizationId]);
 
         // Répartition par statut - assets créés par cet utilisateur
         const statusQuery = `
             SELECT status, COUNT(*) as count
             FROM assets
-            WHERE created_by = $1
+            WHERE organization_id = $1
             GROUP BY status
         `;
-        const statusResult = await db.query(statusQuery, [userId]);
+        const statusResult = await db.query(statusQuery, [organizationId]);
 
         // Assets sous garantie - assets créés par cet utilisateur
         const warrantyQuery = `
@@ -632,22 +637,22 @@ const getAssetsAnalytics = async (req, res) => {
                 COUNT(*) FILTER (WHERE warranty_end_date > CURRENT_DATE) as under_warranty,
                 COUNT(*) FILTER (WHERE warranty_end_date <= CURRENT_DATE OR warranty_end_date IS NULL) as expired_warranty
             FROM assets
-            WHERE created_by = $1
+            WHERE organization_id = $1
         `;
-        const warrantyResult = await db.query(warrantyQuery, [userId]);
+        const warrantyResult = await db.query(warrantyQuery, [organizationId]);
 
         // Assets expiration garantie prochaine (30 jours) - assets créés par cet utilisateur
         const expiringWarrantyQuery = `
             SELECT serial_number, model, asset_type, warranty_end_date
             FROM assets
-            WHERE created_by = $1
+            WHERE organization_id = $1
             AND warranty_end_date IS NOT NULL
             AND warranty_end_date <= CURRENT_DATE + INTERVAL '30 days'
             AND warranty_end_date >= CURRENT_DATE
             ORDER BY warranty_end_date ASC
             LIMIT 10
         `;
-        const expiringWarrantyResult = await db.query(expiringWarrantyQuery, [userId]);
+        const expiringWarrantyResult = await db.query(expiringWarrantyQuery, [organizationId]);
 
         // Valeur totale assets - assets créés par cet utilisateur
         const valueQuery = `
@@ -655,11 +660,11 @@ const getAssetsAnalytics = async (req, res) => {
                 COALESCE(SUM(purchase_price), 0) as total_value,
                 COALESCE(AVG(purchase_price), 0) as average_value
             FROM assets
-            WHERE created_by = $1 AND purchase_price IS NOT NULL
+            WHERE organization_id = $1 AND purchase_price IS NOT NULL
         `;
-        const valueResult = await db.query(valueQuery, [userId]);
+        const valueResult = await db.query(valueQuery, [organizationId]);
 
-        console.log(`${LOG_PREFIX} Analytics assets pour utilisateur ${userId}`);
+        console.log(`${LOG_PREFIX} Analytics assets pour organisation ${organizationId}`);
 
         res.status(200).json({
             byType: typesResult.rows,
@@ -681,9 +686,10 @@ const getAssetsAnalytics = async (req, res) => {
 // 6. ANALYTICS EMPLOYÉS
 // ============================================================================
 const getEmployeesAnalytics = async (req, res) => {
-    const userId = req.user;
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
     
-    if (!userId) {
+    if (!userId || !organizationId) {
         return res.status(401).json({ error: 'Non autorisé' });
     }
 
@@ -692,22 +698,22 @@ const getEmployeesAnalytics = async (req, res) => {
         const deptQuery = `
             SELECT department, COUNT(*) as count
             FROM employees
-            WHERE created_by = $1 AND status = 'active'
+            WHERE organization_id = $1 AND status = 'active'
             GROUP BY department
             ORDER BY count DESC
         `;
-        const deptResult = await db.query(deptQuery, [userId]);
+        const deptResult = await db.query(deptQuery, [organizationId]);
 
         // Répartition par poste - employés créés par cet utilisateur
         const positionQuery = `
             SELECT job_title as position, COUNT(*) as count
             FROM employees
-            WHERE created_by = $1 AND status = 'active' AND job_title IS NOT NULL
+            WHERE organization_id = $1 AND status = 'active' AND job_title IS NOT NULL
             GROUP BY job_title
             ORDER BY count DESC
             LIMIT 10
         `;
-        const positionResult = await db.query(positionQuery, [userId]);
+        const positionResult = await db.query(positionQuery, [organizationId]);
 
         // Top détenteurs d'assets - employés créés par cet utilisateur avec assets créés par cet utilisateur
         const topAssetsQuery = `
@@ -717,16 +723,16 @@ const getEmployeesAnalytics = async (req, res) => {
                 e.department,
                 COUNT(a.id) as asset_count
             FROM employees e
-            LEFT JOIN assets a ON a.currently_assigned_to = e.id AND a.created_by = $1
-            WHERE e.created_by = $1 AND e.status = 'active'
+            LEFT JOIN assets a ON a.currently_assigned_to = e.id AND a.organization_id = $1
+            WHERE e.organization_id = $1 AND e.status = 'active'
             GROUP BY e.id, e.first_name, e.last_name, e.department
             HAVING COUNT(a.id) > 0
             ORDER BY asset_count DESC
             LIMIT 10
         `;
-        const topAssetsResult = await db.query(topAssetsQuery, [userId]);
+        const topAssetsResult = await db.query(topAssetsQuery, [organizationId]);
 
-        console.log(`${LOG_PREFIX} Analytics employés pour utilisateur ${userId}`);
+        console.log(`${LOG_PREFIX} Analytics employés pour organisation ${organizationId}`);
 
         res.status(200).json({
             byDepartment: deptResult.rows,

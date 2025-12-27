@@ -1,8 +1,11 @@
+// server/src/contractsController.js
+
 const db = require('./db');
 const { sanitizeString } = require('./middlewares/validation');
 
 const LOG_PREFIX = 'Contrats SQL:';
 
+// 1. OBTENIR TOUS LES CONTRATS AVEC PAGINATION, FILTRES ET RECHERCHE
 const getAllContracts = async (req, res) => {
     const userId = req.user.id;
     const organizationId = req.organizationId;
@@ -11,23 +14,26 @@ const getAllContracts = async (req, res) => {
         return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
     }
 
+    // Paramètres de pagination
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = parseInt(req.query.limit) || 1000;
     const offset = (page - 1) * limit;
 
+    // Paramètres de recherche et filtres
     const search = req.query.search ? sanitizeString(req.query.search) : '';
     const status = req.query.status || '';
     const provider = req.query.provider || '';
     const sortBy = req.query.sortBy || 'renewal_date';
     const sortOrder = req.query.sortOrder === 'desc' ? 'DESC' : 'ASC';
 
-    const maxLimit = 100;
-    if (page < 1 || limit < 1 || limit > maxLimit) {
+    // Validation des paramètres
+    if (page < 1 || limit < 1 || limit > 10000) {
         return res.status(400).json({ 
-            error: `Paramètres de pagination invalides. Page >= 1, Limit entre 1 et ${maxLimit}.` 
+            error: 'Paramètres de pagination invalides. Page >= 1, Limit entre 1 et 100.' 
         });
     }
 
+    // Validation du champ de tri
     const validSortFields = ['name', 'provider', 'monthly_cost', 'renewal_date', 'notice_period_days', 'status'];
     if (!validSortFields.includes(sortBy)) {
         return res.status(400).json({ 
@@ -36,7 +42,8 @@ const getAllContracts = async (req, res) => {
     }
     
     try {
-        let whereConditions = ['organization_id = $1 AND deleted_at IS NULL'];
+        // Construction dynamique de la clause WHERE
+        let whereConditions = ['organization_id = $1'];
         let queryParams = [organizationId];
         let paramIndex = 2;
 
@@ -60,14 +67,15 @@ const getAllContracts = async (req, res) => {
 
         const whereClause = whereConditions.join(' AND ');
 
+        // Requête pour compter le nombre total de contrats (avec filtres)
         const countQuery = `SELECT COUNT(*) FROM contracts WHERE ${whereClause}`;
         const countResult = await db.query(countQuery, queryParams);
         const totalContracts = parseInt(countResult.rows[0].count);
 
+        // ✅ AJOUT COLONNE real_users
         const queryText = `
             SELECT id, name, provider, monthly_cost, renewal_date, notice_period_days, status,
-                   pricing_model, license_count, licenses_used, unit_cost, real_users,
-                   created_by, updated_by, created_at
+                   pricing_model, license_count, licenses_used, unit_cost, real_users
             FROM contracts
             WHERE ${whereClause}
             ORDER BY ${sortBy} ${sortOrder}
@@ -77,11 +85,12 @@ const getAllContracts = async (req, res) => {
         const finalParams = [...queryParams, limit, offset];
         const result = await db.query(queryText, finalParams);
 
+        // Calcul des métadonnées
         const totalPages = Math.ceil(totalContracts / limit);
         const hasNextPage = page < totalPages;
         const hasPrevPage = page > 1;
 
-        console.log(`${LOG_PREFIX} Page ${page}/${totalPages} - ${result.rowCount} contrats (filtres: ${search ? 'recherche' : 'aucun'}) pour organization ${organizationId}`);
+        console.log(`${LOG_PREFIX} Page ${page}/${totalPages} - ${result.rowCount} contrats (filtres: ${search ? 'recherche' : 'aucun'}) pour l'organisation ${organizationId}`);
 
         res.status(200).json({
             contracts: result.rows,
@@ -107,6 +116,7 @@ const getAllContracts = async (req, res) => {
     }
 };
 
+// 2. CRÉER UN CONTRAT (✅ AVEC real_users)
 const createContract = async (req, res) => {
     const userId = req.user.id;
     const organizationId = req.organizationId;
@@ -120,25 +130,21 @@ const createContract = async (req, res) => {
     const renewal_date = req.body.renewal_date;
     const notice_period_days = parseInt(req.body.notice_period_days) || 0;
     
+    // ✅ CHAMPS LICENCES
     const pricing_model = req.body.pricing_model || 'fixed';
     const license_count = req.body.license_count ? parseInt(req.body.license_count) : null;
     const licenses_used = req.body.licenses_used ? parseInt(req.body.licenses_used) : null;
     const unit_cost = req.body.unit_cost ? parseFloat(req.body.unit_cost) : null;
-    const real_users = req.body.real_users ? parseInt(req.body.real_users) : null;
+    const real_users = req.body.real_users ? parseInt(req.body.real_users) : null; // ✨ NOUVEAU
 
-    const validPricingModels = ['fixed', 'per_user', 'usage_based'];
-    if (!validPricingModels.includes(pricing_model)) {
-        return res.status(400).json({ 
-            error: `Type de tarification invalide. Valeurs autorisées: ${validPricingModels.join(', ')}` 
-        });
-    }
-
+    // ✅ CALCUL AUTOMATIQUE DU COÛT
     let monthly_cost = req.body.monthly_cost ? parseFloat(req.body.monthly_cost) : null;
     
     if (pricing_model === 'per_user' && license_count && unit_cost) {
         monthly_cost = license_count * unit_cost;
     }
 
+    // Validation
     if (pricing_model === 'fixed' && !monthly_cost) {
         return res.status(400).json({ error: 'Le coût mensuel est requis pour un prix fixe' });
     }
@@ -150,21 +156,19 @@ const createContract = async (req, res) => {
     try {
         const queryText = `
             INSERT INTO contracts (
-                organization_id, name, provider, monthly_cost, renewal_date, notice_period_days, 
-                status, pricing_model, license_count, licenses_used, unit_cost, real_users,
-                created_by, updated_by
+                name, provider, monthly_cost, renewal_date, notice_period_days, 
+                user_id, status, pricing_model, license_count, licenses_used, unit_cost, real_users
             )
-            VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, $9, $10, $11, $12, $13)
+            VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, $9, $10, $11)
             RETURNING *
         `;
         const values = [
-            organizationId, name, provider, monthly_cost, renewal_date, notice_period_days, 
-            pricing_model, license_count, licenses_used, unit_cost, real_users,
-            userId, userId
+            name, provider, monthly_cost, renewal_date, notice_period_days, 
+            userId, pricing_model, license_count, licenses_used, unit_cost, real_users
         ];
         const result = await db.query(queryText, values);
         
-        console.log(`${LOG_PREFIX} Création du contrat ${result.rows[0].id} pour organization ${organizationId}`);
+        console.log(`${LOG_PREFIX} Création du contrat ${result.rows[0].id} pour l'organisation ${organizationId}`);
         res.status(201).json(result.rows[0]);
     } catch (error) {
         console.error('Erreur createContract:', error);
@@ -172,6 +176,7 @@ const createContract = async (req, res) => {
     }
 };
 
+// 3. MODIFIER UN CONTRAT (✅ AVEC real_users)
 const updateContract = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
@@ -182,9 +187,10 @@ const updateContract = async (req, res) => {
     }
 
     try {
+        // Vérifier que le contrat existe
         const checkResult = await db.query(
-            'SELECT * FROM contracts WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
-            [id, organizationId]
+            'SELECT * FROM contracts WHERE id = $1 AND organization_id = $2',
+            [id, userId]
         );
 
         if (checkResult.rows.length === 0) {
@@ -193,25 +199,21 @@ const updateContract = async (req, res) => {
 
         const currentContract = checkResult.rows[0];
 
+        // Récupérer les champs
         const name = req.body.name ? sanitizeString(req.body.name) : undefined;
         const provider = req.body.provider !== undefined ? (req.body.provider ? sanitizeString(req.body.provider) : null) : undefined;
         const renewal_date = req.body.renewal_date;
         const notice_period_days = req.body.notice_period_days !== undefined ? parseInt(req.body.notice_period_days) : undefined;
         const status = req.body.status ? req.body.status.toLowerCase() : undefined;
         
+        // ✅ CHAMPS LICENCES
         const pricing_model = req.body.pricing_model !== undefined ? req.body.pricing_model : undefined;
         const license_count = req.body.license_count !== undefined ? (req.body.license_count ? parseInt(req.body.license_count) : null) : undefined;
         const licenses_used = req.body.licenses_used !== undefined ? (req.body.licenses_used ? parseInt(req.body.licenses_used) : null) : undefined;
         const unit_cost = req.body.unit_cost !== undefined ? (req.body.unit_cost ? parseFloat(req.body.unit_cost) : null) : undefined;
-        const real_users = req.body.real_users !== undefined ? (req.body.real_users ? parseInt(req.body.real_users) : null) : undefined;
+        const real_users = req.body.real_users !== undefined ? (req.body.real_users ? parseInt(req.body.real_users) : null) : undefined; // ✨ NOUVEAU
 
-        const validPricingModels = ['fixed', 'per_user', 'usage_based'];
-        if (pricing_model !== undefined && !validPricingModels.includes(pricing_model)) {
-            return res.status(400).json({ 
-                error: `Type de tarification invalide. Valeurs autorisées: ${validPricingModels.join(', ')}` 
-            });
-        }
-
+        // ✅ CALCUL AUTOMATIQUE DU COÛT
         let monthly_cost = req.body.monthly_cost !== undefined ? parseFloat(req.body.monthly_cost) : undefined;
         
         const finalPricingModel = pricing_model !== undefined ? pricing_model : currentContract.pricing_model;
@@ -222,6 +224,7 @@ const updateContract = async (req, res) => {
             monthly_cost = finalLicenseCount * finalUnitCost;
         }
 
+        // Construction dynamique de la requête
         let queryText = 'UPDATE contracts SET ';
         const updates = [];
         const values = [];
@@ -234,25 +237,21 @@ const updateContract = async (req, res) => {
         if (notice_period_days !== undefined) { updates.push(`notice_period_days = $${paramIndex++}`); values.push(notice_period_days); }
         if (status !== undefined) { updates.push(`status = $${paramIndex++}`); values.push(status); }
         
+        // ✅ CHAMPS LICENCES
         if (pricing_model !== undefined) { updates.push(`pricing_model = $${paramIndex++}`); values.push(pricing_model); }
         if (license_count !== undefined) { updates.push(`license_count = $${paramIndex++}`); values.push(license_count); }
         if (licenses_used !== undefined) { updates.push(`licenses_used = $${paramIndex++}`); values.push(licenses_used); }
         if (unit_cost !== undefined) { updates.push(`unit_cost = $${paramIndex++}`); values.push(unit_cost); }
-        if (real_users !== undefined) { updates.push(`real_users = $${paramIndex++}`); values.push(real_users); }
+        if (real_users !== undefined) { updates.push(`real_users = $${paramIndex++}`); values.push(real_users); } // ✨ NOUVEAU
 
         if (updates.length === 0) {
             return res.status(400).json({ error: 'Aucun champ à mettre à jour fourni.' });
         }
 
-        updates.push(`updated_by = $${paramIndex++}`);
-        values.push(userId);
-
-        updates.push(`updated_at = NOW()`);
-
         queryText += updates.join(', ');
-        queryText += ` WHERE id = $${paramIndex++} AND organization_id = $${paramIndex++} AND deleted_at IS NULL RETURNING *`;
+        queryText += ` WHERE id = $${paramIndex++} AND organization_id = $${paramIndex++} RETURNING *`;
         
-        values.push(id, organizationId);
+        values.push(id, userId);
 
         const result = await db.query(queryText, values);
 
@@ -264,6 +263,7 @@ const updateContract = async (req, res) => {
     }
 };
 
+// 4. SUPPRIMER UN CONTRAT
 const deleteContract = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
@@ -275,15 +275,15 @@ const deleteContract = async (req, res) => {
 
     try {
         const result = await db.query(
-            'UPDATE contracts SET deleted_at = NOW(), deleted_by = $3 WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL RETURNING id', 
-            [id, organizationId, userId]
+            'DELETE FROM contracts WHERE id = $1 AND organization_id = $2 RETURNING id', 
+            [id, userId]
         );
 
         if (result.rowCount === 0) {
             return res.status(404).json({ error: 'Contrat non trouvé ou accès non autorisé.' });
         }
 
-        console.log(`${LOG_PREFIX} Contrat ${id} supprimé (soft delete) par l'utilisateur ${userId}`);
+        console.log(`${LOG_PREFIX} Contrat ${id} supprimé par l'utilisateur ${userId}`);
         res.status(204).send();
     } catch (error) {
         console.error('Erreur deleteContract:', error);
@@ -291,10 +291,12 @@ const deleteContract = async (req, res) => {
     }
 };
 
+// 5. OBTENIR LA LISTE DES FOURNISSEURS UNIQUES
 const getProviders = async (req, res) => {
+    const userId = req.user.id;
     const organizationId = req.organizationId;
     
-    if (!organizationId) {
+    if (!userId || !organizationId) {
         return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
     }
 
@@ -302,10 +304,10 @@ const getProviders = async (req, res) => {
         const queryText = `
             SELECT DISTINCT provider 
             FROM contracts 
-            WHERE organization_id = $1 AND provider IS NOT NULL AND provider != '' AND deleted_at IS NULL
+            WHERE organization_id = $1 AND provider IS NOT NULL AND provider != ''
             ORDER BY provider ASC
         `;
-        const result = await db.query(queryText, [organizationId]);
+        const result = await db.query(queryText, [userId]);
         
         const providers = result.rows.map(row => row.provider);
         res.status(200).json(providers);
@@ -315,10 +317,12 @@ const getProviders = async (req, res) => {
     }
 };
 
+// 6. EXPORTER LES CONTRATS EN CSV (✅ AVEC real_users)
 const exportContracts = async (req, res) => {
+    const userId = req.user.id;
     const organizationId = req.organizationId;
     
-    if (!organizationId) {
+    if (!userId || !organizationId) {
         return res.status(401).json({ error: 'Non autorisé. ID utilisateur manquant.' });
     }
 
@@ -336,7 +340,7 @@ const exportContracts = async (req, res) => {
     }
 
     try {
-        let whereConditions = ['organization_id = $1 AND deleted_at IS NULL'];
+        let whereConditions = ['organization_id = $1'];
         let queryParams = [organizationId];
         let paramIndex = 2;
 
@@ -360,6 +364,7 @@ const exportContracts = async (req, res) => {
 
         const whereClause = whereConditions.join(' AND ');
 
+        // ✅ AJOUT COLONNE real_users
         let queryText = 'SELECT id, name, provider, monthly_cost, renewal_date, notice_period_days, status, ';
         queryText += 'pricing_model, license_count, licenses_used, unit_cost, real_users ';
         queryText += 'FROM contracts ';
@@ -371,6 +376,7 @@ const exportContracts = async (req, res) => {
         
         const result = await db.query(queryText, queryParams);
 
+        // ✅ CSV AVEC real_users
         const csvHeaders = 'ID,Nom,Fournisseur,Coût Mensuel (€),Date de Renouvellement,Préavis (Jours),Statut,Type Tarification,Licences,Licences Utilisées,Coût Unitaire (€),Utilisateurs Réels\n';
         
         const csvRows = result.rows.map(contract => {
@@ -387,7 +393,7 @@ const exportContracts = async (req, res) => {
                 contract.id,
                 escapeCsvField(contract.name),
                 escapeCsvField(contract.provider || ''),
-                parseFloat(contract.monthly_cost || 0).toFixed(2),
+                parseFloat(contract.monthly_cost).toFixed(2),
                 contract.renewal_date ? new Date(contract.renewal_date).toISOString().split('T')[0] : '',
                 contract.notice_period_days || 0,
                 escapeCsvField(contract.status),
@@ -406,7 +412,7 @@ const exportContracts = async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Length', Buffer.byteLength(csvContent, 'utf8'));
 
-        console.log(`${LOG_PREFIX} Export CSV de ${result.rowCount} contrats pour organization ${organizationId}`);
+        console.log(`${LOG_PREFIX} Export CSV de ${result.rowCount} contrats pour l'organisation ${organizationId}`);
         
         res.status(200).send(csvContent);
     } catch (error) {
