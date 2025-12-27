@@ -1,5 +1,6 @@
 // server/src/routes/import.routes.js
-// Routes pour import CSV/Excel - ÉTAPE 6 : Import en BDD
+// Routes pour import CSV/Excel - AVEC TEMPLATES
+// ✅ NOUVEAU : Route GET /api/import/template/:entityType
 
 const express = require('express');
 const router = express.Router();
@@ -18,6 +19,133 @@ const importService = require('../services/importService');
 // ✅ Protection : toutes les routes nécessitent authentification
 router.use(authMiddleware);
 router.use(organizationMiddleware);
+
+/**
+ * GET /api/import/template/:entityType
+ * Télécharger un template CSV pour l'import
+ */
+router.get('/template/:entityType', async (req, res) => {
+  try {
+    const { entityType } = req.params;
+
+    // Templates disponibles
+    const templates = {
+      contracts: {
+        filename: 'template_contracts.csv',
+        headers: [
+          'name',
+          'provider',
+          'monthly_cost',
+          'renewal_date',
+          'status',
+          'license_count',
+          'pricing_model',
+          'notice_period_days',
+          'description',
+          'contract_number',
+          'billing_frequency'
+        ],
+        example: [
+          'Microsoft 365 Business',
+          'Microsoft',
+          '1200',
+          '2025-06-15',
+          'active',
+          '50',
+          'per_user',
+          '30',
+          'Suite bureautique complète',
+          'MS-2024-001',
+          'monthly'
+        ]
+      },
+      assets: {
+        filename: 'template_assets.csv',
+        headers: [
+          'name',
+          'asset_tag',
+          'asset_type',
+          'manufacturer',
+          'model',
+          'serial_number',
+          'status',
+          'purchase_date',
+          'purchase_price',
+          'warranty_end_date',
+          'location'
+        ],
+        example: [
+          'MacBook Pro 16"',
+          'MBA-2024-001',
+          'laptop',
+          'Apple',
+          'MacBook Pro 16" M3',
+          'SERIAL123456',
+          'in_use',
+          '2024-01-15',
+          '2500',
+          '2027-01-15',
+          'Bureau Paris'
+        ]
+      },
+      employees: {
+        filename: 'template_employees.csv',
+        headers: [
+          'first_name',
+          'last_name',
+          'email',
+          'department',
+          'job_title',
+          'phone',
+          'start_date',
+          'status'
+        ],
+        example: [
+          'Jean',
+          'Dupont',
+          'jean.dupont@example.com',
+          'IT',
+          'Développeur Full Stack',
+          '+33612345678',
+          '2024-01-15',
+          'active'
+        ]
+      }
+    };
+
+    // Vérifier que le type d'entité existe
+    if (!templates[entityType]) {
+      return res.status(400).json({ 
+        error: `Type d'entité invalide. Valeurs possibles: ${Object.keys(templates).join(', ')}` 
+      });
+    }
+
+    const template = templates[entityType];
+
+    // Générer le contenu CSV
+    const csvContent = [
+      template.headers.join(','),  // Ligne headers
+      template.example.join(',')   // Ligne exemple
+    ].join('\n');
+
+    // Définir les headers pour le téléchargement
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${template.filename}"`);
+    
+    // Ajouter BOM UTF-8 pour Excel
+    const BOM = '\uFEFF';
+    
+    console.log(`📥 Template téléchargé: ${template.filename} par user ${req.user.id}`);
+    
+    res.send(BOM + csvContent);
+
+  } catch (error) {
+    console.error('❌ Erreur génération template:', error);
+    res.status(500).json({ 
+      error: 'Erreur lors de la génération du template' 
+    });
+  }
+});
 
 /**
  * POST /api/import/upload

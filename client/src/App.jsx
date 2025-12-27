@@ -1,14 +1,15 @@
 // ============================================================================
-// APP.JSX - COMPLET avec toutes les routes Workflows + Gestion Utilisateurs
+// APP.JSX - COMPLET avec toutes les routes + Import
 // ============================================================================
 // Fichier : client/src/App.jsx
-// ✅ NOUVEAU : Route /users pour gestion des utilisateurs
+// ✅ NOUVEAU : Route /import pour import CSV/Excel
 // ============================================================================
 
 import React, { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 // Importation des composants des pages
+import ImportPage from './pages/ImportPage';
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
@@ -44,7 +45,7 @@ import WorkflowDetailPage from './pages/workflows/WorkflowDetailPage';
 import TemplatesPage from './pages/workflows/TemplatesPage';
 import TemplateFormPage from './pages/workflows/TemplateFormPage';
 
-// ✅ NOUVEAU : MODULE GESTION UTILISATEURS
+// ✅ MODULE GESTION UTILISATEURS
 import UsersPage from './pages/UsersPage';
 
 // Importation des composants de structure
@@ -142,6 +143,16 @@ const App = () => {
                         element={
                             <ProtectedRoute>
                                 <OptimizationPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    
+                    {/* ✅ NOUVELLE ROUTE : IMPORT CSV/EXCEL */}
+                    <Route
+                        path="/import"
+                        element={
+                            <ProtectedRoute>
+                                <ImportPage />
                             </ProtectedRoute>
                         }
                     />
@@ -265,7 +276,7 @@ const App = () => {
                         }
                     />
                     
-                    {/* ✅ NOUVELLE ROUTE : GESTION UTILISATEURS (super_admin uniquement) */}
+                    {/* ✅ ROUTE : GESTION UTILISATEURS (super_admin uniquement) */}
                     <Route
                         path="/users"
                         element={

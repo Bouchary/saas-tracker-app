@@ -1,8 +1,8 @@
 // ============================================================================
-// HEADER - COMPLET avec menu déroulant Workflows + Lien Utilisateurs
+// HEADER - COMPLET avec Import + Ordre logique
 // ============================================================================
 // Fichier : client/src/components/Header.jsx
-// ✅ NOUVEAU : Lien "Utilisateurs" pour les super_admin
+// ✅ NOUVEAU : Ajout Import + Réorganisation logique des menus
 // ============================================================================
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -10,12 +10,12 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { 
   LayoutDashboard, User, Lightbulb, Users, Package, BarChart3, 
-  GitBranch, FileText, List, ChevronDown, Shield
+  GitBranch, FileText, List, ChevronDown, Upload, Settings
 } from 'lucide-react';
 import Notifications from './Notifications';
 
 const Header = ({ onNotificationClick }) => {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, logout, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [workflowsMenuOpen, setWorkflowsMenuOpen] = useState(false);
@@ -48,7 +48,7 @@ const Header = ({ onNotificationClick }) => {
     <header className="bg-white shadow-md">
       <div className="container mx-auto p-4 flex justify-between items-center">
         <Link 
-          to="/contracts" 
+          to="/dashboard-v2" 
           className="text-2xl font-bold text-gray-800 hover:text-indigo-600 transition duration-300 flex items-center space-x-2"
         >
           <LayoutDashboard className="w-6 h-6 text-indigo-600" />
@@ -57,15 +57,7 @@ const Header = ({ onNotificationClick }) => {
         
         <nav>
           <ul className="flex space-x-4 items-center">
-            <li>
-              <Link 
-                to="/contracts" 
-                className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300"
-              >
-                Contrats
-              </Link>
-            </li>
-            
+            {/* 1. DASHBOARD 360° (Vue d'ensemble) */}
             <li>
               <button 
                 onClick={() => navigate('/dashboard-v2')}
@@ -76,26 +68,18 @@ const Header = ({ onNotificationClick }) => {
               </button>
             </li>
             
-            <li>
-              <button 
-                onClick={() => navigate('/dashboard')}
-                className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all hover:scale-105 flex items-center gap-2"
-              >
-                <BarChart3 className="w-5 h-5" />
-                Dashboard Analytics
-              </button>
-            </li>
-            
+            {/* 2. CONTRATS (Module principal) */}
             <li>
               <Link 
-                to="/optimization" 
+                to="/contracts" 
                 className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
               >
-                <Lightbulb className="w-4 h-4" />
-                Optimisation
+                <FileText className="w-4 h-4" />
+                Contrats
               </Link>
             </li>
             
+            {/* 3. EMPLOYÉS */}
             <li>
               <Link 
                 to="/employees" 
@@ -106,6 +90,7 @@ const Header = ({ onNotificationClick }) => {
               </Link>
             </li>
             
+            {/* 4. MATÉRIEL */}
             <li>
               <Link 
                 to="/assets" 
@@ -116,7 +101,7 @@ const Header = ({ onNotificationClick }) => {
               </Link>
             </li>
             
-            {/* 🆕 MENU DÉROULANT WORKFLOWS */}
+            {/* 5. WORKFLOWS (Menu déroulant) */}
             <li className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setWorkflowsMenuOpen(!workflowsMenuOpen)}
@@ -172,23 +157,49 @@ const Header = ({ onNotificationClick }) => {
               )}
             </li>
             
-            {/* ✅ NOUVEAU : LIEN UTILISATEURS (visible pour tous, mais page réservée super_admin) */}
+            {/* 6. IMPORT (Nouveau) */}
             <li>
               <Link 
-                to="/users" 
-                className="text-gray-700 hover:text-purple-600 font-medium transition duration-300 flex items-center gap-1"
+                to="/import" 
+                className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
               >
-                <Shield className="w-4 h-4" />
-                Utilisateurs
+                <Upload className="w-4 h-4" />
+                Import
               </Link>
             </li>
             
+            {/* 7. OPTIMISATION (Analyse) */}
+            <li>
+              <Link 
+                to="/optimization" 
+                className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
+              >
+                <Lightbulb className="w-4 h-4" />
+                Optimisation
+              </Link>
+            </li>
+            
+            {/* 8. USERS (Admin - si super_admin) */}
+            {user && user.role === 'super_admin' && (
+              <li>
+                <Link 
+                  to="/users" 
+                  className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
+                >
+                  <Settings className="w-4 h-4" />
+                  Utilisateurs
+                </Link>
+              </li>
+            )}
+            
             {isAuthenticated && (
               <>
+                {/* 9. NOTIFICATIONS */}
                 <li>
                   <Notifications onContractClick={onNotificationClick} />
                 </li>
                 
+                {/* 10. PROFIL */}
                 <li>
                   <Link 
                     to="/profile" 
@@ -199,6 +210,7 @@ const Header = ({ onNotificationClick }) => {
                   </Link>
                 </li>
                 
+                {/* 11. DÉCONNEXION */}
                 <li>
                   <button 
                     onClick={handleLogout} 
