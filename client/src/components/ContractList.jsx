@@ -1,11 +1,12 @@
 // client/src/components/ContractList.jsx
-// ✅ VERSION FINALE : Pagination toujours visible + auto-reload
+// ✅ VERSION FINALE : Pagination toujours visible + auto-reload + Export Excel
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { Pencil, Trash2, Search, Filter, Download, AlertTriangle, CheckCircle, Clock, Users, TrendingUp, ShieldAlert, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import ContractForm from './ContractForm';
+import ExportExcelButton from './ExportExcelButton';
 import API_URL from '../config/api';
 
 // ✅ FONCTIONS UTILITAIRES
@@ -347,13 +348,13 @@ const ContractList = () => {
                             Filtres avancés
                         </button>
 
-                        <button
-                            onClick={exportToCSV}
-                            className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-semibold transition-all hover:scale-105 flex items-center gap-2 shadow-lg"
-                        >
-                            <Download className="w-5 h-5" />
-                            Exporter
-                        </button>
+                        <ExportExcelButton 
+                            filters={{
+                                search: searchTerm,
+                                status: statusFilter !== 'all' ? statusFilter : '',
+                                provider: ''
+                            }}
+                        />
                     </div>
                 </div>
 

@@ -2,6 +2,7 @@
 
 const db = require('./db');
 const { sanitizeString } = require('./middlewares/validation');
+const ExcelJS = require('exceljs');
 
 const LOG_PREFIX = 'Contrats SQL:';
 
@@ -421,6 +422,221 @@ const exportContracts = async (req, res) => {
     }
 };
 
+// ============================================================================
+// 7. EXPORTER LES CONTRATS EN EXCEL - NOUVEAU
+// ============================================================================
+const exportContractsExcel = async (req, res) => {
+    const userId = req.user.id;
+    const organizationId = req.organizationId;
+    
+    if (!userId || !organizationId) {
+        return res.status(401).json({ error: 'Non autorisé' });
+    }
+
+    // Récupérer les mêmes paramètres de recherche/filtres que getAllContracts
+    const search = req.query.search ? sanitizeString(req.query.search) : '';
+    const status = req.query.status || '';
+    const provider = req.query.provider || '';
+    const sortBy = req.query.sortBy || 'renewal_date';
+    const sortOrder = req.query.sortOrder === 'desc' ? 'DESC' : 'ASC';
+
+    try {
+        // Construction de la clause WHERE (même logique que getAllContracts)
+        let whereConditions = ['organization_id = $1'];
+        let queryParams = [organizationId];
+        let paramIndex = 2;
+
+        if (search) {
+            whereConditions.push(`(LOWER(name) LIKE $${paramIndex} OR LOWER(provider) LIKE $${paramIndex})`);
+            queryParams.push(`%${search.toLowerCase()}%`);
+            paramIndex++;
+        }
+
+        if (status) {
+            whereConditions.push(`LOWER(status) = $${paramIndex}`);
+            queryParams.push(status.toLowerCase());
+            paramIndex++;
+        }
+
+        if (provider) {
+            whereConditions.push(`LOWER(provider) = $${paramIndex}`);
+            queryParams.push(provider.toLowerCase());
+            paramIndex++;
+        }
+
+        const whereClause = whereConditions.join(' AND ');
+
+        // Requête pour récupérer TOUS les contrats (sans pagination)
+        const queryText = `
+            SELECT 
+                id,
+                name,
+                provider,
+                monthly_cost,
+                renewal_date,
+                notice_period_days,
+                status,
+                pricing_model,
+                license_count,
+                licenses_used,
+                unit_cost,
+                real_users,
+                created_at
+            FROM contracts
+            WHERE ${whereClause}
+            ORDER BY ${sortBy} ${sortOrder}
+        `;
+        
+        const result = await db.query(queryText, queryParams);
+        const contracts = result.rows;
+
+        // Créer un nouveau workbook Excel
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'SaaS Tracker';
+        workbook.created = new Date();
+        
+        const worksheet = workbook.addWorksheet('Contrats', {
+            pageSetup: { 
+                paperSize: 9, // A4
+                orientation: 'landscape' 
+            }
+        });
+
+        // Définir les colonnes avec largeurs optimales
+        worksheet.columns = [
+            { header: 'ID', key: 'id', width: 8 },
+            { header: 'Nom', key: 'name', width: 30 },
+            { header: 'Fournisseur', key: 'provider', width: 25 },
+            { header: 'Coût mensuel (€)', key: 'monthly_cost', width: 18 },
+            { header: 'Date renouvellement', key: 'renewal_date', width: 20 },
+            { header: 'Statut', key: 'status', width: 12 },
+            { header: 'Modèle tarifaire', key: 'pricing_model', width: 18 },
+            { header: 'Licences totales', key: 'license_count', width: 16 },
+            { header: 'Licences utilisées', key: 'licenses_used', width: 18 },
+            { header: 'Utilisateurs réels', key: 'real_users', width: 18 },
+            { header: 'Coût unitaire (€)', key: 'unit_cost', width: 16 },
+            { header: 'Préavis (jours)', key: 'notice_period_days', width: 16 },
+            { header: 'Date création', key: 'created_at', width: 20 }
+        ];
+
+        // Styler l'en-tête
+        const headerRow = worksheet.getRow(1);
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+        headerRow.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF4F46E5' } // Indigo-600
+        };
+        headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+        headerRow.height = 25;
+
+        // Ajouter les données
+        contracts.forEach((contract, index) => {
+            const row = worksheet.addRow({
+                id: contract.id,
+                name: contract.name || '',
+                provider: contract.provider || '',
+                monthly_cost: contract.monthly_cost ? parseFloat(contract.monthly_cost) : 0,
+                renewal_date: contract.renewal_date ? new Date(contract.renewal_date) : '',
+                status: contract.status || '',
+                pricing_model: contract.pricing_model || '',
+                license_count: contract.license_count || '',
+                licenses_used: contract.licenses_used || '',
+                real_users: contract.real_users || '',
+                unit_cost: contract.unit_cost ? parseFloat(contract.unit_cost) : '',
+                notice_period_days: contract.notice_period_days || '',
+                created_at: contract.created_at ? new Date(contract.created_at) : ''
+            });
+
+            // Alterner les couleurs de fond des lignes
+            if (index % 2 === 0) {
+                row.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFF3F4F6' } // Gray-100
+                };
+            }
+
+            // Formatter les cellules
+            row.alignment = { vertical: 'middle' };
+            row.height = 20;
+
+            // Format monétaire pour les coûts
+            const costCell = row.getCell('monthly_cost');
+            costCell.numFmt = '#,##0.00 €';
+            costCell.alignment = { horizontal: 'right', vertical: 'middle' };
+
+            const unitCostCell = row.getCell('unit_cost');
+            if (unitCostCell.value) {
+                unitCostCell.numFmt = '#,##0.00 €';
+                unitCostCell.alignment = { horizontal: 'right', vertical: 'middle' };
+            }
+
+            // Format date pour renewal_date et created_at
+            const renewalCell = row.getCell('renewal_date');
+            if (renewalCell.value) {
+                renewalCell.numFmt = 'dd/mm/yyyy';
+                renewalCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            }
+
+            const createdCell = row.getCell('created_at');
+            if (createdCell.value) {
+                createdCell.numFmt = 'dd/mm/yyyy hh:mm';
+                createdCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            }
+
+            // Colorer le statut
+            const statusCell = row.getCell('status');
+            statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            if (contract.status === 'active') {
+                statusCell.font = { color: { argb: 'FF059669' }, bold: true }; // Green-600
+            } else if (contract.status === 'expired') {
+                statusCell.font = { color: { argb: 'FFDC2626' }, bold: true }; // Red-600
+            } else if (contract.status === 'pending') {
+                statusCell.font = { color: { argb: 'FFD97706' }, bold: true }; // Orange-600
+            }
+        });
+
+        // Ajouter des bordures à toutes les cellules
+        worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+            row.eachCell({ includeEmpty: true }, (cell) => {
+                cell.border = {
+                    top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+                    left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+                    bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+                    right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
+                };
+            });
+        });
+
+        // Figer la première ligne (en-têtes)
+        worksheet.views = [
+            { state: 'frozen', xSplit: 0, ySplit: 1 }
+        ];
+
+        // Générer le nom du fichier avec date
+        const now = new Date();
+        const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+        const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-'); // HH-MM-SS
+        const filename = `contrats_export_${dateStr}_${timeStr}.xlsx`;
+
+        // Définir les headers pour le téléchargement
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+        // Écrire dans le stream de réponse
+        await workbook.xlsx.write(res);
+        
+        console.log(`${LOG_PREFIX} Export Excel généré: ${contracts.length} contrats pour organisation ${organizationId}`);
+        
+        res.end();
+
+    } catch (error) {
+        console.error(`${LOG_PREFIX} Erreur exportContractsExcel:`, error);
+        res.status(500).json({ error: 'Erreur lors de l\'export Excel' });
+    }
+};
+
 module.exports = {
     getAllContracts,
     createContract,
@@ -428,4 +644,5 @@ module.exports = {
     deleteContract,
     getProviders,
     exportContracts,
+    exportContractsExcel
 };

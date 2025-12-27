@@ -18,7 +18,8 @@ const {
     updateContract,
     deleteContract,
     getProviders,
-    exportContracts
+    exportContracts,
+    exportContractsExcel
 } = require('./contractsController.js');
 
 // ✅ CORRECTION : Appliquer les middlewares à toutes les routes
@@ -33,11 +34,15 @@ router.get('/providers', getProviders);
 // ⚠️ DOIT ÊTRE AVANT /:id
 router.get('/export', exportContracts);
 
+// GET /api/contracts/export-excel - Exporter les contrats en Excel
+// ⚠️ DOIT ÊTRE AVANT /:id
+router.get('/export-excel', exportContractsExcel);
+
 // ==========================================
 // ROUTE : RÉCUPÉRER UN CONTRAT PAR ID
 // ==========================================
 // GET /api/contracts/:id
-// ⚠️ DOIT ÊTRE APRÈS /providers et /export mais AVANT /
+// ⚠️ DOIT ÊTRE APRÈS /providers, /export, /export-excel mais AVANT /
 router.get('/:id', async (req, res) => {
     const { id } = req.params;
     // ✅ CORRECTION : Utiliser req.organizationId au lieu de req.user
