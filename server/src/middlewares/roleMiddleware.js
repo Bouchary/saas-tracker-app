@@ -1,10 +1,11 @@
 // server/src/middlewares/roleMiddleware.js
 // ✅ VERSION OPTIMISÉE : Utilise req.user.role directement (pas de requête DB)
 // authMiddleware a déjà chargé req.user avec le rôle
+// ✅ CORRECTION : owner inclus dans requireSuperAdmin
 
 /**
- * Middleware pour vérifier que l'utilisateur a le rôle super_admin OU admin
- * ✅ PERMET admin ET super_admin (pour gestion users)
+ * Middleware pour vérifier que l'utilisateur a le rôle super_admin, admin OU owner
+ * ✅ PERMET owner, admin ET super_admin (pour gestion users, contrats, etc.)
  */
 const requireSuperAdmin = (req, res, next) => {
   try {
@@ -12,13 +13,13 @@ const requireSuperAdmin = (req, res, next) => {
       return res.status(401).json({ error: 'Non authentifié' });
     }
 
-    // ✅ Permet admin ET super_admin
-    if (req.user.role === 'super_admin' || req.user.role === 'admin') {
+    // ✅ Permet owner, admin ET super_admin
+    if (['owner', 'admin', 'super_admin'].includes(req.user.role)) {
       return next();
     }
 
     return res.status(403).json({ 
-      error: 'Accès refusé. Rôle admin ou super_admin requis.' 
+      error: 'Accès refusé. Rôle admin, owner ou super_admin requis.' 
     });
 
   } catch (error) {
@@ -51,7 +52,7 @@ const requireAdmin = (req, res, next) => {
 };
 
 /**
- * Middleware strict : SEULEMENT super_admin (pas admin)
+ * Middleware strict : SEULEMENT super_admin (pas admin, pas owner)
  */
 const requireStrictSuperAdmin = (req, res, next) => {
   try {
@@ -74,7 +75,7 @@ const requireStrictSuperAdmin = (req, res, next) => {
 };
 
 module.exports = {
-  requireSuperAdmin,      // ✅ Permet admin ET super_admin
+  requireSuperAdmin,      // ✅ Permet owner, admin ET super_admin
   requireAdmin,           // ✅ Permet admin, super_admin, owner
   requireStrictSuperAdmin // ✅ SEULEMENT super_admin
 };
