@@ -1,6 +1,7 @@
 // server/src/routes/documents.js
 // Routes pour l'upload, download et gestion des documents
-// ✅ CORRECTION : authMiddleware + organizationMiddleware + multi-tenant
+// ✅ CORRECTION : Routes préfixées /contracts pour montage sous /api
+// ✅ Multi-tenant sécurisé avec organization_id
 
 const express = require('express');
 const router = express.Router();
@@ -19,7 +20,7 @@ const organizationMiddleware = require('../middlewares/organizationMiddleware');
 // ROUTE : UPLOAD DE FICHIER
 // ==========================================
 // POST /api/contracts/:contractId/documents
-router.post('/:contractId/documents', authMiddleware, organizationMiddleware, upload.single('file'), async (req, res) => {
+router.post('/contracts/:contractId/documents', authMiddleware, organizationMiddleware, upload.single('file'), async (req, res) => {
     const { contractId } = req.params;
     const { documentType } = req.body; // 'contract', 'invoice', 'other'
     const userId = req.user.id;
@@ -53,9 +54,10 @@ router.post('/:contractId/documents', authMiddleware, organizationMiddleware, up
                 file_size, 
                 mime_type, 
                 document_type, 
-                uploaded_by
+                uploaded_by,
+                organization_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *
         `;
 
@@ -67,7 +69,8 @@ router.post('/:contractId/documents', authMiddleware, organizationMiddleware, up
             req.file.size,
             req.file.mimetype,
             documentType || 'other',
-            userId
+            userId,
+            organizationId
         ];
 
         const result = await db.query(insertQuery, values);
@@ -107,7 +110,7 @@ router.post('/:contractId/documents', authMiddleware, organizationMiddleware, up
 // ROUTE : LISTE DES DOCUMENTS D'UN CONTRAT
 // ==========================================
 // GET /api/contracts/:contractId/documents
-router.get('/:contractId/documents', authMiddleware, organizationMiddleware, async (req, res) => {
+router.get('/contracts/:contractId/documents', authMiddleware, organizationMiddleware, async (req, res) => {
     const { contractId } = req.params;
     const userId = req.user.id;
     const organizationId = req.organizationId;
@@ -155,7 +158,7 @@ router.get('/:contractId/documents', authMiddleware, organizationMiddleware, asy
 // ROUTE : DOWNLOAD D'UN DOCUMENT
 // ==========================================
 // GET /api/documents/:documentId/download
-router.get('/:documentId/download', authMiddleware, organizationMiddleware, async (req, res) => {
+router.get('/documents/:documentId/download', authMiddleware, organizationMiddleware, async (req, res) => {
     const { documentId } = req.params;
     const userId = req.user.id;
     const organizationId = req.organizationId;
@@ -209,7 +212,7 @@ router.get('/:documentId/download', authMiddleware, organizationMiddleware, asyn
 // ROUTE : SUPPRESSION D'UN DOCUMENT
 // ==========================================
 // DELETE /api/documents/:documentId
-router.delete('/:documentId', authMiddleware, organizationMiddleware, async (req, res) => {
+router.delete('/documents/:documentId', authMiddleware, organizationMiddleware, async (req, res) => {
     const { documentId } = req.params;
     const userId = req.user.id;
     const organizationId = req.organizationId;
@@ -265,7 +268,7 @@ router.delete('/:documentId', authMiddleware, organizationMiddleware, async (req
 // ROUTE : STATISTIQUES DES DOCUMENTS
 // ==========================================
 // GET /api/contracts/:contractId/documents/stats
-router.get('/:contractId/documents/stats', authMiddleware, organizationMiddleware, async (req, res) => {
+router.get('/contracts/:contractId/documents/stats', authMiddleware, organizationMiddleware, async (req, res) => {
     const { contractId } = req.params;
     const userId = req.user.id;
     const organizationId = req.organizationId;

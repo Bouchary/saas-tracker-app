@@ -1,5 +1,5 @@
 // client/src/pages/ContractDocuments.jsx
-// Version MODERNE avec design amélioré - LOGIQUE ORIGINALE CONSERVÉE
+// Version MODERNE avec STATISTIQUES RÉELLES depuis l'API
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -18,6 +18,18 @@ const ContractDocuments = () => {
     const [contract, setContract] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    
+    // ✅ NOUVEAU : État pour les statistiques
+    const [stats, setStats] = useState({
+        totalDocuments: 0,
+        totalSizeMB: '0.00',
+        breakdown: {
+            contracts: 0,
+            invoices: 0,
+            others: 0
+        }
+    });
+    const [statsLoading, setStatsLoading] = useState(true);
 
     // ✅ USEEFFECT ORIGINAL CONSERVÉ
     useEffect(() => {
@@ -46,9 +58,40 @@ const ContractDocuments = () => {
         fetchContract();
     }, [contractId, token, navigate]);
 
-    // ✅ CALLBACK ORIGINAL CONSERVÉ
+    // ✅ NOUVEAU : Récupérer les statistiques
+    const fetchStats = async () => {
+        try {
+            setStatsLoading(true);
+            const response = await fetch(`${API_URL}/api/contracts/${contractId}/documents/stats`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setStats(data);
+            } else {
+                console.error('Erreur stats:', response.status);
+            }
+        } catch (error) {
+            console.error('Erreur chargement stats:', error);
+        } finally {
+            setStatsLoading(false);
+        }
+    };
+
+    // ✅ NOUVEAU : Charger les stats au montage et à chaque refresh
+    useEffect(() => {
+        if (contractId && token) {
+            fetchStats();
+        }
+    }, [contractId, token, refreshTrigger]);
+
+    // ✅ CALLBACK ORIGINAL AMÉLIORÉ
     const handleUploadSuccess = () => {
         setRefreshTrigger(prev => prev + 1);
+        // Les stats seront automatiquement rechargées via useEffect
     };
 
     // ✨ LOADING STATE MODERNISÉ
@@ -134,7 +177,7 @@ const ContractDocuments = () => {
                         />
                     </div>
 
-                    {/* ✨ STATISTIQUES MODERNISÉES */}
+                    {/* ✨ STATISTIQUES RÉELLES */}
                     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
                         <div className="flex items-center gap-3 mb-6">
                             <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
@@ -143,60 +186,76 @@ const ContractDocuments = () => {
                             <h3 className="text-xl font-bold text-gray-900">Statistiques</h3>
                         </div>
                         
-                        <div className="space-y-4">
-                            {/* Stat 1 */}
-                            <div className="group bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-100 hover:shadow-md transition-all">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm text-gray-600 mb-1">Contrats uploadés</p>
-                                        <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                                            -
-                                        </p>
-                                    </div>
-                                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center opacity-20 group-hover:opacity-30 transition-opacity">
-                                        <FileText className="w-6 h-6 text-white" />
+                        {statsLoading ? (
+                            <div className="flex items-center justify-center py-12">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {/* Stat 1 - Contrats */}
+                                <div className="group bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-100 hover:shadow-md transition-all">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Contrats uploadés</p>
+                                            <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                                                {stats.breakdown.contracts}
+                                            </p>
+                                        </div>
+                                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center opacity-20 group-hover:opacity-30 transition-opacity">
+                                            <FileText className="w-6 h-6 text-white" />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Stat 2 */}
-                            <div className="group bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100 hover:shadow-md transition-all">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm text-gray-600 mb-1">Factures uploadées</p>
-                                        <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                                            -
-                                        </p>
-                                    </div>
-                                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center opacity-20 group-hover:opacity-30 transition-opacity">
-                                        <FileText className="w-6 h-6 text-white" />
+                                {/* Stat 2 - Factures */}
+                                <div className="group bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100 hover:shadow-md transition-all">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Factures uploadées</p>
+                                            <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                                                {stats.breakdown.invoices}
+                                            </p>
+                                        </div>
+                                        <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center opacity-20 group-hover:opacity-30 transition-opacity">
+                                            <FileText className="w-6 h-6 text-white" />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Stat 3 */}
-                            <div className="group bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100 hover:shadow-md transition-all">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm text-gray-600 mb-1">Espace utilisé</p>
-                                        <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                                            - MB
-                                        </p>
-                                    </div>
-                                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center opacity-20 group-hover:opacity-30 transition-opacity">
-                                        <HardDrive className="w-6 h-6 text-white" />
+                                {/* Stat 3 - Espace */}
+                                <div className="group bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100 hover:shadow-md transition-all">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Espace utilisé</p>
+                                            <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                                                {stats.totalSizeMB} MB
+                                            </p>
+                                        </div>
+                                        <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center opacity-20 group-hover:opacity-30 transition-opacity">
+                                            <HardDrive className="w-6 h-6 text-white" />
+                                        </div>
                                     </div>
                                 </div>
+
+                                {/* Total documents */}
+                                <div className="mt-4 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-lg">
+                                    <p className="text-sm text-indigo-900 flex items-center justify-between">
+                                        <span className="font-medium">Total documents :</span>
+                                        <span className="text-lg font-bold">{stats.totalDocuments}</span>
+                                    </p>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Info bulle */}
-                        <div className="mt-6 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
-                            <p className="text-xs text-indigo-700 flex items-start gap-2">
-                                <span className="text-base">💡</span>
-                                <span>Les statistiques seront disponibles après avoir uploadé des documents</span>
-                            </p>
-                        </div>
+                        {!statsLoading && stats.totalDocuments === 0 && (
+                            <div className="mt-6 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                                <p className="text-xs text-indigo-700 flex items-start gap-2">
+                                    <span className="text-base">💡</span>
+                                    <span>Uploadez des documents pour voir les statistiques</span>
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
 

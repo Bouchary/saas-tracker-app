@@ -1,12 +1,13 @@
 // client/src/components/ContractList.jsx
-// ✅ VERSION FINALE : Pagination toujours visible + auto-reload + Export Excel
+// ✅ VERSION FINALE : Pagination toujours visible + auto-reload + Export Excel + Analyse IA
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { Pencil, Trash2, Search, Filter, Download, AlertTriangle, CheckCircle, Clock, Users, TrendingUp, ShieldAlert, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { Pencil, Trash2, Search, Filter, Download, AlertTriangle, CheckCircle, Clock, Users, TrendingUp, ShieldAlert, ChevronLeft, ChevronRight, FileText, Brain } from 'lucide-react';
 import ContractForm from './ContractForm';
 import ExportExcelButton from './ExportExcelButton';
+import AIAnalysisModal from './AIAnalysisModal';
 import API_URL from '../config/api';
 
 // ✅ FONCTIONS UTILITAIRES
@@ -39,6 +40,10 @@ const ContractList = () => {
     // États formulaire
     const [showForm, setShowForm] = useState(false);
     const [editingContract, setEditingContract] = useState(null);
+    
+    // ✅ NOUVEAU : États pour modal IA
+    const [showAIModal, setShowAIModal] = useState(false);
+    const [selectedContractForAI, setSelectedContractForAI] = useState(null);
     
     // États pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -482,6 +487,7 @@ const ContractList = () => {
                                         )}
                                     </div>
 
+                                    {/* ✅ MODIFICATION : Bouton Analyse IA ajouté */}
                                     <div className="flex gap-3">
                                         <button
                                             onClick={() => handleEdit(contract)}
@@ -489,6 +495,18 @@ const ContractList = () => {
                                         >
                                             <Pencil className="w-4 h-4" />
                                             Modifier
+                                        </button>
+                                        
+                                        <button
+                                            onClick={() => {
+                                                setSelectedContractForAI(contract);
+                                                setShowAIModal(true);
+                                            }}
+                                            className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold transition-all hover:scale-105 flex items-center justify-center gap-2"
+                                            title="Analyse IA"
+                                        >
+                                            <Brain className="w-4 h-4" />
+                                            Analyse IA
                                         </button>
                                         
                                         <button
@@ -569,6 +587,18 @@ const ContractList = () => {
                     contract={editingContract}
                     onClose={handleFormClose}
                     onSave={handleFormSave}
+                />
+            )}
+
+            {/* ✅ NOUVEAU : Modal Analyse IA */}
+            {showAIModal && selectedContractForAI && (
+                <AIAnalysisModal
+                    contract={selectedContractForAI}
+                    token={token}
+                    onClose={() => {
+                        setShowAIModal(false);
+                        setSelectedContractForAI(null);
+                    }}
                 />
             )}
         </div>

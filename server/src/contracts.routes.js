@@ -1,4 +1,5 @@
 // server/src/contracts.routes.js
+// ✅ VERSION CORRIGÉE : Ordre des routes optimisé + PUT fonctionnel
 
 const express = require('express');
 const router = express.Router();
@@ -26,26 +27,36 @@ const {
 router.use(authMiddleware);
 router.use(organizationMiddleware);
 
+// ==========================================
+// ROUTES SPÉCIFIQUES (DOIVENT ÊTRE AVANT /:id)
+// ==========================================
+
 // GET /api/contracts/providers - Obtenir la liste des fournisseurs uniques
-// ⚠️ DOIT ÊTRE AVANT /:id
 router.get('/providers', getProviders);
 
 // GET /api/contracts/export - Exporter les contrats en CSV
-// ⚠️ DOIT ÊTRE AVANT /:id
 router.get('/export', exportContracts);
 
 // GET /api/contracts/export-excel - Exporter les contrats en Excel
-// ⚠️ DOIT ÊTRE AVANT /:id
 router.get('/export-excel', exportContractsExcel);
 
 // ==========================================
-// ROUTE : RÉCUPÉRER UN CONTRAT PAR ID
+// ROUTES GÉNÉRALES (/)
 // ==========================================
-// GET /api/contracts/:id
-// ⚠️ DOIT ÊTRE APRÈS /providers, /export, /export-excel mais AVANT /
+
+// GET /api/contracts - Récupérer tous les contrats de l'organisation
+router.get('/', getAllContracts);
+
+// POST /api/contracts - Créer un nouveau contrat avec validation
+router.post('/', validate(createContractValidation), createContract);
+
+// ==========================================
+// ROUTES AVEC PARAMÈTRE :id (DOIVENT ÊTRE APRÈS ROUTES SPÉCIFIQUES)
+// ==========================================
+
+// GET /api/contracts/:id - Récupérer un contrat par ID
 router.get('/:id', async (req, res) => {
     const { id } = req.params;
-    // ✅ CORRECTION : Utiliser req.organizationId au lieu de req.user
     const organizationId = req.organizationId;
 
     try {
@@ -65,21 +76,13 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// GET /api/contracts - Récupérer tous les contrats de l'utilisateur
-// ⚠️ DOIT ÊTRE APRÈS /:id
-router.get('/', getAllContracts);
+// PUT /api/contracts/:id - Mettre à jour un contrat existant (méthode PUT)
+router.put('/:id', updateContract);
 
-// POST /api/contracts - Créer un nouveau contrat avec validation
-router.post('/', validate(createContractValidation), createContract);
-
-// PUT /api/contracts/:id - Mettre à jour un contrat existant (méthode PUT ajoutée)
-// ✅ ROUTE AJOUTÉE pour supporter PUT en plus de PATCH
-router.put('/:id', validate(updateContractValidation), updateContract);
-
-// PATCH /api/contracts/:id - Mettre à jour un contrat existant avec validation
+// PATCH /api/contracts/:id - Mettre à jour un contrat existant (méthode PATCH)
 router.patch('/:id', validate(updateContractValidation), updateContract);
 
-// DELETE /api/contracts/:id - Supprimer un contrat
+// DELETE /api/contracts/:id - Supprimer un contrat (soft delete)
 router.delete('/:id', deleteContract);
 
 module.exports = router;

@@ -4,6 +4,9 @@
 // ✅ NOUVEAU : Route /api/users pour gestion des utilisateurs
 // ✅ CORRECTION MULTI-TENANT : authMiddleware corrigé
 // ✅ NOUVEAU : Route /api/import pour import CSV/Excel
+// ✅ NOUVEAU : Route /api/optimization pour AI Optimization Score
+// ✅ NOUVEAU : Route /api/ai pour analyse IA (Claude API + ML prédictif)
+// ✅ CORRECTION UPLOAD : documentsRoutes monté sur /api (pas /api/documents)
 
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
@@ -46,7 +49,9 @@ const workflowRoutes = require('./src/workflows.routes.js');
 const dashboardRoutes = require('./src/dashboard.routes.js');
 const dashboardController = require('./src/dashboardController.js');
 const usersRoutes = require('./src/users.routes.js');
-const importRoutes = require('./src/routes/import.routes.js'); // ✅ NOUVEAU
+const importRoutes = require('./src/routes/import.routes.js');
+const optimizationRoutes = require('./src/routes/optimization.routes.js');
+const aiAnalysisRoutes = require('./src/routes/ai-analysis.routes.js'); // ✅ NOUVEAU
 
 // Schedulers pour notifications automatiques
 const emailScheduler = require('./src/jobs/emailScheduler.js');
@@ -62,7 +67,9 @@ app.use('/api/auth', passwordResetRoutes);
 app.use('/api/contracts', contractRoutes);
 app.use('/api/emails', emailRoutes);
 app.use('/api/profile', profileRoutes);
-app.use('/api/documents', documentsRoutes);
+
+// ✅ CORRECTION UPLOAD : Monter sur /api pour créer /api/contracts/:id/documents
+app.use('/api', documentsRoutes);
 
 // ✅ CORRECTION MULTI-TENANT : Les routes employees et assets ont déjà leurs middlewares
 // On ne les ajoute PAS ici pour éviter la double application
@@ -77,6 +84,12 @@ app.use('/api/users', usersRoutes);
 
 // ✅ NOUVEAU : Route pour import CSV/Excel
 app.use('/api/import', importRoutes);
+
+// ✅ NOUVEAU : Route pour AI Optimization Score
+app.use('/api/optimization', optimizationRoutes);
+
+// ✅ NOUVEAU : Route pour analyse IA (Claude API + ML prédictif)
+app.use('/api/ai', aiAnalysisRoutes);
 
 // ✅ CORRECTION #1 : Utilise dashboardController.getGlobalView
 app.get('/api/dashboard/global', authMiddleware, organizationMiddleware, dashboardController.getGlobalView);
@@ -106,6 +119,7 @@ if (process.env.NODE_ENV === 'production') {
 app.listen(port, () => {
   console.log(`🚀 Serveur sur port ${port}`);
   console.log(`JWT_SECRET: ${process.env.JWT_SECRET ? 'OK' : 'ERREUR'}`);
+  console.log(`ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? 'OK ✅' : 'MANQUANTE ❌'}`);
   console.log('🎯 Dashboard Global avec départements réels (fallback mock)');
 
   // ✅ NOUVEAU : Logs des schedulers

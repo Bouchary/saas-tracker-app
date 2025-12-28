@@ -117,7 +117,7 @@ const getAllContracts = async (req, res) => {
     }
 };
 
-// 2. CRÉER UN CONTRAT (✅ AVEC real_users)
+// 2. CRÉER UN CONTRAT (✅ CORRIGÉ : organization_id ajouté)
 const createContract = async (req, res) => {
     const userId = req.user.id;
     const organizationId = req.organizationId;
@@ -136,7 +136,7 @@ const createContract = async (req, res) => {
     const license_count = req.body.license_count ? parseInt(req.body.license_count) : null;
     const licenses_used = req.body.licenses_used ? parseInt(req.body.licenses_used) : null;
     const unit_cost = req.body.unit_cost ? parseFloat(req.body.unit_cost) : null;
-    const real_users = req.body.real_users ? parseInt(req.body.real_users) : null; // ✨ NOUVEAU
+    const real_users = req.body.real_users ? parseInt(req.body.real_users) : null;
 
     // ✅ CALCUL AUTOMATIQUE DU COÛT
     let monthly_cost = req.body.monthly_cost ? parseFloat(req.body.monthly_cost) : null;
@@ -155,17 +155,18 @@ const createContract = async (req, res) => {
     }
 
     try {
+        // ✅ CORRECTION : organization_id ajouté dans INSERT
         const queryText = `
             INSERT INTO contracts (
                 name, provider, monthly_cost, renewal_date, notice_period_days, 
-                user_id, status, pricing_model, license_count, licenses_used, unit_cost, real_users
+                user_id, organization_id, status, pricing_model, license_count, licenses_used, unit_cost, real_users
             )
-            VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11, $12)
             RETURNING *
         `;
         const values = [
             name, provider, monthly_cost, renewal_date, notice_period_days, 
-            userId, pricing_model, license_count, licenses_used, unit_cost, real_users
+            userId, organizationId, pricing_model, license_count, licenses_used, unit_cost, real_users
         ];
         const result = await db.query(queryText, values);
         
@@ -188,10 +189,10 @@ const updateContract = async (req, res) => {
     }
 
     try {
-        // Vérifier que le contrat existe
+        // Vérifier que le contrat existe ET appartient à l'organisation
         const checkResult = await db.query(
             'SELECT * FROM contracts WHERE id = $1 AND organization_id = $2',
-            [id, userId]
+            [id, organizationId]
         );
 
         if (checkResult.rows.length === 0) {
@@ -212,7 +213,7 @@ const updateContract = async (req, res) => {
         const license_count = req.body.license_count !== undefined ? (req.body.license_count ? parseInt(req.body.license_count) : null) : undefined;
         const licenses_used = req.body.licenses_used !== undefined ? (req.body.licenses_used ? parseInt(req.body.licenses_used) : null) : undefined;
         const unit_cost = req.body.unit_cost !== undefined ? (req.body.unit_cost ? parseFloat(req.body.unit_cost) : null) : undefined;
-        const real_users = req.body.real_users !== undefined ? (req.body.real_users ? parseInt(req.body.real_users) : null) : undefined; // ✨ NOUVEAU
+        const real_users = req.body.real_users !== undefined ? (req.body.real_users ? parseInt(req.body.real_users) : null) : undefined;
 
         // ✅ CALCUL AUTOMATIQUE DU COÛT
         let monthly_cost = req.body.monthly_cost !== undefined ? parseFloat(req.body.monthly_cost) : undefined;
@@ -243,7 +244,7 @@ const updateContract = async (req, res) => {
         if (license_count !== undefined) { updates.push(`license_count = $${paramIndex++}`); values.push(license_count); }
         if (licenses_used !== undefined) { updates.push(`licenses_used = $${paramIndex++}`); values.push(licenses_used); }
         if (unit_cost !== undefined) { updates.push(`unit_cost = $${paramIndex++}`); values.push(unit_cost); }
-        if (real_users !== undefined) { updates.push(`real_users = $${paramIndex++}`); values.push(real_users); } // ✨ NOUVEAU
+        if (real_users !== undefined) { updates.push(`real_users = $${paramIndex++}`); values.push(real_users); }
 
         if (updates.length === 0) {
             return res.status(400).json({ error: 'Aucun champ à mettre à jour fourni.' });
@@ -252,7 +253,7 @@ const updateContract = async (req, res) => {
         queryText += updates.join(', ');
         queryText += ` WHERE id = $${paramIndex++} AND organization_id = $${paramIndex++} RETURNING *`;
         
-        values.push(id, userId);
+        values.push(id, organizationId);
 
         const result = await db.query(queryText, values);
 
@@ -277,7 +278,7 @@ const deleteContract = async (req, res) => {
     try {
         const result = await db.query(
             'DELETE FROM contracts WHERE id = $1 AND organization_id = $2 RETURNING id', 
-            [id, userId]
+            [id, organizationId]
         );
 
         if (result.rowCount === 0) {
@@ -308,7 +309,7 @@ const getProviders = async (req, res) => {
             WHERE organization_id = $1 AND provider IS NOT NULL AND provider != ''
             ORDER BY provider ASC
         `;
-        const result = await db.query(queryText, [userId]);
+        const result = await db.query(queryText, [organizationId]);
         
         const providers = result.rows.map(row => row.provider);
         res.status(200).json(providers);
@@ -365,7 +366,6 @@ const exportContracts = async (req, res) => {
 
         const whereClause = whereConditions.join(' AND ');
 
-        // ✅ AJOUT COLONNE real_users
         let queryText = 'SELECT id, name, provider, monthly_cost, renewal_date, notice_period_days, status, ';
         queryText += 'pricing_model, license_count, licenses_used, unit_cost, real_users ';
         queryText += 'FROM contracts ';
@@ -377,7 +377,6 @@ const exportContracts = async (req, res) => {
         
         const result = await db.query(queryText, queryParams);
 
-        // ✅ CSV AVEC real_users
         const csvHeaders = 'ID,Nom,Fournisseur,Coût Mensuel (€),Date de Renouvellement,Préavis (Jours),Statut,Type Tarification,Licences,Licences Utilisées,Coût Unitaire (€),Utilisateurs Réels\n';
         
         const csvRows = result.rows.map(contract => {
@@ -422,9 +421,7 @@ const exportContracts = async (req, res) => {
     }
 };
 
-// ============================================================================
-// 7. EXPORTER LES CONTRATS EN EXCEL - NOUVEAU
-// ============================================================================
+// 7. EXPORTER LES CONTRATS EN EXCEL
 const exportContractsExcel = async (req, res) => {
     const userId = req.user.id;
     const organizationId = req.organizationId;
@@ -433,7 +430,6 @@ const exportContractsExcel = async (req, res) => {
         return res.status(401).json({ error: 'Non autorisé' });
     }
 
-    // Récupérer les mêmes paramètres de recherche/filtres que getAllContracts
     const search = req.query.search ? sanitizeString(req.query.search) : '';
     const status = req.query.status || '';
     const provider = req.query.provider || '';
@@ -441,7 +437,6 @@ const exportContractsExcel = async (req, res) => {
     const sortOrder = req.query.sortOrder === 'desc' ? 'DESC' : 'ASC';
 
     try {
-        // Construction de la clause WHERE (même logique que getAllContracts)
         let whereConditions = ['organization_id = $1'];
         let queryParams = [organizationId];
         let paramIndex = 2;
@@ -466,7 +461,6 @@ const exportContractsExcel = async (req, res) => {
 
         const whereClause = whereConditions.join(' AND ');
 
-        // Requête pour récupérer TOUS les contrats (sans pagination)
         const queryText = `
             SELECT 
                 id,
@@ -490,19 +484,17 @@ const exportContractsExcel = async (req, res) => {
         const result = await db.query(queryText, queryParams);
         const contracts = result.rows;
 
-        // Créer un nouveau workbook Excel
         const workbook = new ExcelJS.Workbook();
         workbook.creator = 'SaaS Tracker';
         workbook.created = new Date();
         
         const worksheet = workbook.addWorksheet('Contrats', {
             pageSetup: { 
-                paperSize: 9, // A4
+                paperSize: 9,
                 orientation: 'landscape' 
             }
         });
 
-        // Définir les colonnes avec largeurs optimales
         worksheet.columns = [
             { header: 'ID', key: 'id', width: 8 },
             { header: 'Nom', key: 'name', width: 30 },
@@ -519,18 +511,16 @@ const exportContractsExcel = async (req, res) => {
             { header: 'Date création', key: 'created_at', width: 20 }
         ];
 
-        // Styler l'en-tête
         const headerRow = worksheet.getRow(1);
         headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
         headerRow.fill = {
             type: 'pattern',
             pattern: 'solid',
-            fgColor: { argb: 'FF4F46E5' } // Indigo-600
+            fgColor: { argb: 'FF4F46E5' }
         };
         headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
         headerRow.height = 25;
 
-        // Ajouter les données
         contracts.forEach((contract, index) => {
             const row = worksheet.addRow({
                 id: contract.id,
@@ -548,20 +538,17 @@ const exportContractsExcel = async (req, res) => {
                 created_at: contract.created_at ? new Date(contract.created_at) : ''
             });
 
-            // Alterner les couleurs de fond des lignes
             if (index % 2 === 0) {
                 row.fill = {
                     type: 'pattern',
                     pattern: 'solid',
-                    fgColor: { argb: 'FFF3F4F6' } // Gray-100
+                    fgColor: { argb: 'FFF3F4F6' }
                 };
             }
 
-            // Formatter les cellules
             row.alignment = { vertical: 'middle' };
             row.height = 20;
 
-            // Format monétaire pour les coûts
             const costCell = row.getCell('monthly_cost');
             costCell.numFmt = '#,##0.00 €';
             costCell.alignment = { horizontal: 'right', vertical: 'middle' };
@@ -572,7 +559,6 @@ const exportContractsExcel = async (req, res) => {
                 unitCostCell.alignment = { horizontal: 'right', vertical: 'middle' };
             }
 
-            // Format date pour renewal_date et created_at
             const renewalCell = row.getCell('renewal_date');
             if (renewalCell.value) {
                 renewalCell.numFmt = 'dd/mm/yyyy';
@@ -585,19 +571,17 @@ const exportContractsExcel = async (req, res) => {
                 createdCell.alignment = { horizontal: 'center', vertical: 'middle' };
             }
 
-            // Colorer le statut
             const statusCell = row.getCell('status');
             statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
             if (contract.status === 'active') {
-                statusCell.font = { color: { argb: 'FF059669' }, bold: true }; // Green-600
+                statusCell.font = { color: { argb: 'FF059669' }, bold: true };
             } else if (contract.status === 'expired') {
-                statusCell.font = { color: { argb: 'FFDC2626' }, bold: true }; // Red-600
+                statusCell.font = { color: { argb: 'FFDC2626' }, bold: true };
             } else if (contract.status === 'pending') {
-                statusCell.font = { color: { argb: 'FFD97706' }, bold: true }; // Orange-600
+                statusCell.font = { color: { argb: 'FFD97706' }, bold: true };
             }
         });
 
-        // Ajouter des bordures à toutes les cellules
         worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
             row.eachCell({ includeEmpty: true }, (cell) => {
                 cell.border = {
@@ -609,22 +593,18 @@ const exportContractsExcel = async (req, res) => {
             });
         });
 
-        // Figer la première ligne (en-têtes)
         worksheet.views = [
             { state: 'frozen', xSplit: 0, ySplit: 1 }
         ];
 
-        // Générer le nom du fichier avec date
         const now = new Date();
-        const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
-        const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-'); // HH-MM-SS
+        const dateStr = now.toISOString().split('T')[0];
+        const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
         const filename = `contrats_export_${dateStr}_${timeStr}.xlsx`;
 
-        // Définir les headers pour le téléchargement
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
-        // Écrire dans le stream de réponse
         await workbook.xlsx.write(res);
         
         console.log(`${LOG_PREFIX} Export Excel généré: ${contracts.length} contrats pour organisation ${organizationId}`);
