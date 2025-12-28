@@ -3,6 +3,7 @@
 // ============================================================================
 // Fichier : client/src/components/Header.jsx
 // ✅ NOUVEAU : Ajout Import + Réorganisation logique des menus
+// ✅ CORRECTION : Lien Utilisateurs visible pour owner/admin/super_admin
 // ============================================================================
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -179,8 +180,8 @@ const Header = ({ onNotificationClick }) => {
               </Link>
             </li>
             
-            {/* 8. USERS (Admin - si super_admin) */}
-            {user && user.role === 'super_admin' && (
+            {/* 8. USERS (Admin - si owner/admin/super_admin) */}
+            {user && ['owner', 'admin', 'super_admin'].includes(user.role) && (
               <li>
                 <Link 
                   to="/users" 

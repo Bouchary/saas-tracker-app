@@ -2,12 +2,13 @@
 // PAGE - GESTION DES UTILISATEURS
 // ============================================================================
 // Fichier : client/src/pages/UsersPage.jsx
-// Description : Page complète de gestion des utilisateurs (super_admin/admin)
+// Description : Page complète de gestion des utilisateurs (super_admin/admin/owner)
 // ✅ TOUTES FONCTIONNALITÉS : Stats, filtres, modal, linked employees
+// ✅ CORRECTION : Support du rôle 'owner' dans badges et icônes
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Edit2, Trash2, Shield, Search, UserCheck, UserX, Crown, User as UserIcon } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, Shield, Search, UserCheck, UserX, Crown, User as UserIcon, Award } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import API_URL from '../config/api';
 
@@ -145,6 +146,7 @@ const UsersPage = () => {
 
   const getRoleIcon = (role) => {
     if (role === 'super_admin') return <Crown className="w-5 h-5 text-yellow-600" />;
+    if (role === 'owner') return <Award className="w-5 h-5 text-purple-600" />;
     if (role === 'admin') return <Shield className="w-5 h-5 text-blue-600" />;
     return <UserIcon className="w-5 h-5 text-gray-600" />;
   };
@@ -152,20 +154,22 @@ const UsersPage = () => {
   const getRoleBadge = (role) => {
     const styles = {
       super_admin: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      owner: 'bg-purple-100 text-purple-800 border-purple-300',
       admin: 'bg-blue-100 text-blue-800 border-blue-300',
       user: 'bg-gray-100 text-gray-800 border-gray-300'
     };
 
     const labels = {
       super_admin: 'Super Admin',
+      owner: 'Propriétaire',
       admin: 'Admin',
       user: 'Utilisateur'
     };
 
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-semibold border-2 flex items-center gap-1 ${styles[role]}`}>
+      <span className={`px-3 py-1 rounded-full text-xs font-semibold border-2 flex items-center gap-1 ${styles[role] || styles.user}`}>
         {getRoleIcon(role)}
-        {labels[role]}
+        {labels[role] || 'Utilisateur'}
       </span>
     );
   };
@@ -225,10 +229,16 @@ const UsersPage = () => {
         </div>
 
         {/* Statistiques */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="bg-white border-2 border-gray-200 rounded-xl p-4">
             <p className="text-gray-600 text-sm mb-1">Total utilisateurs</p>
             <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+          </div>
+          <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4">
+            <p className="text-purple-600 text-sm mb-1">Propriétaires</p>
+            <p className="text-2xl font-bold text-purple-900">
+              {users.filter(u => u.role === 'owner').length}
+            </p>
           </div>
           <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
             <p className="text-yellow-600 text-sm mb-1">Super Admins</p>
@@ -301,7 +311,7 @@ const UsersPage = () => {
               >
                 <option value="user">Utilisateur</option>
                 <option value="admin">Admin</option>
-                {user?.role === 'super_admin' && <option value="super_admin">Super Admin</option>}
+                {['owner', 'super_admin'].includes(user?.role) && <option value="super_admin">Super Admin</option>}
               </select>
             </div>
 
@@ -348,6 +358,7 @@ const UsersPage = () => {
             className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none bg-white"
           >
             <option value="">Tous les rôles</option>
+            <option value="owner">Propriétaire</option>
             <option value="super_admin">Super Admin</option>
             <option value="admin">Admin</option>
             <option value="user">Utilisateur</option>
