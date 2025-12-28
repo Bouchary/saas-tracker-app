@@ -291,6 +291,14 @@ router.get('/contracts/:contractId/documents/stats', authMiddleware, organizatio
                 SUM(file_size) as total_size,
                 COUNT(CASE WHEN document_type = 'contract' THEN 1 END) as contracts_count,
                 COUNT(CASE WHEN document_type = 'invoice' THEN 1 END) as invoices_count,
+                COUNT(CASE WHEN document_type = 'quote' THEN 1 END) as quotes_count,
+                COUNT(CASE WHEN document_type = 'report' THEN 1 END) as reports_count,
+                COUNT(CASE WHEN document_type = 'terms' THEN 1 END) as terms_count,
+                COUNT(CASE WHEN document_type = 'payment' THEN 1 END) as payments_count,
+                COUNT(CASE WHEN document_type = 'correspondence' THEN 1 END) as correspondences_count,
+                COUNT(CASE WHEN document_type = 'amendment' THEN 1 END) as amendments_count,
+                COUNT(CASE WHEN document_type = 'legal' THEN 1 END) as legals_count,
+                COUNT(CASE WHEN document_type = 'appendix' THEN 1 END) as appendixes_count,
                 COUNT(CASE WHEN document_type = 'other' THEN 1 END) as others_count
             FROM documents
             WHERE contract_id = $1
@@ -307,6 +315,14 @@ router.get('/contracts/:contractId/documents/stats', authMiddleware, organizatio
             breakdown: {
                 contracts: parseInt(stats.contracts_count),
                 invoices: parseInt(stats.invoices_count),
+                quotes: parseInt(stats.quotes_count),
+                reports: parseInt(stats.reports_count),
+                terms: parseInt(stats.terms_count),
+                payments: parseInt(stats.payments_count),
+                correspondences: parseInt(stats.correspondences_count),
+                amendments: parseInt(stats.amendments_count),
+                legals: parseInt(stats.legals_count),
+                appendixes: parseInt(stats.appendixes_count),
                 others: parseInt(stats.others_count)
             }
         });

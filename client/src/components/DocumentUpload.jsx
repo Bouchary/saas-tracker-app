@@ -1,5 +1,6 @@
 // client/src/components/DocumentUpload.jsx
 // Composant pour uploader des documents avec drag & drop
+// ✅ AJOUT : 11 types de documents avec icônes lucide-react
 
 import React, { useState } from 'react';
 import { Upload, File, X, AlertCircle, CheckCircle } from 'lucide-react';
@@ -218,7 +219,7 @@ const DocumentUpload = ({ contractId, onUploadSuccess }) => {
                         </button>
                     </div>
 
-                    {/* Sélecteur de type */}
+                    {/* Sélecteur de type - ✅ 11 TYPES */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                             Type de document
@@ -231,7 +232,15 @@ const DocumentUpload = ({ contractId, onUploadSuccess }) => {
                         >
                             <option value="contract">📄 Contrat</option>
                             <option value="invoice">🧾 Facture</option>
-                            <option value="other">📎 Autre</option>
+                            <option value="quote">📋 Devis / Proposition</option>
+                            <option value="report">📊 Rapport / Analyse</option>
+                            <option value="terms">📝 Conditions Générales (CGV/CGU)</option>
+                            <option value="payment">💳 Justificatif de paiement</option>
+                            <option value="correspondence">📧 Correspondance</option>
+                            <option value="amendment">✏️ Avenant / Modification</option>
+                            <option value="legal">⚖️ Document légal</option>
+                            <option value="appendix">📎 Annexe</option>
+                            <option value="other">📂 Autre</option>
                         </select>
                     </div>
 
