@@ -1,11 +1,12 @@
 // client/src/pages/ContractForm.jsx
-// ✅ VERSION FINALE - Sans erreur JSX + style inline
+// ✅ VERSION FINALE - Avec extraction intelligente PDF
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { FileText, DollarSign, Calendar, Bell, CheckCircle2, X, AlertCircle, Users, Calculator, ShieldAlert } from 'lucide-react';
+import { FileText, DollarSign, Calendar, Bell, CheckCircle2, X, AlertCircle, Users, Calculator, ShieldAlert, Sparkles } from 'lucide-react';
 import API_URL from '../config/api';
+import ContractExtractionModal from '../components/ContractExtractionModal';
 
 const ContractForm = () => {
     const { token } = useAuth();
@@ -27,6 +28,7 @@ const ContractForm = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
+    const [showExtractionModal, setShowExtractionModal] = useState(false); // ✅ NOUVEAU
 
     // Calculs
     const calculatedCost = formData.pricing_model === 'per_user' && formData.license_count && formData.unit_cost
@@ -58,6 +60,24 @@ const ContractForm = () => {
             ...prevData,
             [name]: value,
         }));
+    };
+
+    // ✅ NOUVEAU : Handler extraction intelligente
+    const handleExtractionSuccess = (extractedData) => {
+        console.log('✅ Données extraites:', extractedData);
+        
+        // Pré-remplir le formulaire avec les données extraites
+        setFormData({
+            ...formData,
+            name: extractedData.name || '',
+            provider: extractedData.provider || '',
+            monthly_cost: extractedData.monthly_cost || '',
+            renewal_date: extractedData.renewal_date || '',
+            notice_period_days: extractedData.notice_period_days || 0,
+            license_count: extractedData.license_count || '',
+            pricing_model: extractedData.pricing_model === 'per_user' ? 'per_user' : 'fixed',
+            unit_cost: extractedData.unit_cost || ''
+        });
     };
 
     const handleSubmit = async (e) => {
@@ -92,7 +112,7 @@ const ContractForm = () => {
             renewal_date: formData.renewal_date || null,
             notice_period_days: formData.notice_period_days && formData.notice_period_days !== '' ? parseInt(formData.notice_period_days) : null,
             pricing_model: formData.pricing_model,
-            status: 'active' // ✅ AJOUT : Statut par défaut
+            status: 'active'
         };
 
         // Ajouter monthly_cost selon le modèle
@@ -130,9 +150,8 @@ const ContractForm = () => {
             
             setSuccess(true);
             
-            // ✅ Redirection avec reload forcé
             setTimeout(() => {
-                window.location.href = '/contracts'; // Force reload
+                window.location.href = '/contracts';
             }, 1500);
 
         } catch (err) {
@@ -163,6 +182,32 @@ const ContractForm = () => {
 
             <div className="container mx-auto px-6 max-w-4xl">
                 <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-8 md:p-10 -mt-16">
+                    
+                    {/* ✅ NOUVEAU : Bouton extraction IA */}
+                    <div className="mb-8">
+                        <button
+                            type="button"
+                            onClick={() => setShowExtractionModal(true)}
+                            className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 transition font-semibold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
+                        >
+                            <Sparkles className="w-5 h-5" />
+                            Extraire d'un contrat PDF (IA)
+                        </button>
+                        <p className="text-xs text-gray-500 text-center mt-2">
+                            Analysez un PDF et pré-remplissez automatiquement le formulaire
+                        </p>
+                    </div>
+
+                    {/* Séparateur */}
+                    <div className="relative mb-8">
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-gray-200"></div>
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                            <span className="px-4 bg-white text-gray-500">ou remplir manuellement</span>
+                        </div>
+                    </div>
+
                     {/* MESSAGES */}
                     {error && (
                         <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl flex items-start gap-3" style={{animation: 'shake 0.5s ease-out'}}>
@@ -611,6 +656,13 @@ const ContractForm = () => {
                     </form>
                 </div>
             </div>
+
+            {/* ✅ NOUVEAU : Modal extraction */}
+            <ContractExtractionModal 
+                isOpen={showExtractionModal}
+                onClose={() => setShowExtractionModal(false)}
+                onExtractSuccess={handleExtractionSuccess}
+            />
         </div>
     );
 };

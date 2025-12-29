@@ -1,15 +1,18 @@
 // client/src/components/ContractForm.jsx
 // Version FINALE avec real_users pour surconsommation
+// ✅ NOUVEAU : Extraction intelligente de contrats PDF avec Claude IA
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
-import { X, Save, AlertTriangle, Loader, DollarSign, Calendar, FileText, Users, ShieldAlert } from 'lucide-react';
+import { X, Save, AlertTriangle, Loader, DollarSign, Calendar, FileText, Users, ShieldAlert, Sparkles } from 'lucide-react';
 import API_URL from '../config/api';
+import ContractExtractionModal from './ContractExtractionModal';
 
 const ContractForm = ({ contract, onClose, onSave }) => {
     const { token } = useAuth();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [showExtractionModal, setShowExtractionModal] = useState(false); // ✅ NOUVEAU
     
     const [formData, setFormData] = useState({
         name: '',
@@ -126,6 +129,23 @@ const ContractForm = ({ contract, onClose, onSave }) => {
         }
     };
 
+    // ✅ NOUVEAU : Handler extraction intelligente
+    const handleExtractionSuccess = (extractedData) => {
+        console.log('✅ Données extraites:', extractedData);
+        
+        // Pré-remplir le formulaire avec les données extraites
+        setFormData({
+            ...formData,
+            name: extractedData.name || '',
+            provider: extractedData.provider || '',
+            monthly_cost: extractedData.monthly_cost || '',
+            renewal_date: extractedData.renewal_date || '',
+            notice_period_days: extractedData.notice_period_days || 30,
+            license_count: extractedData.license_count || 1,
+            pricing_model: extractedData.pricing_model || 'flat_fee'
+        });
+    };
+
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden animate-slideUp">
@@ -150,6 +170,40 @@ const ContractForm = ({ contract, onClose, onSave }) => {
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+                    {/* 🔍 TEST DEBUG SIMPLE */}
+    <div style={{background: 'red', color: 'white', padding: '20px', fontSize: '24px'}}>
+        TEST DEBUG - contract = {contract ? 'OUI' : 'NON'}
+    </div>
+    
+    {/* ✅ NOUVEAU : Bouton extraction IA */}
+    {(!contract || !contract.id) && (
+                        <>
+                            <div className="mb-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowExtractionModal(true)}
+                                    className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 transition font-semibold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
+                                >
+                                    <Sparkles className="w-5 h-5" />
+                                    Extraire d'un contrat PDF (IA)
+                                </button>
+                                <p className="text-xs text-gray-500 text-center mt-2">
+                                    Analysez un PDF et pré-remplissez automatiquement le formulaire
+                                </p>
+                            </div>
+
+                            {/* Séparateur */}
+                            <div className="relative mb-8">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-gray-200"></div>
+                                </div>
+                                <div className="relative flex justify-center text-sm">
+                                    <span className="px-4 bg-white text-gray-500">ou remplir manuellement</span>
+                                </div>
+                            </div>
+                        </>
+                    )}
+
                     {error && (
                         <div className="mb-6 bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3 animate-shake">
                             <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -427,6 +481,13 @@ const ContractForm = ({ contract, onClose, onSave }) => {
                     </div>
                 </form>
             </div>
+
+            {/* ✅ NOUVEAU : Modal extraction */}
+            <ContractExtractionModal 
+                isOpen={showExtractionModal}
+                onClose={() => setShowExtractionModal(false)}
+                onExtractSuccess={handleExtractionSuccess}
+            />
         </div>
     );
 };

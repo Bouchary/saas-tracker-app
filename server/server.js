@@ -7,6 +7,7 @@
 // ✅ NOUVEAU : Route /api/optimization pour AI Optimization Score
 // ✅ NOUVEAU : Route /api/ai pour analyse IA (Claude API + ML prédictif)
 // ✅ CORRECTION UPLOAD : documentsRoutes monté sur /api (pas /api/documents)
+// ✅ NOUVEAU : Route /api/contracts/extract pour extraction intelligente PDF
 
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
@@ -39,6 +40,7 @@ const organizationMiddleware = require('./src/middlewares/organizationMiddleware
 
 const authRoutes = require('./src/auth.routes.js');
 const contractRoutes = require('./src/contracts.routes.js');
+const contractExtractionRoutes = require('./src/routes/contract-extraction.routes.js'); // ✅ NOUVEAU
 const emailRoutes = require('./src/routes/emails.js');
 const profileRoutes = require('./src/routes/profile.js');
 const documentsRoutes = require('./src/routes/documents.js');
@@ -51,7 +53,7 @@ const dashboardController = require('./src/dashboardController.js');
 const usersRoutes = require('./src/users.routes.js');
 const importRoutes = require('./src/routes/import.routes.js');
 const optimizationRoutes = require('./src/routes/optimization.routes.js');
-const aiAnalysisRoutes = require('./src/routes/ai-analysis.routes.js'); // ✅ NOUVEAU
+const aiAnalysisRoutes = require('./src/routes/ai-analysis.routes.js');
 
 // Schedulers pour notifications automatiques
 const emailScheduler = require('./src/jobs/emailScheduler.js');
@@ -65,6 +67,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auth', passwordResetRoutes);
 
 app.use('/api/contracts', contractRoutes);
+app.use('/api/contracts', contractExtractionRoutes); // ✅ NOUVEAU
 app.use('/api/emails', emailRoutes);
 app.use('/api/profile', profileRoutes);
 
