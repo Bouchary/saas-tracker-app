@@ -63,26 +63,158 @@ router.post('/extract', authMiddleware, organizationMiddleware, upload.single('f
             return res.status(500).json({ error: 'Clé API Anthropic manquante' });
         }
 
-        const prompt = `Analyse ce contrat et extrait les informations suivantes au format JSON.
+        const prompt = `Tu es un expert en analyse de documents juridiques et financiers. Analyse ce document et extrait TOUTES les informations pertinentes.
 
-IMPORTANT : Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ou après, sans markdown.
+🎯 IMPORTANT : Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ou après, sans markdown (pas de \`\`\`json).
 
-Informations à extraire :
-- name : Nom du contrat ou du service
-- provider : Nom du fournisseur / éditeur
-- monthly_cost : Coût mensuel (nombre uniquement, sans devise)
-- renewal_date : Date de renouvellement au format YYYY-MM-DD (si absent, null)
-- notice_period_days : Période de préavis en jours (nombre, si absent : 30)
-- license_count : Nombre de licences incluses (nombre, si absent : 1)
-- pricing_model : "per_user" ou "flat_fee" ou "usage_based"
-- description : Description courte du contrat
-- key_clauses : Liste des clauses importantes (tableau de strings)
+📋 STRUCTURE JSON ATTENDUE :
 
-Si une information n'est pas présente dans le document, mets null.
+{
+  "document_type": "contract" | "invoice" | "quote" | "purchase_order" | "amendment" | "other",
+  "document_language": "fr" | "en" | "de" | "es" | "other",
+  "confidence_score": 0-100,
+  
+  "basic_info": {
+    "name": "Nom du contrat/service",
+    "provider": "Nom du fournisseur",
+    "client": "Nom du client (si présent)",
+    "contract_number": "Numéro de contrat/référence",
+    "description": "Description détaillée"
+  },
+  
+  "financial": {
+    "monthly_cost": nombre ou null,
+    "yearly_cost": nombre ou null,
+    "total_contract_value": nombre ou null,
+    "currency": "EUR" | "USD" | "GBP" | etc,
+    "pricing_model": "per_user" | "flat_fee" | "usage_based" | "tiered" | "other",
+    "payment_terms": "Description des conditions de paiement",
+    "price_table": [
+      {
+        "tier": "Nom du palier",
+        "quantity": "Quantité/Range",
+        "unit_price": nombre,
+        "total_price": nombre
+      }
+    ]
+  },
+  
+  "licenses": {
+    "license_count": nombre ou null,
+    "license_type": "Description du type de licence",
+    "minimum_licenses": nombre ou null,
+    "maximum_licenses": nombre ou null
+  },
+  
+  "dates": {
+    "signature_date": "YYYY-MM-DD" ou null,
+    "start_date": "YYYY-MM-DD" ou null,
+    "end_date": "YYYY-MM-DD" ou null,
+    "renewal_date": "YYYY-MM-DD" ou null,
+    "notice_deadline": "YYYY-MM-DD" ou null
+  },
+  
+  "terms": {
+    "contract_duration_months": nombre ou null,
+    "notice_period_days": nombre ou null,
+    "auto_renewal": true | false | null,
+    "renewal_conditions": "Description des conditions de renouvellement"
+  },
+  
+  "clauses": {
+    "termination": ["Clauses de résiliation"],
+    "sla": ["Clauses SLA / Garanties de service"],
+    "confidentiality": ["Clauses de confidentialité"],
+    "liability": ["Clauses de responsabilité"],
+    "penalties": ["Clauses de pénalités"],
+    "data_protection": ["Clauses RGPD / protection des données"],
+    "other_important": ["Autres clauses importantes"]
+  },
+  
+  "contacts": {
+    "provider_contact": {
+      "name": "Nom du contact fournisseur",
+      "email": "email@fournisseur.com",
+      "phone": "Téléphone"
+    },
+    "client_contact": {
+      "name": "Nom du contact client",
+      "email": "email@client.com",
+      "phone": "Téléphone"
+    }
+  },
+  
+  "services": {
+    "included_services": ["Liste des services inclus"],
+    "optional_services": ["Services optionnels"],
+    "excluded_services": ["Services exclus"]
+  },
+  
+  "support": {
+    "support_level": "Description du niveau de support",
+    "support_hours": "Horaires du support",
+    "response_time": "Temps de réponse garanti"
+  },
+  
+  "special_conditions": [
+    "Conditions particulières importantes"
+  ],
+  
+  "extracted_numbers": {
+    "invoice_numbers": ["Numéros de facture si présents"],
+    "po_numbers": ["Numéros de bon de commande"],
+    "quote_numbers": ["Numéros de devis"]
+  }
+}
 
-Voici le texte du contrat :
+🔍 INSTRUCTIONS SPÉCIFIQUES :
 
-${extractedText.substring(0, 15000)}`;
+1. **DÉTECTION TYPE DE DOCUMENT** :
+   - Contrat (contract) : Engagement long terme, clauses juridiques
+   - Facture (invoice) : Montant à payer, numéro de facture, échéance
+   - Devis (quote) : Proposition commerciale, validité limitée
+   - Bon de commande (purchase_order) : Commande officielle
+   - Avenant (amendment) : Modification de contrat existant
+
+2. **TABLEAUX DE PRIX** :
+   - Cherche TOUS les tableaux avec prix
+   - Extrait paliers, quantités, prix unitaires
+   - Identifie les remises et options
+
+3. **CLAUSES IMPORTANTES** :
+   - Résiliation : conditions, préavis, pénalités
+   - SLA : disponibilité, temps de réponse, garanties
+   - Confidentialité : durée, portée, exceptions
+   - Responsabilité : limitations, exclusions, montants max
+   - Pénalités : retards, non-conformité, montants
+   - RGPD : traitement données, sous-traitance, transferts
+
+4. **DATES** :
+   - Cherche TOUTES les dates mentionnées
+   - Formate en YYYY-MM-DD
+   - Identifie signature, début, fin, renouvellement
+
+5. **MULTI-LANGUE** :
+   - Détecte la langue du document
+   - Extrait même si multi-langue
+   - Traduis les champs si nécessaire
+
+6. **CONFIANCE** :
+   - confidence_score : 0-100 selon clarté du document
+   - 80-100 : Informations claires et complètes
+   - 50-79 : Informations partielles ou ambiguës
+   - 0-49 : Document difficile à analyser
+
+⚠️ RÈGLES IMPORTANTES :
+- Si une information n'existe pas : mets null
+- Si un tableau est vide : mets []
+- Tous les montants : nombres uniquement (pas de devise)
+- Toutes les dates : format YYYY-MM-DD strict
+- Sois précis et exhaustif
+
+📄 DOCUMENT À ANALYSER :
+
+${extractedText.substring(0, 20000)}`;
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -93,7 +225,7 @@ ${extractedText.substring(0, 15000)}`;
             },
             body: JSON.stringify({
                 model: 'claude-sonnet-4-20250514',
-                max_tokens: 2000,
+                max_tokens: 4000, // ✅ Augmenté pour extraction détaillée
                 messages: [
                     { 
                         role: 'user', 
@@ -141,17 +273,75 @@ ${extractedText.substring(0, 15000)}`;
             });
         }
 
-        // ✅ ÉTAPE 4 : Nettoyer les données
+        // ✅ ÉTAPE 4 : Nettoyer et structurer les données
         const cleanedData = {
-            name: extractedData.name || 'Contrat sans nom',
-            provider: extractedData.provider || null,
-            monthly_cost: extractedData.monthly_cost ? parseFloat(extractedData.monthly_cost) : null,
-            renewal_date: extractedData.renewal_date || null,
-            notice_period_days: extractedData.notice_period_days ? parseInt(extractedData.notice_period_days) : 30,
-            license_count: extractedData.license_count ? parseInt(extractedData.license_count) : 1,
-            pricing_model: extractedData.pricing_model || 'flat_fee',
-            description: extractedData.description || null,
-            key_clauses: Array.isArray(extractedData.key_clauses) ? extractedData.key_clauses : [],
+            // Métadonnées du document
+            document_type: extractedData.document_type || 'contract',
+            document_language: extractedData.document_language || 'fr',
+            confidence_score: extractedData.confidence_score || 50,
+            
+            // Informations de base (compatibilité avec ancien format)
+            name: extractedData.basic_info?.name || extractedData.name || 'Document sans nom',
+            provider: extractedData.basic_info?.provider || extractedData.provider || null,
+            client: extractedData.basic_info?.client || null,
+            contract_number: extractedData.basic_info?.contract_number || null,
+            description: extractedData.basic_info?.description || extractedData.description || null,
+            
+            // Informations financières (compatibilité avec ancien format)
+            monthly_cost: extractedData.financial?.monthly_cost || extractedData.monthly_cost || null,
+            yearly_cost: extractedData.financial?.yearly_cost || null,
+            total_contract_value: extractedData.financial?.total_contract_value || null,
+            currency: extractedData.financial?.currency || 'EUR',
+            pricing_model: extractedData.financial?.pricing_model || extractedData.pricing_model || 'flat_fee',
+            payment_terms: extractedData.financial?.payment_terms || null,
+            price_table: extractedData.financial?.price_table || [],
+            
+            // Licences
+            license_count: extractedData.licenses?.license_count || extractedData.license_count || 1,
+            license_type: extractedData.licenses?.license_type || null,
+            minimum_licenses: extractedData.licenses?.minimum_licenses || null,
+            maximum_licenses: extractedData.licenses?.maximum_licenses || null,
+            
+            // Dates (compatibilité avec ancien format)
+            signature_date: extractedData.dates?.signature_date || null,
+            start_date: extractedData.dates?.start_date || null,
+            end_date: extractedData.dates?.end_date || null,
+            renewal_date: extractedData.dates?.renewal_date || extractedData.renewal_date || null,
+            notice_deadline: extractedData.dates?.notice_deadline || null,
+            
+            // Termes du contrat
+            contract_duration_months: extractedData.terms?.contract_duration_months || null,
+            notice_period_days: extractedData.terms?.notice_period_days || extractedData.notice_period_days || 30,
+            auto_renewal: extractedData.terms?.auto_renewal || null,
+            renewal_conditions: extractedData.terms?.renewal_conditions || null,
+            
+            // Clauses (format amélioré)
+            clauses: {
+                termination: extractedData.clauses?.termination || [],
+                sla: extractedData.clauses?.sla || [],
+                confidentiality: extractedData.clauses?.confidentiality || [],
+                liability: extractedData.clauses?.liability || [],
+                penalties: extractedData.clauses?.penalties || [],
+                data_protection: extractedData.clauses?.data_protection || [],
+                other_important: extractedData.clauses?.other_important || extractedData.key_clauses || []
+            },
+            
+            // Contacts
+            contacts: extractedData.contacts || null,
+            
+            // Services
+            services: extractedData.services || null,
+            
+            // Support
+            support: extractedData.support || null,
+            
+            // Conditions spéciales
+            special_conditions: extractedData.special_conditions || [],
+            
+            // Numéros extraits
+            extracted_numbers: extractedData.extracted_numbers || null,
+            
+            // Preview du texte brut
             extracted_text_preview: extractedText.substring(0, 500)
         };
 
