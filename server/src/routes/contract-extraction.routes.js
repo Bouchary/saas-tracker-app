@@ -32,6 +32,7 @@ const upload = multer({
 router.post('/extract', authMiddleware, organizationMiddleware, upload.single('file'), async (req, res) => {
     const userId = req.user.id;
     const organizationId = req.organizationId;
+    const startTime = Date.now();
 
     try {
         if (!req.file) {
@@ -346,14 +347,126 @@ ${extractedText.substring(0, 20000)}`;
         };
 
         // ✅ Supprimer fichier temporaire
-        fs.unlinkSync(req.file.path);
+        const tempFilePath = req.file.path;
 
         console.log('✅ Extraction réussie:', cleanedData.name);
+
+        // ✅ ÉTAPE 5 : Sauvegarder dans contract_extractions + documents
+        const pool = require('../db');
+        let extractionId = null;
+        let documentId = null;
+
+        try {
+            // Créer dossier uploads si n'existe pas
+            const uploadsDir = path.join(__dirname, '../../uploads/extractions');
+            if (!fs.existsSync(uploadsDir)) {
+                fs.mkdirSync(uploadsDir, { recursive: true });
+            }
+
+            // Déplacer le PDF vers uploads (au lieu de le supprimer)
+            const timestamp = Date.now();
+            const safeFilename = req.file.originalname.replace(/[^a-z0-9.-]/gi, '_');
+            const newFilename = `${timestamp}_${safeFilename}`;
+            const permanentPath = path.join(uploadsDir, newFilename);
+            fs.renameSync(tempFilePath, permanentPath);
+            
+            const relativeFilePath = `uploads/extractions/${newFilename}`;
+
+            // Sauvegarder dans documents
+            const documentQuery = `
+                INSERT INTO documents (
+                    uploaded_by,
+                    organization_id,
+                    filename,
+                    original_filename,
+                    document_type,
+                    file_path,
+                    mime_type,
+                    file_size
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING id
+            `;
+
+            const documentResult = await pool.query(documentQuery, [
+                userId,
+                organizationId,
+                newFilename,  // Nom du fichier nettoyé avec timestamp
+                req.file.originalname,
+                'contract_pdf_extracted',
+                relativeFilePath,
+                'application/pdf',
+                req.file.size
+            ]);
+
+            documentId = documentResult.rows[0].id;
+            console.log(`📄 Document ${documentId} sauvegardé`);
+
+            // Calculer le coût approximatif (Claude Sonnet 4: $3/MTok input, $15/MTok output)
+            const inputTokens = Math.ceil(extractedText.length / 4); // ~4 chars par token
+            const outputTokens = 1000; // Estimation conservatrice
+            const costCents = Math.ceil((inputTokens * 3 / 1000000 + outputTokens * 15 / 1000000) * 100);
+            const processingTime = Date.now() - startTime;
+
+            // Sauvegarder l'extraction
+            const extractionQuery = `
+                INSERT INTO contract_extractions (
+                    user_id,
+                    organization_id,
+                    document_id,
+                    original_filename,
+                    file_size,
+                    file_path,
+                    document_type,
+                    document_language,
+                    confidence_score,
+                    extracted_data,
+                    status,
+                    processing_time_ms,
+                    api_tokens_used,
+                    api_cost_cents
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                RETURNING id
+            `;
+
+            const extractionResult = await pool.query(extractionQuery, [
+                userId,
+                organizationId,
+                documentId,
+                req.file.originalname,
+                req.file.size,
+                relativeFilePath,
+                cleanedData.document_type || 'other',
+                cleanedData.document_language || 'fr',
+                cleanedData.confidence_score || null,
+                JSON.stringify(cleanedData),
+                'success',
+                processingTime,
+                inputTokens + outputTokens,
+                costCents
+            ]);
+
+            extractionId = extractionResult.rows[0].id;
+            console.log(`💾 Extraction ${extractionId} sauvegardée (${costCents}c, ${processingTime}ms)`);
+
+        } catch (saveError) {
+            console.error('⚠️  Erreur sauvegarde extraction (non bloquant):', saveError);
+            // On ne bloque pas la réponse si la sauvegarde échoue
+            // L'extraction a réussi, on renvoie quand même les données
+            
+            // Supprimer le fichier temp si toujours présent
+            if (fs.existsSync(tempFilePath)) {
+                fs.unlinkSync(tempFilePath);
+            }
+        }
 
         res.json({
             success: true,
             data: cleanedData,
-            message: 'Extraction réussie'
+            message: 'Extraction réussie',
+            extraction_id: extractionId,
+            document_id: documentId
         });
 
     } catch (error) {
@@ -366,6 +479,39 @@ ${extractedText.substring(0, 20000)}`;
             } catch (unlinkError) {
                 console.error('Erreur suppression fichier temp:', unlinkError);
             }
+        }
+
+        // Sauvegarder l'échec dans contract_extractions si possible
+        try {
+            const pool = require('../db');
+            const processingTime = Date.now() - startTime;
+
+            await pool.query(`
+                INSERT INTO contract_extractions (
+                    user_id,
+                    organization_id,
+                    original_filename,
+                    file_size,
+                    extracted_data,
+                    status,
+                    error_message,
+                    processing_time_ms
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [
+                userId,
+                organizationId,
+                req.file?.originalname || 'unknown',
+                req.file?.size || 0,
+                JSON.stringify({}),
+                'failed',
+                error.message,
+                processingTime
+            ]);
+
+            console.log('💾 Échec d\'extraction sauvegardé');
+        } catch (saveError) {
+            // Ignore les erreurs de sauvegarde d'échec
         }
 
         res.status(500).json({ 

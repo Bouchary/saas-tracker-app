@@ -1,8 +1,5 @@
-// client/src/pages/ContractForm.jsx
-// ✅ VERSION FINALE - Avec extraction intelligente PDF
-
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { FileText, DollarSign, Calendar, Bell, CheckCircle2, X, AlertCircle, Users, Calculator, ShieldAlert, Sparkles } from 'lucide-react';
 import API_URL from '../config/api';
@@ -11,6 +8,8 @@ import ContractExtractionModal from '../components/ContractExtractionModal';
 const ContractForm = () => {
     const { token } = useAuth();
     const navigate = useNavigate();
+    const { id } = useParams();
+    const isEditMode = !!id;
 
     const [formData, setFormData] = useState({
         name: '',
@@ -26,11 +25,52 @@ const ContractForm = () => {
     });
 
     const [loading, setLoading] = useState(false);
+    const [loadingContract, setLoadingContract] = useState(isEditMode);
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
-    const [showExtractionModal, setShowExtractionModal] = useState(false); // ✅ NOUVEAU
+    const [showExtractionModal, setShowExtractionModal] = useState(false);
 
-    // Calculs
+    useEffect(() => {
+        if (isEditMode) {
+            loadContract();
+        }
+    }, [id]);
+
+    const loadContract = async () => {
+        try {
+            setLoadingContract(true);
+            const response = await fetch(`${API_URL}/api/contracts/${id}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Impossible de charger le contrat');
+            }
+
+            const contract = await response.json();
+            
+            setFormData({
+                name: contract.name || '',
+                provider: contract.provider || '',
+                monthly_cost: contract.monthly_cost || '',
+                renewal_date: contract.renewal_date ? contract.renewal_date.split('T')[0] : '',
+                notice_period_days: contract.notice_period_days || 0,
+                pricing_model: contract.pricing_model || 'fixed',
+                license_count: contract.license_count || '',
+                licenses_used: contract.licenses_used || '',
+                real_users: contract.real_users || '',
+                unit_cost: contract.unit_cost || '',
+            });
+        } catch (err) {
+            console.error('Erreur chargement contrat:', err);
+            setError(err.message);
+        } finally {
+            setLoadingContract(false);
+        }
+    };
+
     const calculatedCost = formData.pricing_model === 'per_user' && formData.license_count && formData.unit_cost
         ? (parseFloat(formData.license_count) * parseFloat(formData.unit_cost)).toFixed(2)
         : null;
@@ -62,11 +102,9 @@ const ContractForm = () => {
         }));
     };
 
-    // ✅ NOUVEAU : Handler extraction intelligente
     const handleExtractionSuccess = (extractedData) => {
         console.log('✅ Données extraites:', extractedData);
         
-        // Pré-remplir le formulaire avec les données extraites
         setFormData({
             ...formData,
             name: extractedData.name || '',
@@ -86,7 +124,6 @@ const ContractForm = () => {
         setSuccess(false);
         setLoading(true);
 
-        // Validation
         if (!formData.name || !formData.renewal_date) {
             setError('Veuillez remplir tous les champs obligatoires.');
             setLoading(false);
@@ -105,7 +142,6 @@ const ContractForm = () => {
             return;
         }
 
-        // ✅ Construction conditionnelle
         const dataToSend = {
             name: formData.name.trim(),
             provider: formData.provider ? formData.provider.trim() : null,
@@ -115,14 +151,12 @@ const ContractForm = () => {
             status: 'active'
         };
 
-        // Ajouter monthly_cost selon le modèle
         if (formData.pricing_model === 'per_user') {
             dataToSend.monthly_cost = parseFloat(calculatedCost);
         } else {
             dataToSend.monthly_cost = formData.monthly_cost && formData.monthly_cost !== '' ? parseFloat(formData.monthly_cost) : null;
         }
 
-        // ✅ N'envoyer les champs licences QUE si pricing_model = "per_user"
         if (formData.pricing_model === 'per_user') {
             dataToSend.license_count = formData.license_count && formData.license_count !== '' ? parseInt(formData.license_count) : null;
             dataToSend.licenses_used = formData.licenses_used && formData.licenses_used !== '' ? parseInt(formData.licenses_used) : null;
@@ -131,8 +165,14 @@ const ContractForm = () => {
         }
 
         try {
-            const response = await fetch(`${API_URL}/api/contracts`, {
-                method: 'POST',
+            const url = isEditMode 
+                ? `${API_URL}/api/contracts/${id}`
+                : `${API_URL}/api/contracts`;
+            
+            const method = isEditMode ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method,
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
@@ -142,11 +182,11 @@ const ContractForm = () => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Erreur lors de la création du contrat.');
+                throw new Error(errorData.error || `Erreur lors de ${isEditMode ? 'la modification' : 'la création'} du contrat.`);
             }
 
-            const newContract = await response.json();
-            console.log('Contrat créé:', newContract);
+            const result = await response.json();
+            console.log(isEditMode ? 'Contrat modifié:' : 'Contrat créé:', result);
             
             setSuccess(true);
             
@@ -155,7 +195,7 @@ const ContractForm = () => {
             }, 1500);
 
         } catch (err) {
-            console.error('Échec de la création:', err);
+            console.error('Échec:', err);
             setError(err.message);
         } finally {
             setLoading(false);
@@ -170,47 +210,59 @@ const ContractForm = () => {
         (formData.pricing_model === 'fixed' ? formData.monthly_cost : 
          (formData.license_count && formData.unit_cost));
 
+    if (loadingContract) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 pb-12">
-            {/* HEADER */}
             <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-12 px-8 mb-8 shadow-lg">
                 <div className="container mx-auto max-w-4xl">
-                    <h1 className="text-4xl md:text-5xl font-bold mb-2">Ajouter un Nouveau Contrat</h1>
-                    <p className="text-indigo-100 text-lg">Remplissez les informations ci-dessous</p>
+                    <h1 className="text-4xl md:text-5xl font-bold mb-2">
+                        {isEditMode ? 'Modifier le Contrat' : 'Ajouter un Nouveau Contrat'}
+                    </h1>
+                    <p className="text-indigo-100 text-lg">
+                        {isEditMode ? 'Modifiez les informations ci-dessous' : 'Remplissez les informations ci-dessous'}
+                    </p>
                 </div>
             </div>
 
             <div className="container mx-auto px-6 max-w-4xl">
                 <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-8 md:p-10 -mt-16">
                     
-                    {/* ✅ NOUVEAU : Bouton extraction IA */}
-                    <div className="mb-8">
-                        <button
-                            type="button"
-                            onClick={() => setShowExtractionModal(true)}
-                            className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 transition font-semibold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
-                        >
-                            <Sparkles className="w-5 h-5" />
-                            Extraire d'un contrat PDF (IA)
-                        </button>
-                        <p className="text-xs text-gray-500 text-center mt-2">
-                            Analysez un PDF et pré-remplissez automatiquement le formulaire
-                        </p>
-                    </div>
+                    {!isEditMode && (
+                        <>
+                            <div className="mb-8">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowExtractionModal(true)}
+                                    className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 transition font-semibold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
+                                >
+                                    <Sparkles className="w-5 h-5" />
+                                    Extraire d'un contrat PDF (IA)
+                                </button>
+                                <p className="text-xs text-gray-500 text-center mt-2">
+                                    Analysez un PDF et pré-remplissez automatiquement le formulaire
+                                </p>
+                            </div>
 
-                    {/* Séparateur */}
-                    <div className="relative mb-8">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-gray-200"></div>
-                        </div>
-                        <div className="relative flex justify-center text-sm">
-                            <span className="px-4 bg-white text-gray-500">ou remplir manuellement</span>
-                        </div>
-                    </div>
+                            <div className="relative mb-8">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-gray-200"></div>
+                                </div>
+                                <div className="relative flex justify-center text-sm">
+                                    <span className="px-4 bg-white text-gray-500">ou remplir manuellement</span>
+                                </div>
+                            </div>
+                        </>
+                    )}
 
-                    {/* MESSAGES */}
                     {error && (
-                        <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl flex items-start gap-3" style={{animation: 'shake 0.5s ease-out'}}>
+                        <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl flex items-start gap-3">
                             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                             <div>
                                 <p className="font-semibold text-red-900 text-sm">Erreur</p>
@@ -220,16 +272,17 @@ const ContractForm = () => {
                     )}
 
                     {success && (
-                        <div className="mb-6 p-4 bg-green-50 border-2 border-green-200 rounded-xl flex items-start gap-3" style={{animation: 'slideDown 0.3s ease-out'}}>
+                        <div className="mb-6 p-4 bg-green-50 border-2 border-green-200 rounded-xl flex items-start gap-3">
                             <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                             <div>
                                 <p className="font-semibold text-green-900 text-sm">Succès !</p>
-                                <p className="text-sm text-green-700">Contrat créé avec succès ! Redirection...</p>
+                                <p className="text-sm text-green-700">
+                                    Contrat {isEditMode ? 'modifié' : 'créé'} avec succès ! Redirection...
+                                </p>
                             </div>
                         </div>
                     )}
 
-                    {/* ALERTE SURCONSOMMATION */}
                     {isOverconsumed && (
                         <div className="mb-6 bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-300 rounded-xl p-5 animate-pulse">
                             <div className="flex items-start gap-3">
@@ -247,10 +300,6 @@ const ContractForm = () => {
                                             💰 Surcoût estimé : {overconsumptionCost.toFixed(2)} €/mois 
                                             ({(overconsumptionCost * 12).toFixed(0)} €/an)
                                         </p>
-                                        <p className="text-xs bg-white/50 p-2 rounded border border-red-200">
-                                            ⚠️ <strong>Action requise :</strong> Acheter {missingLicenses} licences supplémentaires 
-                                            ou désactiver {missingLicenses} comptes utilisateurs
-                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -258,7 +307,6 @@ const ContractForm = () => {
                     )}
 
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        {/* NOM */}
                         <div>
                             <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
                                 Nom du Contrat <span className="text-red-500">*</span>
@@ -288,7 +336,6 @@ const ContractForm = () => {
                             </div>
                         </div>
 
-                        {/* FOURNISSEUR */}
                         <div>
                             <label htmlFor="provider" className="block text-sm font-semibold text-gray-700 mb-2">
                                 Fournisseur
@@ -310,7 +357,6 @@ const ContractForm = () => {
                             </div>
                         </div>
 
-                        {/* TYPE DE TARIFICATION */}
                         <div>
                             <label htmlFor="pricing_model" className="block text-sm font-semibold text-gray-700 mb-2">
                                 Type de tarification <span className="text-red-500">*</span>
@@ -345,7 +391,6 @@ const ContractForm = () => {
                             </div>
                         </div>
 
-                        {/* SI PRIX FIXE → COÛT MENSUEL */}
                         {formData.pricing_model === 'fixed' && (
                             <div>
                                 <label htmlFor="monthly_cost" className="block text-sm font-semibold text-gray-700 mb-2">
@@ -381,7 +426,6 @@ const ContractForm = () => {
                             </div>
                         )}
 
-                        {/* SI PAR UTILISATEUR → LICENCES */}
                         {formData.pricing_model === 'per_user' && (
                             <div className="space-y-6 p-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border-2 border-indigo-100">
                                 <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -390,7 +434,6 @@ const ContractForm = () => {
                                 </h3>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Licences achetées */}
                                     <div>
                                         <label htmlFor="license_count" className="block text-sm font-semibold text-gray-700 mb-2">
                                             Licences achetées <span className="text-red-500">*</span>
@@ -410,7 +453,6 @@ const ContractForm = () => {
                                         <p className="text-xs text-gray-600 mt-1">💼 Nombre de licences dans le contrat</p>
                                     </div>
 
-                                    {/* Coût unitaire */}
                                     <div>
                                         <label htmlFor="unit_cost" className="block text-sm font-semibold text-gray-700 mb-2">
                                             Coût par licence (€) <span className="text-red-500">*</span>
@@ -432,7 +474,6 @@ const ContractForm = () => {
                                     </div>
                                 </div>
 
-                                {/* Licences attribuées */}
                                 <div>
                                     <label htmlFor="licenses_used" className="block text-sm font-semibold text-gray-700 mb-2">
                                         Licences attribuées
@@ -452,7 +493,6 @@ const ContractForm = () => {
                                     <p className="text-xs text-gray-600 mt-1">👥 Licences assignées légalement (max {formData.license_count || '—'})</p>
                                 </div>
 
-                                {/* Utilisateurs réels */}
                                 <div>
                                     <label htmlFor="real_users" className="block text-sm font-semibold text-gray-700 mb-2">
                                         Utilisateurs réels <span className="text-gray-500 font-normal">(optionnel)</span>
@@ -468,10 +508,9 @@ const ContractForm = () => {
                                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 transition"
                                         disabled={loading}
                                     />
-                                    <p className="text-xs text-gray-600 mt-1">🔍 Nombre réel d'utilisateurs connectés (peut dépasser les licences achetées)</p>
+                                    <p className="text-xs text-gray-600 mt-1">🔍 Nombre réel d'utilisateurs connectés</p>
                                 </div>
 
-                                {/* CALCUL AUTOMATIQUE */}
                                 {calculatedCost && (
                                     <div className="p-4 bg-white rounded-xl border-2 border-indigo-200">
                                         <div className="flex items-center justify-between mb-2">
@@ -489,7 +528,6 @@ const ContractForm = () => {
                                     </div>
                                 )}
 
-                                {/* ANALYSE UTILISATION */}
                                 {usageRate && (
                                     <div className="space-y-3">
                                         <div className="p-4 bg-white rounded-xl border-2 border-gray-200">
@@ -513,12 +551,8 @@ const ContractForm = () => {
                                                     style={{ width: `${usageRate}%` }}
                                                 ></div>
                                             </div>
-                                            <p className="text-xs text-gray-500 mt-2">
-                                                {formData.licenses_used} utilisées sur {formData.license_count}
-                                            </p>
                                         </div>
 
-                                        {/* Alerte Gaspillage */}
                                         {unusedLicenses > 0 && wastedCost && !isOverconsumed && (
                                             <div className="p-4 bg-yellow-50 rounded-xl border-2 border-yellow-200">
                                                 <div className="flex items-center justify-between">
@@ -540,7 +574,6 @@ const ContractForm = () => {
                             </div>
                         )}
 
-                        {/* DATE RENOUVELLEMENT */}
                         <div>
                             <label htmlFor="renewal_date" className="block text-sm font-semibold text-gray-700 mb-2">
                                 Date de Prochain Renouvellement <span className="text-red-500">*</span>
@@ -569,7 +602,6 @@ const ContractForm = () => {
                             </div>
                         </div>
 
-                        {/* DÉLAI PRÉAVIS */}
                         <div>
                             <label htmlFor="notice_period_days" className="block text-sm font-semibold text-gray-700 mb-2">
                                 Délai de Préavis (Jours)
@@ -590,13 +622,8 @@ const ContractForm = () => {
                                     disabled={loading}
                                 />
                             </div>
-                            <p className="mt-2 text-xs text-gray-500 flex items-start gap-1">
-                                <span>💡</span>
-                                <span>Nombre de jours avant le renouvellement pour résilier le contrat</span>
-                            </p>
                         </div>
 
-                        {/* PROGRESSION */}
                         {!success && (
                             <div className="pt-2">
                                 <div className="flex items-center justify-between mb-2">
@@ -620,7 +647,6 @@ const ContractForm = () => {
                             </div>
                         )}
 
-                        {/* BOUTONS */}
                         <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t-2 border-gray-100">
                             <button
                                 type="button"
@@ -643,12 +669,12 @@ const ContractForm = () => {
                                 {loading ? (
                                     <>
                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                        Création...
+                                        {isEditMode ? 'Modification...' : 'Création...'}
                                     </>
                                 ) : (
                                     <>
                                         <CheckCircle2 className="w-4 h-4" />
-                                        Créer le Contrat
+                                        {isEditMode ? 'Modifier le Contrat' : 'Créer le Contrat'}
                                     </>
                                 )}
                             </button>
@@ -657,12 +683,13 @@ const ContractForm = () => {
                 </div>
             </div>
 
-            {/* ✅ NOUVEAU : Modal extraction */}
-            <ContractExtractionModal 
-                isOpen={showExtractionModal}
-                onClose={() => setShowExtractionModal(false)}
-                onExtractSuccess={handleExtractionSuccess}
-            />
+            {!isEditMode && (
+                <ContractExtractionModal 
+                    isOpen={showExtractionModal}
+                    onClose={() => setShowExtractionModal(false)}
+                    onExtractSuccess={handleExtractionSuccess}
+                />
+            )}
         </div>
     );
 };

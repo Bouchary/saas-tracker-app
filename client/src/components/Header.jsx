@@ -1,36 +1,36 @@
-// ============================================================================
-// HEADER - COMPLET avec Import + Ordre logique
-// ============================================================================
-// Fichier : client/src/components/Header.jsx
-// ✅ NOUVEAU : Ajout Import + Réorganisation logique des menus
-// ✅ CORRECTION : Lien Utilisateurs visible pour owner/admin/super_admin
-// ============================================================================
-
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { 
-  LayoutDashboard, User, Lightbulb, Users, Package, BarChart3, 
-  GitBranch, FileText, List, ChevronDown, Upload, Settings
-} from 'lucide-react';
+import { Search, User, Settings, ChevronDown } from 'lucide-react';
 import Notifications from './Notifications';
 
 const Header = ({ onNotificationClick }) => {
   const { isAuthenticated, logout, user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [workflowsMenuOpen, setWorkflowsMenuOpen] = useState(false);
-  const dropdownRef = useRef(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const profileRef = useRef(null);
+  const adminRef = useRef(null);
 
   const handleLogout = () => {
     logout();
   };
 
-  // Close dropdown when clicking outside
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim().length >= 2) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setWorkflowsMenuOpen(false);
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setProfileOpen(false);
+      }
+      if (adminRef.current && !adminRef.current.contains(event.target)) {
+        setAdminOpen(false);
       }
     };
 
@@ -38,192 +38,84 @@ const Header = ({ onNotificationClick }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Close dropdown when route changes
-  useEffect(() => {
-    setWorkflowsMenuOpen(false);
-  }, [location]);
-
-  const isWorkflowsActive = location.pathname.startsWith('/workflows');
+  const isAdmin = user && ['owner', 'admin', 'super_admin'].includes(user.role);
 
   return (
-    <header className="bg-white shadow-md">
-      <div className="container mx-auto p-4 flex justify-between items-center">
-        <Link 
-          to="/dashboard-v2" 
-          className="text-2xl font-bold text-gray-800 hover:text-indigo-600 transition duration-300 flex items-center space-x-2"
-        >
-          <LayoutDashboard className="w-6 h-6 text-indigo-600" />
-          <span>SaaS Tracker</span> 
-        </Link>
-        
-        <nav>
-          <ul className="flex space-x-4 items-center">
-            {/* 1. DASHBOARD 360° (Vue d'ensemble) */}
-            <li>
-              <button 
-                onClick={() => navigate('/dashboard-v2')}
-                className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all hover:scale-105 flex items-center gap-2"
-              >
-                <BarChart3 className="w-5 h-5" />
-                Dashboard 360°
-              </button>
-            </li>
+    <header className="bg-white shadow-md h-16 flex items-center justify-between px-6 fixed top-0 right-0 left-64 z-30">
+      <div className="flex-1 max-w-md">
+        <form onSubmit={handleSearch} className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Rechercher contrats, employés, matériel..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          />
+        </form>
+      </div>
+      
+      <div className="flex items-center space-x-4 ml-auto">
+        {isAuthenticated && (
+          <>
+            <Notifications onContractClick={onNotificationClick} />
             
-            {/* 2. CONTRATS (Module principal) */}
-            <li>
-              <Link 
-                to="/contracts" 
-                className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
-              >
-                <FileText className="w-4 h-4" />
-                Contrats
-              </Link>
-            </li>
-            
-            {/* 3. EMPLOYÉS */}
-            <li>
-              <Link 
-                to="/employees" 
-                className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
-              >
-                <Users className="w-4 h-4" />
-                Employés
-              </Link>
-            </li>
-            
-            {/* 4. MATÉRIEL */}
-            <li>
-              <Link 
-                to="/assets" 
-                className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
-              >
-                <Package className="w-4 h-4" />
-                Matériel
-              </Link>
-            </li>
-            
-            {/* 5. WORKFLOWS (Menu déroulant) */}
-            <li className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setWorkflowsMenuOpen(!workflowsMenuOpen)}
-                className={`flex items-center gap-1 font-medium transition duration-300 ${
-                  isWorkflowsActive 
-                    ? 'text-indigo-600' 
-                    : 'text-gray-700 hover:text-indigo-600'
-                }`}
-              >
-                <GitBranch className="w-4 h-4" />
-                Workflows
-                <ChevronDown className={`w-4 h-4 transition-transform ${workflowsMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {/* Dropdown menu */}
-              {workflowsMenuOpen && (
-                <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                  <Link
-                    to="/workflows/my-tasks"
-                    className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                  >
-                    <List className="w-4 h-4" />
-                    <div>
-                      <p className="font-medium">Mes tâches</p>
-                      <p className="text-xs text-gray-500">Tâches assignées</p>
-                    </div>
-                  </Link>
-
-                  <Link
-                    to="/workflows"
-                    className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                  >
-                    <GitBranch className="w-4 h-4" />
-                    <div>
-                      <p className="font-medium">Tous les workflows</p>
-                      <p className="text-xs text-gray-500">Vue d'ensemble</p>
-                    </div>
-                  </Link>
-
-                  <div className="border-t border-gray-200 my-2"></div>
-
-                  <Link
-                    to="/workflows/templates"
-                    className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                  >
-                    <FileText className="w-4 h-4" />
-                    <div>
-                      <p className="font-medium">Templates</p>
-                      <p className="text-xs text-gray-500">Gérer les modèles</p>
-                    </div>
-                  </Link>
-                </div>
-              )}
-            </li>
-            
-            {/* 6. IMPORT (Nouveau) */}
-            <li>
-              <Link 
-                to="/import" 
-                className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
-              >
-                <Upload className="w-4 h-4" />
-                Import
-              </Link>
-            </li>
-            
-            {/* 7. OPTIMISATION (Analyse) */}
-            <li>
-              <Link 
-                to="/optimization" 
-                className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
-              >
-                <Lightbulb className="w-4 h-4" />
-                Optimisation
-              </Link>
-            </li>
-            
-            {/* 8. USERS (Admin - si owner/admin/super_admin) */}
-            {user && ['owner', 'admin', 'super_admin'].includes(user.role) && (
-              <li>
-                <Link 
-                  to="/users" 
-                  className="text-gray-700 hover:text-indigo-600 font-medium transition duration-300 flex items-center gap-1"
+            {isAdmin && (
+              <div className="relative" ref={adminRef}>
+                <button
+                  onClick={() => setAdminOpen(!adminOpen)}
+                  className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition"
                 >
-                  <Settings className="w-4 h-4" />
-                  Utilisateurs
-                </Link>
-              </li>
+                  <Settings className="w-5 h-5 text-gray-700" />
+                  <span className="text-gray-700 font-medium">Admin</span>
+                  <ChevronDown className={`w-4 h-4 text-gray-700 transition-transform ${adminOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {adminOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
+                    <Link
+                      to="/users"
+                      className="block px-4 py-2 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition"
+                      onClick={() => setAdminOpen(false)}
+                    >
+                      Utilisateurs
+                    </Link>
+                  </div>
+                )}
+              </div>
             )}
-            
-            {isAuthenticated && (
-              <>
-                {/* 9. NOTIFICATIONS */}
-                <li>
-                  <Notifications onContractClick={onNotificationClick} />
-                </li>
-                
-                {/* 10. PROFIL */}
-                <li>
-                  <Link 
-                    to="/profile" 
-                    className="flex items-center gap-2 text-gray-700 hover:text-indigo-600 font-medium transition duration-300 px-3 py-2 rounded-lg hover:bg-indigo-50"
+
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => setProfileOpen(!profileOpen)}
+                className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition"
+              >
+                <User className="w-5 h-5 text-gray-700" />
+                <span className="text-gray-700 font-medium">{user?.email?.split('@')[0]}</span>
+                <ChevronDown className={`w-4 h-4 text-gray-700 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {profileOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
+                  <Link
+                    to="/profile"
+                    className="block px-4 py-2 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition"
+                    onClick={() => setProfileOpen(false)}
                   >
-                    <User className="w-4 h-4" />
-                    Profil
+                    Mon profil
                   </Link>
-                </li>
-                
-                {/* 11. DÉCONNEXION */}
-                <li>
-                  <button 
-                    onClick={handleLogout} 
-                    className="text-red-600 hover:text-red-700 font-medium px-4 py-2 rounded-lg hover:bg-red-50 transition duration-300"
+                  <div className="border-t border-gray-200 my-2"></div>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 transition"
                   >
                     Déconnexion
                   </button>
-                </li>
-              </>
-            )}
-          </ul>
-        </nav>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </header>
   );

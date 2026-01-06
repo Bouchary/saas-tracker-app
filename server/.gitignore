@@ -1,12 +1,10 @@
-# Ignorer le dossier des dépendances de Node.js
-# Celles-ci sont téléchargées via npm install
-node_modules/
+# Dépendances Node
+/node_modules
 
-# Fichiers de configuration sensibles
+# Variables d'environnement
 .env
 
-# Dossiers spécifiques du frontend
-client/dist/
-
-# Dossiers spécifiques du backend
-server/node_modules/
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
