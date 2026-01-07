@@ -1,37 +1,32 @@
 // ============================================================================
-// PAGE HISTORIQUE EXTRACTIONS IA - VERSION FETCH
-// ============================================================================
-// Fichier : client/src/pages/ExtractionsHistoryPage.jsx
-// Page historique complet des extractions IA (SANS AXIOS)
+// PAGE HISTORIQUE EXTRACTIONS IA - AVEC MODAL PROPRE
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { 
-    Sparkles, Search, Filter, Download, Eye, Trash2, Calendar, 
+    Sparkles, Search, Eye, Trash2, Plus,
     TrendingUp, CheckCircle, XCircle, FileText, AlertCircle,
-    ChevronLeft, ChevronRight, Plus, BarChart3
+    ChevronLeft, ChevronRight, BarChart3
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import API_URL from '../config/api';
+import ExtractionDetailModal from '../components/ExtractionDetailModal';
 
 const ExtractionsHistoryPage = () => {
     const { token } = useAuth();
     
-    // États
     const [extractions, setExtractions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState(null);
     const [selectedExtraction, setSelectedExtraction] = useState(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
     
-    // Filtres et pagination
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
     const [filterType, setFilterType] = useState('');
 
-    // Charger les extractions
     const loadExtractions = async () => {
         setLoading(true);
         try {
@@ -60,7 +55,6 @@ const ExtractionsHistoryPage = () => {
         }
     };
 
-    // Charger les statistiques
     const loadStats = async () => {
         try {
             const response = await fetch(`${API_URL}/api/contract-extractions/stats/summary`, {
@@ -70,14 +64,13 @@ const ExtractionsHistoryPage = () => {
             const data = await response.json();
             
             if (response.ok) {
-                setStats(data.summary);
+                setStats(data.stats);
             }
         } catch (error) {
             console.error('Erreur chargement stats:', error);
         }
     };
 
-    // Voir les détails
     const viewDetails = async (extractionId) => {
         try {
             const response = await fetch(`${API_URL}/api/contract-extractions/${extractionId}`, {
@@ -87,7 +80,7 @@ const ExtractionsHistoryPage = () => {
             const data = await response.json();
             
             if (response.ok) {
-                setSelectedExtraction(data);
+                setSelectedExtraction(data.extraction);
                 setShowDetailModal(true);
             }
         } catch (error) {
@@ -95,7 +88,6 @@ const ExtractionsHistoryPage = () => {
         }
     };
 
-    // Supprimer une extraction
     const deleteExtraction = async (extractionId) => {
         if (!window.confirm('Supprimer cette extraction ?')) return;
 
@@ -115,9 +107,11 @@ const ExtractionsHistoryPage = () => {
         }
     };
 
-    // Créer un contrat depuis une extraction
     const createContractFromExtraction = (extraction) => {
-        const data = extraction.extracted_data;
+        const data = typeof extraction.extracted_data === 'string' 
+            ? JSON.parse(extraction.extracted_data)
+            : extraction.extracted_data;
+        
         const params = new URLSearchParams({
             from_extraction: extraction.id,
             name: data.name || '',
@@ -131,11 +125,12 @@ const ExtractionsHistoryPage = () => {
         loadStats();
     }, [page, search, filterStatus, filterType]);
 
-    // Helpers
     const getStatusBadge = (status) => {
         const badges = {
             success: { label: 'Succès', color: 'bg-green-100 text-green-800', icon: CheckCircle },
+            completed: { label: 'Succès', color: 'bg-green-100 text-green-800', icon: CheckCircle },
             failed: { label: 'Échec', color: 'bg-red-100 text-red-800', icon: XCircle },
+            error: { label: 'Échec', color: 'bg-red-100 text-red-800', icon: XCircle },
             partial: { label: 'Partiel', color: 'bg-yellow-100 text-yellow-800', icon: AlertCircle }
         };
         const badge = badges[status] || badges.success;
@@ -169,9 +164,17 @@ const ExtractionsHistoryPage = () => {
         return 'text-red-600';
     };
 
+    const parseExtractedData = (data) => {
+        if (!data) return null;
+        try {
+            return typeof data === 'string' ? JSON.parse(data) : data;
+        } catch (e) {
+            return data;
+        }
+    };
+
     return (
         <div className="p-6 max-w-7xl mx-auto">
-            {/* Header */}
             <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -185,7 +188,6 @@ const ExtractionsHistoryPage = () => {
                     </div>
                 </div>
 
-                {/* Stats */}
                 {stats && (
                     <div className="grid grid-cols-4 gap-4 mb-6">
                         <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
@@ -229,7 +231,7 @@ const ExtractionsHistoryPage = () => {
                                 <div>
                                     <p className="text-sm text-gray-600">Coût total API</p>
                                     <p className="text-2xl font-bold text-gray-900">
-                                        {((stats.total_api_cost_cents || 0) / 100).toFixed(2)}€
+                                        {((stats.total_cost_cents || 0) / 100).toFixed(2)}€
                                     </p>
                                 </div>
                                 <FileText className="w-8 h-8 text-orange-500" />
@@ -238,7 +240,6 @@ const ExtractionsHistoryPage = () => {
                     </div>
                 )}
 
-                {/* Filtres */}
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                     <div className="grid grid-cols-4 gap-4">
                         <div className="col-span-2">
@@ -262,7 +263,9 @@ const ExtractionsHistoryPage = () => {
                             >
                                 <option value="">Tous les statuts</option>
                                 <option value="success">Succès</option>
+                                <option value="completed">Succès</option>
                                 <option value="failed">Échec</option>
+                                <option value="error">Échec</option>
                             </select>
                         </div>
 
@@ -282,7 +285,6 @@ const ExtractionsHistoryPage = () => {
                 </div>
             </div>
 
-            {/* Liste */}
             {loading ? (
                 <div className="text-center py-12">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
@@ -308,58 +310,69 @@ const ExtractionsHistoryPage = () => {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {extractions.map((extraction) => (
-                                    <tr key={extraction.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4">
-                                            <p className="font-medium text-gray-900 truncate max-w-xs">
-                                                {extraction.extracted_data?.name || extraction.original_filename}
-                                            </p>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            {getTypeBadge(extraction.document_type)}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            {getStatusBadge(extraction.status)}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`font-semibold ${getConfidenceColor(extraction.confidence_score)}`}>
-                                                {extraction.confidence_score ? `${extraction.confidence_score}%` : 'N/A'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-gray-600">
-                                            {new Date(extraction.extraction_date).toLocaleDateString('fr-FR')}
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => viewDetails(extraction.id)}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                                                >
-                                                    <Eye className="w-4 h-4" />
-                                                </button>
-                                                {!extraction.contract_id && (
+                                {extractions.map((extraction) => {
+                                    const data = parseExtractedData(extraction.extracted_data);
+                                    return (
+                                        <tr key={extraction.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4">
+                                                <p className="font-medium text-gray-900 truncate max-w-xs">
+                                                    {data?.name || extraction.original_filename}
+                                                </p>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {getTypeBadge(extraction.document_type)}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {getStatusBadge(extraction.status)}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`font-semibold ${getConfidenceColor(extraction.confidence_score)}`}>
+                                                    {extraction.confidence_score ? `${extraction.confidence_score}%` : 'N/A'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-600">
+                                                {new Date(extraction.created_at).toLocaleString('fr-FR', {
+                                                    year: 'numeric',
+                                                    month: '2-digit',
+                                                    day: '2-digit',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-2">
                                                     <button
-                                                        onClick={() => createContractFromExtraction(extraction)}
-                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                                                        onClick={() => viewDetails(extraction.id)}
+                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                                        title="Voir détails"
                                                     >
-                                                        <Plus className="w-4 h-4" />
+                                                        <Eye className="w-4 h-4" />
                                                     </button>
-                                                )}
-                                                <button
-                                                    onClick={() => deleteExtraction(extraction.id)}
-                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
+                                                    {!extraction.contract_id && (
+                                                        <button
+                                                            onClick={() => createContractFromExtraction(extraction)}
+                                                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                                                            title="Créer contrat"
+                                                        >
+                                                            <Plus className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => deleteExtraction(extraction.id)}
+                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                                        title="Supprimer"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
 
-                    {/* Pagination */}
                     {totalPages > 1 && (
                         <div className="flex justify-between mt-6">
                             <p className="text-sm text-gray-600">Page {page} sur {totalPages}</p>
@@ -384,34 +397,12 @@ const ExtractionsHistoryPage = () => {
                 </>
             )}
 
-            {/* Modal */}
+            {/* Modal avec nouveau composant */}
             {showDetailModal && selectedExtraction && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-6">
-                            <div className="flex justify-between items-center">
-                                <h2 className="text-2xl font-bold">Détails extraction</h2>
-                                <button
-                                    onClick={() => setShowDetailModal(false)}
-                                    className="w-8 h-8 hover:bg-white/20 rounded-lg"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                        </div>
-                        <div className="p-6">
-                            <pre className="bg-gray-50 p-4 rounded-lg overflow-x-auto text-xs">
-                                {JSON.stringify(selectedExtraction.extracted_data, null, 2)}
-                            </pre>
-                            <button
-                                onClick={() => setShowDetailModal(false)}
-                                className="mt-6 w-full py-3 border rounded-lg hover:bg-gray-50"
-                            >
-                                Fermer
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ExtractionDetailModal 
+                    extraction={selectedExtraction}
+                    onClose={() => setShowDetailModal(false)}
+                />
             )}
         </div>
     );
