@@ -32,7 +32,7 @@ router.use(organizationMiddleware);
  */
 router.get('/templates', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
     const { type, department, is_active } = req.query;
 
     let query = `
@@ -99,7 +99,7 @@ router.get('/templates', async (req, res) => {
  */
 router.get('/templates/:id', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
     const { id } = req.params;
 
     // Récupérer le template (multi-tenant)
@@ -153,7 +153,7 @@ router.get('/templates/:id', async (req, res) => {
  */
 router.post('/templates', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
     const {
       name,
       description,
@@ -237,7 +237,7 @@ router.post('/templates', async (req, res) => {
  */
 router.put('/templates/:id', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
     const { id } = req.params;
     const {
       name,
@@ -331,7 +331,7 @@ router.put('/templates/:id', async (req, res) => {
  */
 router.delete('/templates/:id', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
     const { id } = req.params;
 
     // Check if template is used in workflows (tenant-safe)
@@ -403,7 +403,7 @@ router.delete('/templates/:id', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
     const { status, type, employee_id, overdue } = req.query;
 
     let query = `
@@ -502,7 +502,7 @@ router.get('/', async (req, res) => {
  */
 router.get('/users-for-assignment', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
     const { exclude_employee_id } = req.query; // ✅ Exclure l'employé concerné
 
     // Utilisateurs "assignables" = owner + tous les user_id des employés du tenant
@@ -562,8 +562,6 @@ router.get('/users-for-assignment', async (req, res) => {
       IT: [],
       HR: [],
       Finance: [],
-      Sales: [],
-      Marketing: [],
       Manager: [],
       Other: []
     };
@@ -579,20 +577,18 @@ router.get('/users-for-assignment', async (req, res) => {
         name: fullName,
         email: emp.email,
         department: dept,
-        employeeId: emp.id,
-        isManager: isManager  // Ajout flag pour info
+        employeeId: emp.id
       };
 
-      // ✅ FIX: Ajouter au département D'ABORD
+      if (isManager) {
+        byDepartment.Manager.push(entry);
+        return;
+      }
+
       if (byDepartment[dept]) {
         byDepartment[dept].push(entry);
       } else {
         byDepartment.Other.push(entry);
-      }
-
-      // ✅ FIX: PUIS ajouter à Manager SI c'est un manager (EN PLUS, pas à la place)
-      if (isManager) {
-        byDepartment.Manager.push(entry);
       }
     });
 
@@ -621,7 +617,7 @@ router.get('/users-for-assignment', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
     const {
       employee_id,
       template_id,
@@ -812,7 +808,7 @@ router.post('/', async (req, res) => {
  */
 router.get('/my-tasks', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
     const { status, team, due_soon, overdue } = req.query;
     
     let query = `
@@ -915,7 +911,7 @@ router.get('/my-tasks', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
 
     const stats = await db.query(`
       SELECT
@@ -955,7 +951,7 @@ router.get('/stats', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
     const { id } = req.params;
 
     const workflowResult = await db.query(`
@@ -1057,7 +1053,7 @@ router.put('/:id/tasks/:taskId', async (req, res) => {
   try {
     const { id, taskId } = req.params;
     const { status, result, notes, checklist_completed } = req.body;
-    const userId = req.user;
+    const userId = req.user.id;
 
     const updates = [];
     const params = [];
@@ -1201,7 +1197,7 @@ router.post('/:id/tasks/:taskId/skip', async (req, res) => {
   try {
     const { id, taskId } = req.params;
     const { skipped_reason } = req.body;
-    const userId = req.user;
+    const userId = req.user.id;
 
     const result = await db.query(`
       UPDATE employee_workflow_tasks ewt
@@ -1238,7 +1234,7 @@ router.post('/:id/tasks/:taskId/skip', async (req, res) => {
  */
 router.post('/:id/cancel', async (req, res) => {
   try {
-    const userId = req.user;
+    const userId = req.user.id;
     const { id } = req.params;
     const { cancellation_reason } = req.body;
 
