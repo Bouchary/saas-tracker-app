@@ -142,6 +142,53 @@ const getEmployeeById = async (req, res) => {
   }
 };
 
+// ✅ FIX: Nouvelle fonction de génération employee_number SANS doublons
+const generateEmployeeNumber = async (organizationId) => {
+  try {
+    // Récupérer le dernier employee_number pour cette organisation
+    const result = await db.query(
+      `SELECT employee_number 
+       FROM employees 
+       WHERE organization_id = $1 
+       ORDER BY employee_number DESC 
+       LIMIT 1`,
+      [organizationId]
+    );
+
+    let nextNumber = 1;
+
+    if (result.rows.length > 0) {
+      const lastNumber = result.rows[0].employee_number;
+      // Extraire le numéro: EMP-1-005 → 005 → 5
+      const match = lastNumber.match(/EMP-\d+-(\d+)$/);
+      if (match) {
+        nextNumber = parseInt(match[1], 10) + 1;
+      }
+    }
+
+    // Format: EMP-{org_id}-{numero avec padding 3 chiffres}
+    const employeeNumber = `EMP-${organizationId}-${String(nextNumber).padStart(3, '0')}`;
+    
+    // Vérification sécurité: ce numéro existe-t-il déjà ?
+    const checkResult = await db.query(
+      `SELECT id FROM employees WHERE employee_number = $1`,
+      [employeeNumber]
+    );
+
+    if (checkResult.rows.length > 0) {
+      // Si existe (rare), réessayer avec numéro suivant
+      console.warn(`⚠️  employee_number ${employeeNumber} existe déjà, incrémentation...`);
+      return generateEmployeeNumber(organizationId);
+    }
+
+    return employeeNumber;
+  } catch (error) {
+    console.error('❌ Erreur génération employee_number:', error);
+    // Fallback ultime: timestamp
+    return `EMP-${organizationId}-${Date.now()}`;
+  }
+};
+
 const createEmployee = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -185,12 +232,8 @@ const createEmployee = async (req, res) => {
       return res.status(409).json({ error: 'Email déjà utilisé dans votre organisation' });
     }
 
-    const countResult = await db.query(
-      `SELECT COUNT(*) FROM employees e WHERE ${tenantWhereEmployees('e', '$1', '$2')}`,
-      [organizationId, userId]
-    );
-    const count = Number.parseInt(countResult.rows?.[0]?.count || '0', 10) + 1;
-    const employee_number = `EMP-${organizationId}-${String(count).padStart(3, '0')}`;
+    // ✅ FIX: Utiliser la nouvelle fonction de génération
+    const employee_number = await generateEmployeeNumber(organizationId);
 
     const result = await db.query(
       `
