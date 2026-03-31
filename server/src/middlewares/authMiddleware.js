@@ -11,7 +11,6 @@ const authMiddleware = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // ✅ CORRECTION : Le token contient decoded.id (pas decoded.userId)
     const result = await db.query(
       `SELECT 
         id, 
@@ -20,7 +19,7 @@ const authMiddleware = async (req, res, next) => {
         organization_id
       FROM users 
       WHERE id = $1 AND deleted_at IS NULL`,
-      [decoded.id]  // ✅ CORRECTION : decoded.id au lieu de decoded.userId
+      [decoded.id]
     );
 
     if (result.rows.length === 0) {
@@ -29,16 +28,24 @@ const authMiddleware = async (req, res, next) => {
 
     const user = result.rows[0];
 
+    // ✅ FIX: FORCER la conversion en nombre
+    const organizationId = parseInt(user.organization_id, 10);
+
+    if (!organizationId || isNaN(organizationId)) {
+      console.error('❌ organizationId invalide pour user:', user.id, 'value:', user.organization_id);
+      return res.status(403).json({ error: 'Organisation invalide' });
+    }
+
     req.user = {
       id: user.id,
       email: user.email,
       role: user.role,
-      organizationId: user.organization_id
+      organizationId: organizationId  // ✅ Nombre garanti
     };
 
     next();
   } catch (error) {
-    console.error('Erreur authentification:', error);
+    console.error('❌ Erreur authentification:', error);
     return res.status(401).json({ error: 'Token invalide' });
   }
 };
