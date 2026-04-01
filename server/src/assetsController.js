@@ -535,13 +535,14 @@ const assignAsset = async (req, res) => {
 
     const employee = employeeResult.rows[0];
 
+    // ✅ FIX: Supprimé created_by (colonne inexistante)
     const assignmentResult = await db.query(
       `INSERT INTO asset_assignments (
         asset_id, employee_id, assigned_date, status,
-        condition_on_assignment, purpose, assignment_notes, created_by
-      ) VALUES ($1, $2, CURRENT_DATE, 'active', $3, $4, $5, $6)
+        condition_on_assignment, purpose, assignment_notes
+      ) VALUES ($1, $2, CURRENT_DATE, 'active', $3, $4, $5)
       RETURNING *`,
-      [id, employee_id, condition_on_assignment, purpose, assignment_notes, userId]
+      [id, employee_id, condition_on_assignment, purpose, assignment_notes]
     );
 
     await db.query(
