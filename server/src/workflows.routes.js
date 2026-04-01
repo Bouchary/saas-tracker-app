@@ -562,33 +562,43 @@ router.get('/users-for-assignment', async (req, res) => {
       IT: [],
       HR: [],
       Finance: [],
+      Sales: [],
+      Marketing: [],
       Manager: [],
       Other: []
     };
 
     employeesResult.rows.forEach(emp => {
+      // ✅ FIX 3: Ne retourner QUE les employés avec un compte user
+      // Car assigned_to attend un users.id (FK constraint)
+      if (!emp.user_id) {
+        return; // Skip cet employé, il ne peut pas être assigné
+      }
+
       const fullName = `${emp.first_name} ${emp.last_name}`;
       const dept = emp.department || 'Other';
       const isManager = (emp.job_title && /manager/i.test(emp.job_title)) || managerIdSet.has(String(emp.id));
 
       const entry = {
-        id: emp.user_id || emp.id,  // user_id si disponible, sinon employee_id
-        hasUserAccount: !!emp.user_id,  // Indique si l'employé a un compte user
+        id: emp.user_id,  // ✅ user_id (garanti non-null grâce au if ci-dessus)
+        hasUserAccount: true,  // ✅ Toujours true maintenant
         name: fullName,
         email: emp.email,
         department: dept,
-        employeeId: emp.id
+        employeeId: emp.id,
+        isManager: isManager
       };
 
-      if (isManager) {
-        byDepartment.Manager.push(entry);
-        return;
-      }
-
+      // ✅ FIX 2: Ajouter au département D'ABORD
       if (byDepartment[dept]) {
         byDepartment[dept].push(entry);
       } else {
         byDepartment.Other.push(entry);
+      }
+
+      // ✅ FIX 2: PUIS ajouter à Manager SI c'est un manager (EN PLUS)
+      if (isManager) {
+        byDepartment.Manager.push(entry);
       }
     });
 
