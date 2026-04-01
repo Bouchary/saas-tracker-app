@@ -16,7 +16,7 @@ const LOG_PREFIX = 'ApprovalRules:';
 // ✅ FIX : Middleware inline qui autorise OWNER + ADMIN + SUPERADMIN
 const requireAdmin = (req, res, next) => {
     // ✅ CHANGEMENT ICI : Ajout de 'owner' dans la liste
-    if (!['owner', 'admin', 'superadmin'].includes(req.user.role)) {
+    if (!['owner', 'admin', 'super_admin'].includes(req.user.role)) {
         return res.status(403).json({ 
             error: 'Accès réservé aux administrateurs',
             user_role: req.user.role  // ✅ Ajout pour debug
