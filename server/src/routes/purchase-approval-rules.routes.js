@@ -1,4 +1,4 @@
-// server/src/routes/purchase-approval-rules.routes.js - ✅ CORRIGÉ PÉRENNE
+// server/src/routes/purchase-approval-rules.routes.js - ✅ CORRIGÉ CONVERSION TYPES
 // ============================================================================
 // ROUTES GESTION RÈGLES D'APPROBATION (ADMIN + OWNER)
 // ============================================================================
@@ -13,13 +13,12 @@ const { sanitizeString } = require('../middlewares/validation');
 
 const LOG_PREFIX = 'ApprovalRules:';
 
-// ✅ FIX : Middleware inline qui autorise OWNER + ADMIN + SUPERADMIN
+// ✅ Middleware qui autorise OWNER + ADMIN + SUPERADMIN
 const requireAdmin = (req, res, next) => {
-    // ✅ CHANGEMENT ICI : Ajout de 'owner' dans la liste
     if (!['owner', 'admin', 'super_admin'].includes(req.user.role)) {
         return res.status(403).json({ 
             error: 'Accès réservé aux administrateurs',
-            user_role: req.user.role  // ✅ Ajout pour debug
+            user_role: req.user.role
         });
     }
     next();
@@ -197,7 +196,7 @@ router.post('/', async (req, res) => {
 });
 
 // ============================================================================
-// 4. MODIFIER RÈGLE
+// 4. MODIFIER RÈGLE - ✅ FIX CONVERSION TYPES
 // ============================================================================
 router.put('/:id', async (req, res) => {
     const { id } = req.params;
@@ -213,6 +212,16 @@ router.put('/:id', async (req, res) => {
         if (checkResult.rows.length === 0) {
             return res.status(404).json({ error: 'Règle non trouvée' });
         }
+        
+        // ✅ FIX: Convertir strings vides en null pour champs numériques
+        const numericFields = ['approver_1_id', 'approver_2_id', 'approver_3_id', 'min_amount', 'max_amount', 'priority'];
+        numericFields.forEach(field => {
+            if (req.body[field] === '' || req.body[field] === null) {
+                req.body[field] = null;
+            } else if (req.body[field] !== undefined) {
+                req.body[field] = parseFloat(req.body[field]);
+            }
+        });
         
         const updates = [];
         const values = [];
@@ -265,7 +274,10 @@ router.put('/:id', async (req, res) => {
         
     } catch (error) {
         console.error(`${LOG_PREFIX} Erreur updateRule:`, error);
-        res.status(500).json({ error: 'Erreur serveur' });
+        res.status(500).json({ 
+            error: 'Erreur serveur',
+            details: error.message  // ✅ Ajout détails pour debug
+        });
     }
 });
 
