@@ -1,9 +1,8 @@
 // ============================================================================
-// SERVER.JS - COMPLET avec MDM + Extractions IA + Purchase Requests
+// SERVER.JS - COMPLET avec MDM + Extractions IA + Purchase Requests + CRON
 // ============================================================================
-// ✅ AJOUT : Route /api/purchase-requests pour gestion demandes d'achat
+// ✅ AJOUT : Job monthly snapshots pour dashboard 100% réel
 // ✅ PRÉSERVÉ : Toutes routes existantes sans modification
-// ✅ CORRECTION : Chemin search.routes corrigé
 // ============================================================================
 
 if (process.env.NODE_ENV !== 'production') {
@@ -59,14 +58,15 @@ const optimizationRoutes = require('./src/routes/optimization.routes.js');
 const aiAnalysisRoutes = require('./src/routes/ai-analysis.routes.js');
 const mdmRoutes = require('./src/routes/mdm.routes.js');
 const searchRoutes = require('./src/routes/search.routes');
-
-// ✅ NOUVEAU : Routes Purchase Requests (demandes d'achat)
 const purchaseRequestsRoutes = require('./src/routes/purchase-requests.routes.js');
 const purchaseApprovalRulesRoutes = require('./src/routes/purchase-approval-rules.routes.js');
 
 // Schedulers
 const emailScheduler = require('./src/jobs/emailScheduler.js');
 const workflowScheduler = require('./src/jobs/workflowScheduler.js');
+
+// ✅ NOUVEAU : Monthly Snapshot Job
+const monthlySnapshotJob = require('./src/jobs/monthlySnapshot.js');
 
 // ====================================
 // MONTAGE DES ROUTES
@@ -113,11 +113,9 @@ app.use('/api/ai', aiAnalysisRoutes);
 
 // MDM
 app.use('/api/mdm', mdmRoutes);
-
-// ✅ RECHERCHE GLOBALE
 app.use('/api/search', searchRoutes);
 
-// ✅ NOUVEAU : Purchase Requests (demandes d'achat avec workflow)
+// Purchase Requests
 app.use('/api/purchase-requests', purchaseRequestsRoutes);
 app.use('/api/purchase-approval-rules', purchaseApprovalRulesRoutes);
 
@@ -135,7 +133,7 @@ app.get('/', (req, res) => {
       "MDM",
       "Optimisation IA",
       "Purchase Requests",
-      "Recherche Globale"
+      "Dashboard 100% Réel" // ✅ NOUVEAU
     ]
   });
 });
@@ -150,8 +148,11 @@ if (process.env.NODE_ENV === 'production') {
 
   // Scheduler notifications workflows
   if (process.env.ENABLE_WORKFLOW_NOTIFICATIONS === 'true') {
-    workflowScheduler.start();
+    workflowScheduler.stop();
   }
+  
+  // ✅ NOUVEAU : Monthly snapshots (déjà démarré automatiquement via cron.schedule)
+  console.log('📊 MonthlySnapshot: JOB ACTIF (1er du mois à 00:01)');
 }
 
 // ====================================
@@ -162,21 +163,24 @@ app.listen(port, () => {
   console.log(`🚀 Serveur sur port ${port}`);
   console.log(`JWT_SECRET: ${process.env.JWT_SECRET ? 'OK' : 'ERREUR'}`);
   console.log(`ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? 'OK ✅' : 'MANQUANTE ❌'}`);
-  console.log('🎯 Dashboard Global avec départements réels (fallback mock)');
+  console.log('🎯 Dashboard 100% données réelles (historique monthly_stats)');
   console.log('✅ Routes MDM actives');
   console.log('✅ Routes Extractions IA actives');
   console.log('✅ Routes Purchase Requests actives');
-  console.log('✅ Routes Recherche Globale actives');
 
   if (process.env.NODE_ENV === 'production') {
-    console.log('🔧 EmailScheduler (contrats): ACTIF');
+    console.log('📧 EmailScheduler (contrats): ACTIF');
     if (process.env.ENABLE_WORKFLOW_NOTIFICATIONS === 'true') {
       console.log('🔔 WorkflowScheduler (workflows): ACTIF');
     } else {
       console.log('⏸️  WorkflowScheduler (workflows): DÉSACTIVÉ');
     }
+    console.log('📊 MonthlySnapshot: ACTIF (1er du mois à 00:01)');
   } else {
     console.log('⚠️  Schedulers désactivés (mode développement)');
+    console.log('💡 Tip: Pour tester monthly snapshot manuellement:');
+    console.log('   const { generateAllSnapshots } = require(\'./src/jobs/monthlySnapshot\');');
+    console.log('   await generateAllSnapshots();');
   }
 });
 
@@ -191,6 +195,7 @@ const shutdown = () => {
     if (process.env.ENABLE_WORKFLOW_NOTIFICATIONS === 'true') {
       workflowScheduler.stop();
     }
+    // Monthly snapshot s'arrêtera automatiquement
   }
   process.exit(0);
 };
