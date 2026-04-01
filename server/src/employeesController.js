@@ -1,9 +1,6 @@
 const db = require('./db');
 const bcrypt = require('bcryptjs');
 
-const tenantWhereEmployees = (alias = 'e', orgParam = '$1', userParam = '$2') =>
-  `(${alias}.organization_id = ${orgParam} AND (${alias}.created_by = ${userParam} OR (${alias}.created_by IS NULL AND ${alias}.user_id = ${userParam})))`;
-
 const UPDATABLE_FIELDS = new Set([
   'first_name',
   'last_name',
@@ -38,6 +35,7 @@ const getAllEmployees = async (req, res) => {
 
     const { page = 1, limit = 20, status, department, search } = req.query;
 
+    // ✅ FIX: Utiliser organization_id au lieu de tenantWhereEmployees
     let query = `
       SELECT
         e.*,
@@ -48,12 +46,14 @@ const getAllEmployees = async (req, res) => {
       FROM employees e
       LEFT JOIN employees m
         ON e.manager_id = m.id
-        AND ${tenantWhereEmployees('m', '$1', '$2')}
-      WHERE ${tenantWhereEmployees('e', '$1', '$2')}
+        AND m.organization_id = $1
+        AND m.deleted_at IS NULL
+      WHERE e.organization_id = $1
+        AND e.deleted_at IS NULL
     `;
 
-    const params = [organizationId, userId];
-    let paramIndex = 3;
+    const params = [organizationId];
+    let paramIndex = 2;
 
     if (status) {
       query += ` AND e.status = $${paramIndex++}`;
@@ -87,6 +87,8 @@ const getAllEmployees = async (req, res) => {
 
     const result = await db.query(query, params);
 
+    console.log(`✅ Employés: ${result.rows.length} employés récupérés pour organisation ${organizationId} par user ${userId}`);
+
     res.json({
       employees: result.rows,
       pagination: {
@@ -113,6 +115,7 @@ const getEmployeeById = async (req, res) => {
 
     const { id } = req.params;
 
+    // ✅ FIX: Utiliser organization_id
     const result = await db.query(
       `
       SELECT
@@ -124,11 +127,13 @@ const getEmployeeById = async (req, res) => {
       FROM employees e
       LEFT JOIN employees m
         ON e.manager_id = m.id
-        AND ${tenantWhereEmployees('m', '$2', '$3')}
+        AND m.organization_id = $2
+        AND m.deleted_at IS NULL
       WHERE e.id = $1
-        AND ${tenantWhereEmployees('e', '$2', '$3')}
+        AND e.organization_id = $2
+        AND e.deleted_at IS NULL
       `,
-      [id, organizationId, userId]
+      [id, organizationId]
     );
 
     if (result.rows.length === 0) {
@@ -224,9 +229,10 @@ const createEmployee = async (req, res) => {
       return res.status(400).json({ error: 'first_name, last_name et email sont requis' });
     }
 
+    // ✅ FIX: Utiliser organization_id
     const checkEmail = await db.query(
-      `SELECT id FROM employees e WHERE e.email = $1 AND ${tenantWhereEmployees('e', '$2', '$3')}`,
-      [email, organizationId, userId]
+      `SELECT id FROM employees WHERE email = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+      [email, organizationId]
     );
     if (checkEmail.rows.length > 0) {
       return res.status(409).json({ error: 'Email déjà utilisé dans votre organisation' });
@@ -300,9 +306,10 @@ const updateEmployee = async (req, res) => {
       return res.status(400).json({ error: 'Aucun champ valide à mettre à jour' });
     }
 
+    // ✅ FIX: Utiliser organization_id
     const check = await db.query(
-      `SELECT id FROM employees e WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')}`,
-      [id, organizationId, userId]
+      `SELECT id FROM employees WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+      [id, organizationId]
     );
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Employé non trouvé' });
@@ -324,13 +331,13 @@ const updateEmployee = async (req, res) => {
 
     values.push(id);
     values.push(organizationId);
-    values.push(userId);
 
     const query = `
-      UPDATE employees e
+      UPDATE employees
       SET ${fields.join(', ')}
-      WHERE e.id = $${paramIndex++}
-        AND ${tenantWhereEmployees('e', `$${paramIndex++}`, `$${paramIndex}`)}
+      WHERE id = $${paramIndex++}
+        AND organization_id = $${paramIndex}
+        AND deleted_at IS NULL
       RETURNING *
     `;
 
@@ -357,15 +364,17 @@ const deleteEmployee = async (req, res) => {
 
     const { id } = req.params;
 
+    // ✅ FIX: Utiliser organization_id
     const result = await db.query(
       `
-      UPDATE employees e
+      UPDATE employees
       SET status = 'exited',
           end_date = CURRENT_DATE,
           deleted_at = NOW(),
           deleted_by = $3
-      WHERE e.id = $1
-        AND ${tenantWhereEmployees('e', '$2', '$3')}
+      WHERE id = $1
+        AND organization_id = $2
+        AND deleted_at IS NULL
       RETURNING *
       `,
       [id, organizationId, userId]
@@ -391,20 +400,21 @@ const getEmployeeStats = async (req, res) => {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
+    // ✅ FIX: Utiliser organization_id
     const totalResult = await db.query(
-      `SELECT COUNT(*) FROM employees e WHERE ${tenantWhereEmployees('e', '$1', '$2')}`,
-      [organizationId, userId]
+      `SELECT COUNT(*) FROM employees WHERE organization_id = $1 AND deleted_at IS NULL`,
+      [organizationId]
     );
     const total = Number.parseInt(totalResult.rows?.[0]?.count || '0', 10);
 
     const statusResult = await db.query(
       `
-      SELECT e.status, COUNT(*) as count
-      FROM employees e
-      WHERE ${tenantWhereEmployees('e', '$1', '$2')}
-      GROUP BY e.status
+      SELECT status, COUNT(*) as count
+      FROM employees
+      WHERE organization_id = $1 AND deleted_at IS NULL
+      GROUP BY status
       `,
-      [organizationId, userId]
+      [organizationId]
     );
 
     const byStatus = {};
@@ -412,13 +422,13 @@ const getEmployeeStats = async (req, res) => {
 
     const deptResult = await db.query(
       `
-      SELECT e.department, COUNT(*) as count
-      FROM employees e
-      WHERE ${tenantWhereEmployees('e', '$1', '$2')}
-      GROUP BY e.department
+      SELECT department, COUNT(*) as count
+      FROM employees
+      WHERE organization_id = $1 AND deleted_at IS NULL
+      GROUP BY department
       ORDER BY count DESC
       `,
-      [organizationId, userId]
+      [organizationId]
     );
 
     const byDepartment = {};
@@ -442,10 +452,11 @@ const getEmployeeAssets = async (req, res) => {
 
     const { id } = req.params;
 
+    // ✅ FIX: Utiliser organization_id
     const employeeCheck = await db.query(
-      `SELECT id, first_name, last_name FROM employees e
-       WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')}`,
-      [id, organizationId, userId]
+      `SELECT id, first_name, last_name FROM employees
+       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+      [id, organizationId]
     );
     if (employeeCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Employé non trouvé' });
@@ -526,9 +537,10 @@ const assignUserToEmployee = async (req, res) => {
       return res.status(400).json({ error: 'user_id requis' });
     }
 
+    // ✅ FIX: Utiliser organization_id
     const employeeCheck = await db.query(
-      `SELECT id, first_name, last_name, user_id FROM employees e WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')}`,
-      [id, organizationId, currentUserId]
+      `SELECT id, first_name, last_name, user_id FROM employees WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+      [id, organizationId]
     );
 
     if (employeeCheck.rows.length === 0) {
@@ -549,8 +561,8 @@ const assignUserToEmployee = async (req, res) => {
     const user = userCheck.rows[0];
 
     const existingLink = await db.query(
-      `SELECT id, first_name, last_name FROM employees e WHERE e.user_id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')} AND e.id != $4`,
-      [user_id, organizationId, currentUserId, id]
+      `SELECT id, first_name, last_name FROM employees WHERE user_id = $1 AND organization_id = $2 AND deleted_at IS NULL AND id != $3`,
+      [user_id, organizationId, id]
     );
 
     if (existingLink.rows.length > 0) {
@@ -561,7 +573,7 @@ const assignUserToEmployee = async (req, res) => {
     }
 
     const result = await db.query(
-      `UPDATE employees e SET user_id = $1, updated_by = $4, updated_at = NOW() WHERE e.id = $2 AND ${tenantWhereEmployees('e', '$3', '$4')} RETURNING *`,
+      `UPDATE employees SET user_id = $1, updated_by = $4, updated_at = NOW() WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL RETURNING *`,
       [user_id, id, organizationId, currentUserId]
     );
 
@@ -582,9 +594,10 @@ const unassignUserFromEmployee = async (req, res) => {
     const currentUserId = req.user.id;
     const organizationId = req.organizationId;
 
+    // ✅ FIX: Utiliser organization_id
     const employeeCheck = await db.query(
-      `SELECT id, first_name, last_name, user_id FROM employees e WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')}`,
-      [id, organizationId, currentUserId]
+      `SELECT id, first_name, last_name, user_id FROM employees WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+      [id, organizationId]
     );
 
     if (employeeCheck.rows.length === 0) {
@@ -598,7 +611,7 @@ const unassignUserFromEmployee = async (req, res) => {
     }
 
     const result = await db.query(
-      `UPDATE employees e SET user_id = NULL, updated_by = $3, updated_at = NOW() WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')} RETURNING *`,
+      `UPDATE employees SET user_id = NULL, updated_by = $3, updated_at = NOW() WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL RETURNING *`,
       [id, organizationId, currentUserId]
     );
 
@@ -624,9 +637,10 @@ const createAndAssignUser = async (req, res) => {
       return res.status(400).json({ error: 'Email et mot de passe requis' });
     }
 
+    // ✅ FIX: Utiliser organization_id
     const employeeCheck = await db.query(
-      `SELECT id, first_name, last_name, email as employee_email, user_id FROM employees e WHERE e.id = $1 AND ${tenantWhereEmployees('e', '$2', '$3')}`,
-      [id, organizationId, currentUserId]
+      `SELECT id, first_name, last_name, email as employee_email, user_id FROM employees WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+      [id, organizationId]
     );
 
     if (employeeCheck.rows.length === 0) {
@@ -679,7 +693,7 @@ const createAndAssignUser = async (req, res) => {
       const newUser = userResult.rows[0];
 
       const employeeResult = await db.query(
-        `UPDATE employees e SET user_id = $1, updated_by = $4, updated_at = NOW() WHERE e.id = $2 AND ${tenantWhereEmployees('e', '$3', '$4')} RETURNING *`,
+        `UPDATE employees SET user_id = $1, updated_by = $4, updated_at = NOW() WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL RETURNING *`,
         [newUser.id, id, organizationId, currentUserId]
       );
 
