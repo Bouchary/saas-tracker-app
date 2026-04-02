@@ -33,6 +33,7 @@ import MDMDashboardPage from './pages/MDMDashboardPage';
 import MDMDevicesListPage from './pages/MDMDevicesListPage';
 import MDMDeviceDetailPage from './pages/MDMDeviceDetailPage';
 import MDMAlertsPage from './pages/MDMAlertsPage';
+import MDMSetupPage from './pages/MDMSetupPage'; // ✅ NOUVEAU - Page setup agents MDM
 import UsersPage from './pages/UsersPage';
 import PurchaseRequestsListPage from './pages/PurchaseRequestsListPage';
 import PurchaseRequestFormPage from './pages/PurchaseRequestFormPage';
@@ -43,6 +44,7 @@ import SearchResultsPage from './pages/SearchResultsPage';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
+
 
 const App = () => {
     const navigate = useNavigate();
@@ -85,33 +87,48 @@ const App = () => {
                         <Route path="/optimization" element={<ProtectedRoute><OptimizationPage /></ProtectedRoute>} />
                         <Route path="/import" element={<ProtectedRoute><ImportPage /></ProtectedRoute>} />
                         <Route path="/extractions-history" element={<ProtectedRoute><ExtractionsHistoryPage /></ProtectedRoute>} />
+                        
+                        {/* ===== ROUTES MDM ===== */}
                         <Route path="/mdm" element={<ProtectedRoute><MDMDashboardPage /></ProtectedRoute>} />
+                        <Route path="/mdm/setup" element={<ProtectedRoute><MDMSetupPage /></ProtectedRoute>} /> {/* ✅ NOUVEAU */}
                         <Route path="/mdm/devices" element={<ProtectedRoute><MDMDevicesListPage /></ProtectedRoute>} />
                         <Route path="/mdm/devices/:id" element={<ProtectedRoute><MDMDeviceDetailPage /></ProtectedRoute>} />
                         <Route path="/mdm/alerts" element={<ProtectedRoute><MDMAlertsPage /></ProtectedRoute>} />
+                        
+                        {/* ===== ROUTES EMPLOYÉS ===== */}
                         <Route path="/employees" element={<ProtectedRoute><EmployeesPage /></ProtectedRoute>} />
                         <Route path="/employees/new" element={<ProtectedRoute><EmployeeFormPage /></ProtectedRoute>} />
                         <Route path="/employees/:id" element={<ProtectedRoute><EmployeeDetailPage /></ProtectedRoute>} />
                         <Route path="/employees/:id/edit" element={<ProtectedRoute><EmployeeFormPage /></ProtectedRoute>} />
+                        
+                        {/* ===== ROUTES ASSETS ===== */}
                         <Route path="/assets" element={<ProtectedRoute><AssetsPage /></ProtectedRoute>} />
                         <Route path="/assets/new" element={<ProtectedRoute><AssetFormPage /></ProtectedRoute>} />
                         <Route path="/assets/:id" element={<ProtectedRoute><AssetDetailPage /></ProtectedRoute>} />
                         <Route path="/assets/:id/edit" element={<ProtectedRoute><AssetFormPage /></ProtectedRoute>} />
+                        
+                        {/* ===== ROUTES WORKFLOWS ===== */}
                         <Route path="/workflows/my-tasks" element={<ProtectedRoute><MyTasksPage /></ProtectedRoute>} />
                         <Route path="/workflows/templates" element={<ProtectedRoute><TemplatesPage /></ProtectedRoute>} />
                         <Route path="/workflows/templates/new" element={<ProtectedRoute><TemplateFormPage /></ProtectedRoute>} />
                         <Route path="/workflows/templates/:id/edit" element={<ProtectedRoute><TemplateFormPage /></ProtectedRoute>} />
                         <Route path="/workflows/:id" element={<ProtectedRoute><WorkflowDetailPage /></ProtectedRoute>} />
                         <Route path="/workflows" element={<ProtectedRoute><WorkflowsPage /></ProtectedRoute>} />
+                        
+                        {/* ===== ROUTES PURCHASE REQUESTS ===== */}
                         <Route path="/purchase-requests" element={<ProtectedRoute><PurchaseRequestsListPage /></ProtectedRoute>} />
                         <Route path="/purchase-requests/new" element={<ProtectedRoute><PurchaseRequestFormPage /></ProtectedRoute>} />
                         <Route path="/purchase-requests/to-approve" element={<ProtectedRoute><PurchaseRequestsToApprovePage /></ProtectedRoute>} />
                         <Route path="/purchase-requests/:id" element={<ProtectedRoute><PurchaseRequestDetailPage /></ProtectedRoute>} />
                         <Route path="/purchase-requests/:id/edit" element={<ProtectedRoute><PurchaseRequestFormPage /></ProtectedRoute>} />
                         <Route path="/purchase-approval-rules" element={<ProtectedRoute><PurchaseApprovalRulesPage /></ProtectedRoute>} />
+                        
+                        {/* ===== ROUTES AUTRES ===== */}
                         <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
                         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                         <Route path="/contracts/:contractId/documents" element={<ProtectedRoute><ContractDocuments /></ProtectedRoute>} />
+                        
+                        {/* ===== 404 ===== */}
                         <Route path="*" element={
                             <div className="min-h-screen flex items-center justify-center">
                                 <div className="text-center">

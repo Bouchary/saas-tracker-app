@@ -4,7 +4,8 @@ import { useAuth } from '../AuthContext';
 import {
   LayoutDashboard, FileText, Users, Package, GitBranch, ShoppingCart,
   Monitor, Sparkles, ChevronDown, ChevronRight, List, CheckSquare,
-  Sliders, Activity, AlertTriangle, Lightbulb, Upload, Menu, X
+  Sliders, Activity, AlertTriangle, Lightbulb, Upload, Menu, X,
+  Download // ✅ NOUVEAU - Icône pour Setup
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -21,14 +22,16 @@ const Sidebar = () => {
   const isAdmin = user && ['owner', 'admin', 'super_admin'].includes(user.role);
 
   return (
-    <div className={`${collapsed ? 'w-20' : 'w-64'} bg-gradient-to-b from-indigo-900 to-indigo-800 text-white min-h-screen flex flex-col transition-all duration-300 fixed left-0 top-0 z-40`}>
-      <div className="p-4 flex items-center justify-between border-b border-indigo-700">
+    <div className={`${collapsed ? 'w-20' : 'w-64'} bg-gradient-to-b from-indigo-900 to-indigo-800 text-white h-screen flex flex-col transition-all duration-300 fixed left-0 top-0 z-40`}>
+      {/* Header - Fixe */}
+      <div className="p-4 flex items-center justify-between border-b border-indigo-700 flex-shrink-0">
         {!collapsed && <span className="text-xl font-bold">SaaS Tracker</span>}
         <button onClick={() => setCollapsed(!collapsed)} className="p-2 hover:bg-indigo-700 rounded">
           {collapsed ? <Menu className="w-5 h-5" /> : <X className="w-5 h-5" />}
         </button>
       </div>
 
+      {/* Navigation - Scrollable */}
       <nav className="flex-1 overflow-y-auto py-4">
         <Link
           to="/dashboard-v2"
@@ -64,6 +67,7 @@ const Sidebar = () => {
 
         {!collapsed && (
           <>
+            {/* WORKFLOWS */}
             <div>
               <button
                 onClick={() => setWorkflowsOpen(!workflowsOpen)}
@@ -93,6 +97,7 @@ const Sidebar = () => {
               )}
             </div>
 
+            {/* PURCHASE REQUESTS */}
             <div>
               <button
                 onClick={() => setPurchaseOpen(!purchaseOpen)}
@@ -124,6 +129,7 @@ const Sidebar = () => {
               )}
             </div>
 
+            {/* MDM */}
             <div>
               <button
                 onClick={() => setMdmOpen(!mdmOpen)}
@@ -141,6 +147,10 @@ const Sidebar = () => {
                     <Activity className="w-4 h-4" />
                     <span className="ml-2">Dashboard</span>
                   </Link>
+                  <Link to="/mdm/setup" className={`flex items-center px-8 py-2 hover:bg-indigo-700 ${isActive('/mdm/setup') ? 'bg-indigo-700' : ''}`}>
+                    <Download className="w-4 h-4" />
+                    <span className="ml-2">Setup</span>
+                  </Link>
                   <Link to="/mdm/devices" className={`flex items-center px-8 py-2 hover:bg-indigo-700 ${isActive('/mdm/devices') ? 'bg-indigo-700' : ''}`}>
                     <Monitor className="w-4 h-4" />
                     <span className="ml-2">Devices</span>
@@ -153,6 +163,7 @@ const Sidebar = () => {
               )}
             </div>
 
+            {/* IA & OUTILS */}
             <div>
               <button
                 onClick={() => setAiOpen(!aiOpen)}
@@ -184,6 +195,7 @@ const Sidebar = () => {
           </>
         )}
 
+        {/* MODE COLLAPSED */}
         {collapsed && (
           <>
             <Link to="/workflows" className={`flex items-center justify-center px-4 py-3 hover:bg-indigo-700 ${isActive('/workflows') ? 'bg-indigo-700' : ''}`}>
