@@ -1,11 +1,10 @@
 // ============================================================================
-// DASHBOARD CONTROLLER - VERSION FINALE 100% DONNÉES RÉELLES
+// DASHBOARD CONTROLLER - VERSION CORRIGÉE (Sans LIMIT + Coût IT Total)
 // ============================================================================
-// ✅ PHASE 4: Toutes les simulations remplacées par vraies requêtes SQL
-// ✅ Utilise monthly_stats pour historique
-// ✅ Utilise purchase_price pour coûts assets
-// ✅ Utilise department_allocations si disponible
-// ✅ Multi-tenant: organization_id partout
+// ✅ CORRECTIONS:
+// - Suppression LIMIT 10 dans analytics (données complètes)
+// - Coût IT par employé = Contrats + Assets
+// - Cohérence totale entre Global et Onglets
 // ============================================================================
 
 const db = require('./db');
@@ -42,7 +41,6 @@ const getPreviousMonthData = async (organizationId) => {
       };
     }
     
-    // Pas d'historique → retourner null pour utiliser fallback
     return { data: null, isMocked: true };
     
   } catch (error) {
@@ -71,7 +69,6 @@ const getMonthlyTrend = async (organizationId) => {
     const result = await db.query(query, [organizationId]);
     
     if (result.rows.length >= 2) {
-      // Au moins 2 mois d'historique
       return {
         data: result.rows.map(r => ({
           month: r.month,
@@ -96,7 +93,6 @@ const getMonthlyTrend = async (organizationId) => {
 // ============================================================================
 const getDepartmentCosts = async (organizationId, activeEmployees, currentCost) => {
   try {
-    // Vérifier si des allocations existent
     const checkResult = await db.query(
       `SELECT COUNT(*) as count FROM department_allocations WHERE organization_id = $1`,
       [organizationId]
@@ -107,7 +103,6 @@ const getDepartmentCosts = async (organizationId, activeEmployees, currentCost) 
       return { data: null, isMocked: true };
     }
 
-    // Récupérer coûts contrats par département
     const contractCostsResult = await db.query(
       `SELECT 
         da.department,
@@ -119,7 +114,6 @@ const getDepartmentCosts = async (organizationId, activeEmployees, currentCost) 
       [organizationId]
     );
 
-    // Récupérer coûts assets par département (amortissement mensuel)
     const assetCostsResult = await db.query(
       `SELECT 
         da.department,
@@ -131,7 +125,6 @@ const getDepartmentCosts = async (organizationId, activeEmployees, currentCost) 
       [organizationId]
     );
 
-    // Fusionner
     const departmentMap = new Map();
     
     contractCostsResult.rows.forEach(row => {
@@ -144,7 +137,6 @@ const getDepartmentCosts = async (organizationId, activeEmployees, currentCost) 
       departmentMap.set(row.department, (departmentMap.get(row.department) || 0) + cost);
     });
 
-    // Employés par département
     const employeesResult = await db.query(
       `SELECT department, COUNT(*) as count 
        FROM employees 
@@ -158,7 +150,6 @@ const getDepartmentCosts = async (organizationId, activeEmployees, currentCost) 
       employeesByDept.set(row.department, parseInt(row.count));
     });
 
-    // Construire résultat
     const departments = Array.from(departmentMap.entries()).map(([name, cost]) => {
       const employees = employeesByDept.get(name) || 1;
       return {
@@ -193,35 +184,30 @@ const getGlobalStats = async (req, res) => {
     }
 
     try {
-        // Total contrats
         const contractsResult = await db.query(
             'SELECT COUNT(*) as total FROM contracts WHERE organization_id = $1',
             [organizationId]
         );
         const totalContracts = parseInt(contractsResult.rows[0].total);
 
-        // Contrats actifs
         const activeContractsResult = await db.query(
             "SELECT COUNT(*) as active FROM contracts WHERE organization_id = $1 AND status = 'active'",
             [organizationId]
         );
         const activeContracts = parseInt(activeContractsResult.rows[0].active);
 
-        // Coût total mensuel
         const costResult = await db.query(
             "SELECT COALESCE(SUM(monthly_cost), 0) as total_cost FROM contracts WHERE organization_id = $1 AND status = 'active'",
             [organizationId]
         );
         const totalCost = parseFloat(costResult.rows[0].total_cost);
 
-        // Total assets
         const assetsResult = await db.query(
             'SELECT COUNT(*) as total FROM assets WHERE organization_id = $1',
             [organizationId]
         );
         const totalAssets = parseInt(assetsResult.rows[0].total);
 
-        // Assets assignés
         const assignedAssetsResult = await db.query(
             `SELECT COUNT(DISTINCT aa.asset_id) as assigned 
              FROM asset_assignments aa
@@ -231,14 +217,12 @@ const getGlobalStats = async (req, res) => {
         );
         const assignedAssets = parseInt(assignedAssetsResult.rows[0].assigned || 0);
 
-        // Total employés
         const employeesResult = await db.query(
             'SELECT COUNT(*) as total FROM employees WHERE organization_id = $1',
             [organizationId]
         );
         const totalEmployees = parseInt(employeesResult.rows[0].total);
 
-        // Employés actifs
         const activeEmployeesResult = await db.query(
             "SELECT COUNT(*) as active FROM employees WHERE organization_id = $1 AND status = 'active'",
             [organizationId]
@@ -283,10 +267,6 @@ const getGlobalView = async (req, res) => {
   console.log(`${LOG_PREFIX} Vue globale pour organisation ${organizationId}`);
 
   try {
-    // ========================================================================
-    // REQUÊTES DONNÉES ACTUELLES
-    // ========================================================================
-    
     // Coût total contrats
     const costResult = await db.query(
       `SELECT COALESCE(SUM(monthly_cost), 0) as total FROM contracts WHERE organization_id = $1 AND status = 'active'`,
@@ -308,7 +288,7 @@ const getGlobalView = async (req, res) => {
     );
     const totalAssets = parseInt(assetsResult.rows[0].total);
 
-    // ✅ NOUVEAU: Coût RÉEL assets depuis purchase_price
+    // ✅ Coût RÉEL assets depuis purchase_price
     const assetsCostResult = await db.query(
       `SELECT 
         COALESCE(SUM(purchase_price), 0) as total_value,
@@ -325,7 +305,7 @@ const getGlobalView = async (req, res) => {
       `SELECT COUNT(*) as total FROM employees WHERE organization_id = $1 AND status = 'active'`,
       [organizationId]
     );
-    const activeEmployees = parseInt(employeesResult.rows[0].total) || 1; // Min 1
+    const activeEmployees = parseInt(employeesResult.rows[0].total) || 1;
 
     // Utilisation licences
     const utilizationResult = await db.query(
@@ -351,26 +331,35 @@ const getGlobalView = async (req, res) => {
     const potentialSavings = parseFloat(savingsResult.rows[0].potential_savings) || 0;
 
     // ========================================================================
-    // DONNÉES MOIS PRÉCÉDENT (depuis monthly_stats)
+    // DONNÉES MOIS PRÉCÉDENT
     // ========================================================================
     const previousMonth = await getPreviousMonthData(organizationId);
     const prevData = previousMonth.data;
 
     // ========================================================================
-    // CALCULS DÉRIVÉS
+    // ✅ CORRECTION: COÛT IT TOTAL (Contrats + Assets)
     // ========================================================================
-    const efficiencyScore = Math.round(utilizationRate * 0.85 + 15);
-    const costPerEmployee = currentCost / activeEmployees;
     const totalCostWithAssets = currentCost + assetsMonthlyCost;
+    const costPerEmployee = totalCostWithAssets / activeEmployees;
+    
+    // Calcul précédent pour comparaison
+    const prevTotalCost = prevData 
+      ? parseFloat(prevData.total_contracts_cost) + (prevData.total_assets_value || 0) / 36
+      : totalCostWithAssets * 0.92;
+    
+    const prevCostPerEmployee = prevData
+      ? parseFloat(prevData.cost_per_employee)
+      : costPerEmployee * 1.05;
+
+    const efficiencyScore = Math.round(utilizationRate * 0.85 + 15);
 
     // ========================================================================
-    // DÉPARTEMENTS (réels ou mock)
+    // DÉPARTEMENTS
     // ========================================================================
     const departmentCostsResult = await getDepartmentCosts(organizationId, activeEmployees, currentCost);
     let departmentCosts;
     
     if (!departmentCostsResult.data) {
-      // FALLBACK: Mock basé sur coûts réels
       departmentCosts = [
         { name: 'IT', cost: currentCost * 0.3, employees: Math.max(1, Math.round(activeEmployees * 0.2)), costPerEmployee: (currentCost * 0.3) / Math.max(1, Math.round(activeEmployees * 0.2)) },
         { name: 'Marketing', cost: currentCost * 0.25, employees: Math.max(1, Math.round(activeEmployees * 0.24)), costPerEmployee: (currentCost * 0.25) / Math.max(1, Math.round(activeEmployees * 0.24)) },
@@ -383,13 +372,12 @@ const getGlobalView = async (req, res) => {
     }
 
     // ========================================================================
-    // MONTHLY TREND (depuis monthly_stats)
+    // MONTHLY TREND
     // ========================================================================
     const trendResult = await getMonthlyTrend(organizationId);
     let monthlyTrend;
     
     if (!trendResult.data) {
-      // FALLBACK: Simulation croissance
       monthlyTrend = [
         { month: 'Juil', contracts: currentCost * 0.88, assets: assetsMonthlyCost * 0.85, total: currentCost * 0.88 + assetsMonthlyCost * 0.85 },
         { month: 'Août', contracts: currentCost * 0.90, assets: assetsMonthlyCost * 0.88, total: currentCost * 0.90 + assetsMonthlyCost * 0.88 },
@@ -408,10 +396,14 @@ const getGlobalView = async (req, res) => {
     res.status(200).json({
       kpis: {
         totalCost: { 
-          current: currentCost, 
-          previous: prevData ? parseFloat(prevData.total_contracts_cost) : currentCost * 0.92,
+          current: totalCostWithAssets,  // ✅ CORRIGÉ: Contrats + Assets
+          previous: prevTotalCost,
           isMocked: previousMonth.isMocked,
-          label: 'Coût IT Total/mois' 
+          label: 'Coût IT Total/mois',
+          breakdown: {
+            contracts: currentCost,
+            assets: assetsMonthlyCost
+          }
         },
         activeContracts: { 
           current: activeContracts, 
@@ -432,19 +424,20 @@ const getGlobalView = async (req, res) => {
           label: 'Employés Actifs' 
         },
         costPerEmployee: { 
-          current: costPerEmployee, 
-          previous: prevData ? parseFloat(prevData.cost_per_employee) : costPerEmployee * 1.05,
+          current: Math.round(costPerEmployee * 100) / 100,  // ✅ CORRIGÉ: Inclut assets
+          previous: Math.round(prevCostPerEmployee * 100) / 100,
           isMocked: previousMonth.isMocked,
-          label: 'Coût IT/Employé' 
+          label: 'Coût IT/Employé',
+          formula: '(Contrats SaaS + Amortissement Matériel) / Employés Actifs'
         },
         utilizationRate: { 
-          current: utilizationRate, 
+          current: Math.round(utilizationRate * 100) / 100, 
           previous: prevData ? parseFloat(prevData.utilization_rate) : utilizationRate * 0.95,
           isMocked: previousMonth.isMocked,
-          label: 'Taux Utilisation' 
+          label: 'Taux Utilisation Licences' 
         },
         potentialSavings: { 
-          current: potentialSavings, 
+          current: Math.round(potentialSavings * 100) / 100, 
           previous: prevData ? parseFloat(prevData.potential_savings) : potentialSavings * 1.1,
           isMocked: previousMonth.isMocked,
           label: 'Économies Potentielles' 
@@ -461,13 +454,13 @@ const getGlobalView = async (req, res) => {
         { 
           name: 'Contrats SaaS', 
           value: currentCost, 
-          percent: totalCostWithAssets > 0 ? (currentCost / totalCostWithAssets) * 100 : 0,
+          percent: (currentCost / totalCostWithAssets) * 100,
           source: 'real'
         },
         { 
           name: 'Matériel (amortissement)', 
           value: assetsMonthlyCost, 
-          percent: totalCostWithAssets > 0 ? (assetsMonthlyCost / totalCostWithAssets) * 100 : 0,
+          percent: (assetsMonthlyCost / totalCostWithAssets) * 100,
           source: assetsMonthlyCost > 0 ? 'real' : 'estimated'
         }
       ],
@@ -496,7 +489,7 @@ const getGlobalView = async (req, res) => {
 };
 
 // ============================================================================
-// 3. ANALYTICS CONTRATS
+// 3. ANALYTICS CONTRATS - ✅ SANS LIMIT
 // ============================================================================
 const getContractsAnalytics = async (req, res) => {
     const userId = req.user.id;
@@ -507,22 +500,22 @@ const getContractsAnalytics = async (req, res) => {
     }
 
     try {
+        // ✅ SANS LIMIT - Tous les providers
         const providerQuery = `
             SELECT provider, COUNT(*) as count, SUM(monthly_cost) as total_cost
             FROM contracts
             WHERE organization_id = $1 AND status = 'active' AND provider IS NOT NULL
             GROUP BY provider
             ORDER BY total_cost DESC
-            LIMIT 10
         `;
         const providersResult = await db.query(providerQuery, [organizationId]);
 
+        // ✅ SANS LIMIT - Tous les contrats triés par coût
         const topContractsQuery = `
             SELECT name, provider, monthly_cost, pricing_model
             FROM contracts
             WHERE organization_id = $1 AND status = 'active'
             ORDER BY monthly_cost DESC
-            LIMIT 10
         `;
         const topContractsResult = await db.query(topContractsQuery, [organizationId]);
 
@@ -553,7 +546,12 @@ const getContractsAnalytics = async (req, res) => {
             providers: providersResult.rows,
             topContracts: topContractsResult.rows,
             pricingModels: pricingModelsResult.rows,
-            expiringSoon: expiringResult.rows
+            expiringSoon: expiringResult.rows,
+            _metadata: {
+                providersCount: providersResult.rows.length,
+                contractsCount: topContractsResult.rows.length,
+                note: 'Données complètes sans limite'
+            }
         });
     } catch (error) {
         console.error(`${LOG_PREFIX} Erreur getContractsAnalytics:`, error);
@@ -562,7 +560,7 @@ const getContractsAnalytics = async (req, res) => {
 };
 
 // ============================================================================
-// 4. ANALYTICS LICENCES
+// 4. ANALYTICS LICENCES - ✅ SANS LIMIT
 // ============================================================================
 const getLicensesAnalytics = async (req, res) => {
     const userId = req.user.id;
@@ -644,6 +642,7 @@ const getLicensesAnalytics = async (req, res) => {
             ? ((totalUsed / totalLicenses) * 100).toFixed(1)
             : 0;
 
+        // ✅ SANS LIMIT - Tous les contrats
         res.status(200).json({
             summary: {
                 totalLicenses,
@@ -654,8 +653,13 @@ const getLicensesAnalytics = async (req, res) => {
                 totalOverconsumptionCost,
                 potentialSavings: totalWasted
             },
-            overconsumed: overconsumedContracts.sort((a, b) => b.cost - a.cost).slice(0, 10),
-            underused: underusedContracts.sort((a, b) => b.wastedCost - a.wastedCost).slice(0, 10)
+            overconsumed: overconsumedContracts.sort((a, b) => b.cost - a.cost),  // ✅ Tous
+            underused: underusedContracts.sort((a, b) => b.wastedCost - a.wastedCost),  // ✅ Tous
+            _metadata: {
+                overconsumedCount: overconsumedContracts.length,
+                underusedCount: underusedContracts.length,
+                note: 'Données complètes sans limite'
+            }
         });
     } catch (error) {
         console.error(`${LOG_PREFIX} Erreur getLicensesAnalytics:`, error);
@@ -709,7 +713,6 @@ const getAssetsAnalytics = async (req, res) => {
             AND warranty_end_date <= CURRENT_DATE + INTERVAL '30 days'
             AND warranty_end_date >= CURRENT_DATE
             ORDER BY warranty_end_date ASC
-            LIMIT 10
         `;
         const expiringWarrantyResult = await db.query(expiringWarrantyQuery, [organizationId]);
 
@@ -765,7 +768,6 @@ const getEmployeesAnalytics = async (req, res) => {
             WHERE organization_id = $1 AND status = 'active' AND job_title IS NOT NULL
             GROUP BY job_title
             ORDER BY count DESC
-            LIMIT 10
         `;
         const positionResult = await db.query(positionQuery, [organizationId]);
 
@@ -781,7 +783,6 @@ const getEmployeesAnalytics = async (req, res) => {
             GROUP BY e.id, e.first_name, e.last_name, e.department
             HAVING COUNT(a.id) > 0
             ORDER BY asset_count DESC
-            LIMIT 10
         `;
         const topAssetsResult = await db.query(topAssetsQuery, [organizationId]);
 
